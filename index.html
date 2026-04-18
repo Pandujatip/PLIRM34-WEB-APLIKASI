@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PLIRM34 Digital Workbench</title>
+  <meta name="description" content="Aplikasi digitalisasi unit kerja PLIRM34 untuk inspeksi, sparepart, BOM, dan SPB.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20260418-10">
+</head>
+<body>
+  <div class="app-shell">
+    <section class="auth-screen" id="login-screen">
+      <div class="auth-hero">
+        <p class="eyebrow">PLIRM34</p>
+        <h1>Digital Workbench untuk mempercepat digitalisasi unit kerja.</h1>
+        <p class="lead">
+          Satu portal untuk inspeksi electrical, instrument, dan DCS, pengelolaan sparepart, penyusunan BOM, serta monitoring SPB.
+        </p>
+        <div class="hero-points">
+          <article>
+            <strong>Inspeksi Terstruktur</strong>
+            <span>Pencatatan temuan per area dan prioritas tindak lanjut.</span>
+          </article>
+          <article>
+            <strong>Kontrol Material</strong>
+            <span>Negatif list, sparepart aktif, dan pembelian belum selesai dalam satu dashboard.</span>
+          </article>
+          <article>
+            <strong>Tiga Role</strong>
+            <span>Akses disesuaikan untuk admin, organik, dan team.</span>
+          </article>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <div class="card-head">
+          <p class="eyebrow">Login Awal</p>
+          <h2>Masuk ke sistem</h2>
+          <p>Gunakan akun unit kerja untuk membuka dashboard operasional PLIRM34.</p>
+        </div>
+
+        <form id="login-form" class="auth-form">
+          <label>
+            Username
+            <input id="username" name="username" type="text" placeholder="contoh: admin.plirm34" required>
+          </label>
+          <label>
+            Password
+            <input id="password" name="password" type="password" placeholder="Masukkan password" required>
+          </label>
+          <fieldset class="role-picker">
+            <legend>Pilih role pengguna</legend>
+            <label class="role-option">
+              <input type="radio" name="role" value="admin" checked>
+              <span>
+                <strong>Admin</strong>
+                <small>Kelola master data, user, dan approval</small>
+              </span>
+            </label>
+            <label class="role-option">
+              <input type="radio" name="role" value="organik">
+              <span>
+                <strong>Organik</strong>
+                <small>Lihat semua menu dan edit negatif list</small>
+              </span>
+            </label>
+            <label class="role-option">
+              <input type="radio" name="role" value="team">
+              <span>
+                <strong>Team</strong>
+                <small>Hanya melihat dan mengedit service</small>
+              </span>
+            </label>
+          </fieldset>
+          <button class="btn btn-primary" type="submit">Masuk Dashboard</button>
+          <p class="form-hint">Demo login: isi bebas. Role akan menentukan fokus tampilan.</p>
+        </form>
+      </div>
+    </section>
+
+    <section class="workspace hidden" id="workspace">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark">P34</div>
+          <div>
+            <strong>PLIRM34</strong>
+            <small>Digital Workbench</small>
+          </div>
+        </div>
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button">Menu</button>
+
+        <nav class="menu-list">
+          <button class="menu-item active" data-section="dashboard" type="button">Dashboard</button>
+          <button class="menu-item" data-section="negatif-list" type="button">Negatif List</button>
+          <button class="menu-item" data-section="sparepart" type="button">Sparepart</button>
+          <button class="menu-item" data-section="service" type="button">Service</button>
+          <button class="menu-item" data-section="bom" type="button">BOM</button>
+          <button class="menu-item" data-section="spb" type="button">SPB</button>
+        </nav>
+
+        <div class="sidebar-note">
+          <p class="eyebrow">Tujuan Aplikasi</p>
+          <p>Meningkatkan digitalisasi unit kerja melalui monitoring peralatan, material, dan proses pembelian dalam satu alur kerja.</p>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Panel Operasional</p>
+            <h2 id="page-title">Dashboard</h2>
+          </div>
+          <div class="topbar-meta">
+            <div class="user-chip">
+              <span id="current-role">Admin</span>
+              <strong id="current-user">admin.plirm34</strong>
+            </div>
+            <div class="access-chip" id="access-summary">Akses penuh seluruh modul</div>
+            <button class="btn btn-secondary" id="refresh-button" type="button">Refresh Tampilan</button>
+            <button class="btn btn-secondary" id="print-button" type="button">Cetak Laporan</button>
+            <button class="btn btn-secondary" id="logout-button" type="button">Keluar</button>
+          </div>
+        </header>
+
+        <section class="panel-section visible" data-panel="dashboard">
+          <div class="hero-banner">
+            <div>
+              <p class="eyebrow">Ringkasan Hari Ini</p>
+              <h3>Dashboard PLIRM34 menampilkan negatif list dan pembelian dengan status belum ada.</h3>
+              <p id="sample-data-status" class="sample-data-status">Sample data aktif otomatis saat data lokal kosong, dan bisa dimuat ulang kapan saja.</p>
+            </div>
+            <div class="banner-stats">
+              <article>
+                <span>Negatif list aktif</span>
+                <strong id="stat-negatif">7 item</strong>
+              </article>
+              <article>
+                <span>SPB belum ada status</span>
+                <strong id="stat-spb-belum-ada">4 item</strong>
+              </article>
+              <article>
+                <span>Inspeksi due minggu ini</span>
+                <strong id="stat-service">5 area</strong>
+              </article>
+            </div>
+          </div>
+
+          <div class="executive-grid">
+            <article class="executive-card">
+              <p class="eyebrow">Electrical</p>
+              <strong id="area-electrical-count">0 item</strong>
+              <span>Pending material dan service electrical yang perlu diprioritaskan.</span>
+            </article>
+            <article class="executive-card">
+              <p class="eyebrow">Instrument</p>
+              <strong id="area-instrument-count">0 item</strong>
+              <span>Temuan instrument, kebutuhan kalibrasi, dan material kritis area field.</span>
+            </article>
+            <article class="executive-card">
+              <p class="eyebrow">DCS</p>
+              <strong id="area-dcs-count">0 item</strong>
+              <span>Isu sistem kontrol, jaringan, HMI, dan kebutuhan material penunjang DCS.</span>
+            </article>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card">
+              <span>Total sparepart terdata</span>
+              <strong id="metric-sparepart-total">186</strong>
+            </article>
+            <article class="metric-card">
+              <span>BOM selesai diverifikasi</span>
+              <strong id="metric-bom-total">23 mesin</strong>
+            </article>
+            <article class="metric-card">
+              <span>Service electrical open</span>
+              <strong id="metric-service-electrical">3 temuan</strong>
+            </article>
+            <article class="metric-card">
+              <span>Nilai SPB berjalan</span>
+              <strong id="metric-spb-total">Rp128 jt</strong>
+            </article>
+          </div>
+
+          <div class="chart-grid">
+            <section class="content-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Chart Negatif List</p>
+                <h3>Pending per prioritas</h3>
+              </div>
+              <div class="mini-chart" id="chart-negatif"></div>
+            </section>
+            <section class="content-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Chart Service</p>
+                <h3>Distribusi per tipe service</h3>
+              </div>
+              <div class="mini-chart" id="chart-service"></div>
+            </section>
+            <section class="content-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Chart SPB</p>
+                <h3>Status pengadaan berjalan</h3>
+              </div>
+              <div class="mini-chart" id="chart-spb"></div>
+            </section>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="content-card">
+              <div class="card-head inline">
+                <div>
+                  <p class="eyebrow">Negatif List</p>
+                  <h3>Material yang belum tersedia</h3>
+                </div>
+                <button class="chip-button" data-section-jump="negatif-list" type="button">Buka detail</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Material</th>
+                      <th>Area</th>
+                      <th>Qty minus</th>
+                      <th>Prioritas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-negatif-preview">
+                    <tr>
+                      <td>Pressure Transmitter 3051</td>
+                      <td>Instrument</td>
+                      <td>-2</td>
+                      <td><span class="tag tag-danger">Tinggi</span></td>
+                    </tr>
+                    <tr>
+                      <td>MCB 3P 32A</td>
+                      <td>Electrical</td>
+                      <td>-4</td>
+                      <td><span class="tag tag-warning">Sedang</span></td>
+                    </tr>
+                    <tr>
+                      <td>HMI Touch Panel 10"</td>
+                      <td>DCS</td>
+                      <td>-1</td>
+                      <td><span class="tag tag-danger">Tinggi</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="content-card">
+              <div class="card-head inline">
+                <div>
+                  <p class="eyebrow">SPB</p>
+                  <h3>Pembelian dengan status belum ada</h3>
+                </div>
+                <button class="chip-button" data-section-jump="spb" type="button">Buka detail</button>
+                </div>
+              <div class="status-list" id="dashboard-spb-preview">
+                <article>
+                  <strong>Motor Fan Cooling</strong>
+                  <span>No order: 45008291</span>
+                  <small>Status: belum ada</small>
+                </article>
+                <article>
+                  <strong>Solenoid Valve 24VDC</strong>
+                  <span>No order: 45008295</span>
+                  <small>Status: belum ada</small>
+                </article>
+                <article>
+                  <strong>Power Supply DCS</strong>
+                  <span>No order: 45008312</span>
+                  <small>Status: belum ada</small>
+                </article>
+                <article>
+                  <strong>Bearing Pump 6310 ZZ</strong>
+                  <span>No order: 45008319</span>
+                  <small>Status: belum ada</small>
+                </article>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel-section" data-panel="negatif-list">
+          <div class="card-head">
+            <p class="eyebrow">Negatif List</p>
+            <h3>Monitoring pekerjaan pending unit kerja</h3>
+          </div>
+          <div class="module-intro">
+            Negatif List digunakan untuk input dan monitoring pekerjaan pending yang disebabkan oleh ketidaktersediaan material, menunggu service rawmill, atau menunggu OVH. Fokus modul ini adalah memastikan penyebab pending, PIC, dan target penyelesaian selalu terpantau.
+          </div>
+          <div class="module-summary-grid">
+            <article class="module-summary-card">
+              <span>Total Pending</span>
+              <strong id="negatif-total-count">0</strong>
+            </article>
+            <article class="module-summary-card">
+              <span>Status Open</span>
+              <strong id="negatif-high-count">0</strong>
+            </article>
+            <article class="module-summary-card">
+              <span>Menunggu Rawmill</span>
+              <strong id="negatif-rawmill-count">0</strong>
+            </article>
+            <article class="module-summary-card">
+              <span>Menunggu OVH</span>
+              <strong id="negatif-ovh-count">0</strong>
+            </article>
+          </div>
+          <div class="toolbar">
+            <label class="search-field">
+              <span>Cari</span>
+              <input type="search" id="search-negatif-list" placeholder="Cari equipment, kerusakan, area, atau kategori">
+            </label>
+            <label class="search-field compact">
+              <span>Filter status</span>
+              <select id="filter-negatif-priority">
+                <option value="semua">Semua</option>
+                <option value="Open">Open</option>
+                <option value="Close">Close</option>
+              </select>
+            </label>
+            <label class="search-field compact">
+              <span>Filter mark</span>
+              <select id="filter-negatif-cause">
+                <option value="semua">Semua</option>
+                <option value="Menunggu material">Menunggu material</option>
+                <option value="Menunggu Rawmill service">Menunggu Rawmill service</option>
+                <option value="Menunggu OVH">Menunggu OVH</option>
+              </select>
+            </label>
+            <button class="btn btn-secondary export-button" data-export="negatif-list" type="button">Export CSV</button>
+          </div>
+          <div class="permission-banner" data-editable-for="admin,organik">
+            Form edit negatif list aktif untuk role `admin` dan `organik`.
+          </div>
+          <form class="input-form" data-editable-for="admin,organik" data-form-type="negatif-list">
+            <div class="form-grid form-grid-4">
+              <label>
+                Equipment
+                <div class="typeahead-wrap">
+                  <input type="text" name="equipment" id="negatif-equipment-select" placeholder="Ketik nama equipment referensi" autocomplete="off" required disabled>
+                  <div class="typeahead-list hidden" id="equipment-reference-results"></div>
+                </div>
+                <small id="equipment-reference-status">Equipment hanya bisa dipilih dari referensi spreadsheet.</small>
+              </label>
+              <label>
+                Tanggal temuan
+                <input type="date" name="foundDate" required>
+              </label>
+              <label>
+                Kategori
+                <select name="category" required>
+                  <option value="Electrical">Electrical</option>
+                  <option value="Instrument">Instrument</option>
+                  <option value="DCS">DCS</option>
+                </select>
+              </label>
+              <label>
+                Area
+                <select name="area" required>
+                  <option value="Tuban 3">Tuban 3</option>
+                  <option value="Tuban 4">Tuban 4</option>
+                  <option value="Tuban 34">Tuban 34</option>
+                </select>
+              </label>
+              <label>
+                Mark
+                <select name="pendingMark" required>
+                  <option value="Menunggu material">Menunggu material</option>
+                  <option value="Menunggu Rawmill service">Menunggu Rawmill service</option>
+                  <option value="Menunggu OVH">Menunggu OVH</option>
+                </select>
+              </label>
+              <label>
+                Status
+                <select name="workStatus" required>
+                  <option value="Open">Open</option>
+                  <option value="Close">Close</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Deskripsi kerusakan
+              <textarea name="damageDescription" rows="3" placeholder="Tuliskan kondisi atau kerusakan yang ditemukan" required></textarea>
+            </label>
+            <label>
+              Deskripsi rencana tindak lanjut
+              <textarea name="followUpPlan" rows="3" placeholder="Tuliskan rencana penanganan atau tindak lanjut" required></textarea>
+            </label>
+            <button class="btn btn-primary" type="submit">Simpan Negatif List</button>
+          </form>
+          <div class="locked-note hidden" data-locked-for="negatif-list">
+            Role ini hanya dapat melihat data negatif list tanpa mengubah isi.
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Equipment</th>
+                  <th>Deskripsi Kerusakan</th>
+                  <th>Rencana Tindak Lanjut</th>
+                  <th>Tanggal Temuan</th>
+                  <th>Mark</th>
+                  <th>Status</th>
+                  <th>Kategori</th>
+                  <th>Area</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="negatif-list-body">
+                <tr>
+                  <td>Motor Raw Mill 1A</td>
+                  <td>Bearing motor mengalami overheat saat operasi penuh.</td>
+                  <td>Menunggu bearing pengganti dan jadwal pemasangan.</td>
+                  <td>2026-04-12</td>
+                  <td>Menunggu material</td>
+                  <td>Open</td>
+                  <td>Electrical</td>
+                  <td>Tuban 3</td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Coal Feeder FT-02</td>
+                  <td>Signal weight feeder tidak stabil dan perlu kalibrasi ulang.</td>
+                  <td>Menunggu tim Rawmill service untuk inspeksi bersama.</td>
+                  <td>2026-04-14</td>
+                  <td>Menunggu Rawmill service</td>
+                  <td>Open</td>
+                  <td>Instrument</td>
+                  <td>Tuban 4</td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Operator Station CCR-03</td>
+                  <td>Unit HMI restart sendiri saat beban monitoring tinggi.</td>
+                  <td>Menunggu jadwal OVH untuk penggantian storage dan cleanup system.</td>
+                  <td>2026-04-16</td>
+                  <td>Menunggu OVH</td>
+                  <td>Open</td>
+                  <td>DCS</td>
+                  <td>Tuban 34</td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Temperature Scanner Kiln</td>
+                  <td>Pembacaan beberapa channel hilang secara intermittent.</td>
+                  <td>Menunggu material terminal module pengganti sebelum commissioning ulang.</td>
+                  <td>2026-04-17</td>
+                  <td>Menunggu material</td>
+                  <td>Close</td>
+                  <td>Instrument</td>
+                  <td>Tuban 34</td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mobile-card-list" id="negatif-list-mobile"></div>
+        </section>
+
+        <section class="panel-section" data-panel="sparepart">
+          <div class="card-head">
+            <p class="eyebrow">List Sparepart</p>
+            <h3>Sparepart yang tersedia di unit kerja</h3>
+          </div>
+          <div class="toolbar">
+            <label class="search-field">
+              <span>Cari</span>
+              <input type="search" id="search-sparepart" placeholder="Cari kode, nama, kategori, lokasi">
+            </label>
+            <label class="search-field compact">
+              <span>Filter kondisi</span>
+              <select id="filter-sparepart-condition">
+                <option value="semua">Semua</option>
+                <option value="Ready">Ready</option>
+                <option value="Terbatas">Terbatas</option>
+                <option value="Rusak">Rusak</option>
+              </select>
+            </label>
+            <button class="btn btn-secondary export-button" data-export="sparepart" type="button">Export CSV</button>
+          </div>
+          <div class="permission-banner" data-editable-for="admin">
+            Form sparepart aktif untuk role `admin`.
+          </div>
+          <form class="input-form" data-editable-for="admin" data-form-type="sparepart">
+            <div class="form-grid form-grid-3">
+              <label>
+                Kode
+                <input type="text" name="code" placeholder="SPR-001" required>
+              </label>
+              <label>
+                Nama sparepart
+                <input type="text" name="name" placeholder="Nama sparepart" required>
+              </label>
+              <label>
+                Kategori
+                <input type="text" name="category" placeholder="Electrical / Instrument / DCS" required>
+              </label>
+              <label>
+                Lokasi rak
+                <input type="text" name="location" placeholder="Rak A-02" required>
+              </label>
+              <label>
+                Qty
+                <input type="number" name="qty" placeholder="0" required>
+              </label>
+              <label>
+                Kondisi
+                <select name="condition" required>
+                  <option value="Ready">Ready</option>
+                  <option value="Terbatas">Terbatas</option>
+                  <option value="Rusak">Rusak</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn btn-primary" type="submit">Simpan Sparepart</button>
+          </form>
+          <div class="locked-note hidden" data-locked-for="sparepart">
+            Role ini hanya dapat melihat data sparepart tanpa mengubah isi.
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kode</th>
+                  <th>Nama Sparepart</th>
+                  <th>Kategori</th>
+                  <th>Lokasi Rak</th>
+                  <th>Qty</th>
+                  <th>Kondisi</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="sparepart-body">
+                <tr>
+                  <td>SPR-001</td>
+                  <td>Contactor 3P 18A</td>
+                  <td>Electrical</td>
+                  <td>Rak A-02</td>
+                  <td>8</td>
+                  <td><span class="tag tag-success">Ready</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>SPR-017</td>
+                  <td>Positioner Valve YTC</td>
+                  <td>Instrument</td>
+                  <td>Rak B-04</td>
+                  <td>3</td>
+                  <td><span class="tag tag-success">Ready</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>SPR-032</td>
+                  <td>CPU Module DCS</td>
+                  <td>DCS</td>
+                  <td>Rak C-01</td>
+                  <td>1</td>
+                  <td><span class="tag tag-warning">Terbatas</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>SPR-044</td>
+                  <td>Bearing Pump 6310 ZZ</td>
+                  <td>Mechanical</td>
+                  <td>Rak D-03</td>
+                  <td>12</td>
+                  <td><span class="tag tag-success">Ready</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section" data-panel="service">
+          <div class="card-head">
+            <p class="eyebrow">Service</p>
+            <h3>Input dan monitoring service electrical, instrument, dan DCS</h3>
+          </div>
+          <div class="toolbar">
+            <label class="search-field">
+              <span>Cari</span>
+              <input type="search" id="search-service" placeholder="Cari equipment, tipe, atau deskripsi">
+            </label>
+            <label class="search-field compact">
+              <span>Filter tipe</span>
+              <select id="filter-service-type">
+                <option value="semua">Semua</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Instrument">Instrument</option>
+                <option value="DCS">DCS</option>
+              </select>
+            </label>
+            <button class="btn btn-secondary export-button" data-export="service" type="button">Export CSV</button>
+          </div>
+          <div class="inspection-grid" id="service-card-list">
+            <article class="inspection-card">
+              <div class="inspection-head">
+                <span class="tag tag-blue">Electrical</span>
+                <strong>Panel MCC Line 2</strong>
+              </div>
+              <p>Ditemukan panas berlebih pada breaker feeder dan perlu thermoscan ulang.</p>
+              <div class="inspection-meta">
+                <span>Inspector: Team A</span>
+                <span>Status: Open</span>
+              </div>
+              <div class="card-actions">
+                <button class="table-action" type="button">Edit</button>
+                <button class="table-action danger" type="button">Hapus</button>
+              </div>
+            </article>
+            <article class="inspection-card">
+              <div class="inspection-head">
+                <span class="tag tag-green">Instrument</span>
+                <strong>Flow Transmitter Tank 5</strong>
+              </div>
+              <p>Kalibrasi deviasi 1.8%. Direkomendasikan penyesuaian dan verifikasi loop.</p>
+              <div class="inspection-meta">
+                <span>Inspector: Team B</span>
+                <span>Status: Monitoring</span>
+              </div>
+              <div class="card-actions">
+                <button class="table-action" type="button">Edit</button>
+                <button class="table-action danger" type="button">Hapus</button>
+              </div>
+            </article>
+            <article class="inspection-card">
+              <div class="inspection-head">
+                <span class="tag tag-purple">DCS</span>
+                <strong>Server Historian</strong>
+              </div>
+              <p>Backup berjalan normal, namun storage tersisa 12% dan perlu cleanup.</p>
+              <div class="inspection-meta">
+                <span>Inspector: Team C</span>
+                <span>Status: Planned</span>
+              </div>
+              <div class="card-actions">
+                <button class="table-action" type="button">Edit</button>
+                <button class="table-action danger" type="button">Hapus</button>
+              </div>
+            </article>
+          </div>
+          <div class="permission-banner" data-editable-for="admin,team">
+            Form service aktif untuk role `admin` dan `team`.
+          </div>
+          <div class="service-form-grid">
+            <form class="input-form" data-editable-for="admin,team" data-form-type="service-electrical">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Form Electrical</p>
+                <h3>Input inspeksi listrik</h3>
+              </div>
+              <div class="form-grid">
+                <label>
+                  Nama equipment
+                  <input type="text" name="equipmentName" placeholder="Contoh: Motor Fan Cooling" required>
+                </label>
+                <label>
+                  Vibrasi DE
+                  <input type="text" name="vibrationDe" placeholder="Contoh: 2.1 mm/s" required>
+                </label>
+                <label>
+                  Vibrasi NDE
+                  <input type="text" name="vibrationNde" placeholder="Contoh: 1.8 mm/s" required>
+                </label>
+                <label class="full-span">
+                  Keterangan
+                  <textarea name="description" rows="4" placeholder="Temuan inspeksi dan tindakan yang disarankan" required></textarea>
+                </label>
+              </div>
+              <button class="btn btn-primary" type="submit">Simpan Service Electrical</button>
+            </form>
+
+            <form class="input-form" data-editable-for="admin,team" data-form-type="service-instrument">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Form Instrument</p>
+                <h3>Input inspeksi instrument</h3>
+              </div>
+              <div class="form-grid">
+                <label>
+                  Nama equipment
+                  <input type="text" name="equipmentName" placeholder="Contoh: Pressure Transmitter 3051" required>
+                </label>
+                <label>
+                  Kondisi sensor
+                  <input type="text" name="sensorCondition" placeholder="Contoh: stabil / drift / rusak" required>
+                </label>
+                <label class="full-span">
+                  Keterangan
+                  <textarea name="description" rows="4" placeholder="Tuliskan kondisi sensor dan rekomendasi" required></textarea>
+                </label>
+                <label class="full-span">
+                  Foto temuan
+                  <input type="file" name="findingPhoto" accept="image/*">
+                </label>
+              </div>
+              <button class="btn btn-primary" type="submit">Simpan Service Instrument</button>
+            </form>
+
+            <form class="input-form" data-editable-for="admin,team" data-form-type="service-dcs">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Form DCS</p>
+                <h3>Input inspeksi DCS</h3>
+              </div>
+              <div class="form-grid">
+                <label>
+                  Nama equipment
+                  <input type="text" name="equipmentName" placeholder="Contoh: Historian Server" required>
+                </label>
+                <label>
+                  Fungsi peralatan
+                  <input type="text" name="equipmentFunction" placeholder="Contoh: penyimpanan histori proses" required>
+                </label>
+                <label>
+                  Kebersihan lingkungan
+                  <input type="text" name="environmentCleanliness" placeholder="Contoh: bersih / cukup / perlu cleaning" required>
+                </label>
+                <label class="full-span">
+                  Keterangan
+                  <textarea name="description" rows="4" placeholder="Catatan kondisi DCS dan tindakan lanjutan" required></textarea>
+                </label>
+              </div>
+              <button class="btn btn-primary" type="submit">Simpan Service DCS</button>
+            </form>
+          </div>
+          <div class="locked-note hidden" data-locked-for="service">
+            Role ini tidak memiliki izin edit pada modul service.
+          </div>
+        </section>
+
+        <section class="panel-section" data-panel="bom">
+          <div class="card-head">
+            <p class="eyebrow">BOM</p>
+            <h3>Daftar mesin beserta foto barang, foto nameplate, dan deskripsi</h3>
+          </div>
+          <div class="toolbar">
+            <label class="search-field">
+              <span>Cari</span>
+              <input type="search" id="search-bom" placeholder="Cari mesin, deskripsi, atau metadata">
+            </label>
+            <button class="btn btn-secondary export-button" data-export="bom" type="button">Export CSV</button>
+          </div>
+          <div class="permission-banner" data-editable-for="admin">
+            Form BOM aktif untuk role `admin`.
+          </div>
+          <form class="input-form" data-editable-for="admin" data-form-type="bom">
+            <div class="form-grid form-grid-3">
+              <label>
+                Nama mesin / equipment
+                <input type="text" name="name" placeholder="Pump Cooling Water P-204" required>
+              </label>
+              <label>
+                Foto barang
+                <input type="file" name="itemPhoto" accept="image/*">
+              </label>
+              <label>
+                Foto nameplate
+                <input type="file" name="nameplatePhoto" accept="image/*">
+              </label>
+              <label class="full-span">
+                Deskripsi barang
+                <textarea name="description" rows="4" placeholder="Deskripsi mesin atau equipment" required></textarea>
+              </label>
+              <label class="full-span">
+                Detail tambahan
+                <input type="text" name="meta" placeholder="Tag: P-204 | Vendor: KSB | Serial: CW-204A" required>
+              </label>
+            </div>
+            <button class="btn btn-primary" type="submit">Simpan BOM</button>
+          </form>
+          <div class="locked-note hidden" data-locked-for="bom">
+            Role ini hanya dapat melihat data BOM tanpa mengubah isi.
+          </div>
+          <div class="bom-grid" id="bom-list">
+            <article class="bom-card">
+              <div class="bom-visual">
+                <div class="image-placeholder">Foto Barang</div>
+                <div class="image-placeholder secondary">Foto Nameplate</div>
+              </div>
+              <div class="bom-copy">
+                <strong>Pump Cooling Water P-204</strong>
+                <p>Centrifugal pump untuk sirkulasi cooling water pada line produksi utama.</p>
+                <small>Tag: P-204 | Vendor: KSB | Serial: CW-204A</small>
+              </div>
+              <div class="card-actions">
+                <button class="table-action" type="button">Edit</button>
+                <button class="table-action danger" type="button">Hapus</button>
+              </div>
+            </article>
+            <article class="bom-card">
+              <div class="bom-visual">
+                <div class="image-placeholder">Foto Barang</div>
+                <div class="image-placeholder secondary">Foto Nameplate</div>
+              </div>
+              <div class="bom-copy">
+                <strong>Panel DCS Cabinet C-11</strong>
+                <p>Kabinet kontrol DCS untuk monitoring dan interlock area utility.</p>
+                <small>Tag: DCS-C11 | Vendor: Yokogawa | Serial: DCS-1188</small>
+              </div>
+              <div class="card-actions">
+                <button class="table-action" type="button">Edit</button>
+                <button class="table-action danger" type="button">Hapus</button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel-section" data-panel="spb">
+          <div class="card-head">
+            <p class="eyebrow">SPB</p>
+            <h3>List pembelian barang</h3>
+          </div>
+          <div class="toolbar">
+            <label class="search-field">
+              <span>Cari</span>
+              <input type="search" id="search-spb" placeholder="Cari no order, material, atau deskripsi">
+            </label>
+            <label class="search-field compact">
+              <span>Filter status</span>
+              <select id="filter-spb-status">
+                <option value="semua">Semua</option>
+                <option value="Belum ada">Belum ada</option>
+                <option value="Proses">Proses</option>
+                <option value="Selesai">Selesai</option>
+              </select>
+            </label>
+            <button class="btn btn-secondary export-button" data-export="spb" type="button">Export CSV</button>
+          </div>
+          <div class="permission-banner" data-editable-for="admin">
+            Form SPB aktif untuk role `admin`.
+          </div>
+          <form class="input-form" data-editable-for="admin" data-form-type="spb">
+            <div class="form-grid form-grid-5">
+              <label>
+                Jenis ajuan
+                <input type="text" name="requestType" placeholder="Urgent" required>
+              </label>
+              <label>
+                Type ajuan
+                <input type="text" name="requestSubtype" placeholder="Stock Refill" required>
+              </label>
+              <label>
+                No notifikasi
+                <input type="text" name="notificationNo" placeholder="5100921" required>
+              </label>
+              <label>
+                No order
+                <input type="text" name="orderNo" placeholder="45008291" required>
+              </label>
+              <label>
+                No reservasi
+                <input type="text" name="reservationNo" placeholder="3001021" required>
+              </label>
+              <label>
+                No material
+                <input type="text" name="materialNo" placeholder="10023891" required>
+              </label>
+              <label class="full-span">
+                Deskripsi material
+                <input type="text" name="materialDescription" placeholder="Motor Fan Cooling" required>
+              </label>
+              <label>
+                Qty pembelian
+                <input type="number" name="qty" placeholder="1" required>
+              </label>
+              <label>
+                Harga ecer
+                <input type="number" name="price" placeholder="12500000" required>
+              </label>
+              <label>
+                Status
+                <select name="status" required>
+                  <option value="Belum ada">Belum ada</option>
+                  <option value="Proses">Proses</option>
+                  <option value="Selesai">Selesai</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn btn-primary" type="submit">Simpan SPB</button>
+          </form>
+          <div class="locked-note hidden" data-locked-for="spb">
+            Role ini hanya dapat melihat data SPB tanpa mengubah isi.
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Jenis Ajuan</th>
+                  <th>Type Ajuan</th>
+                  <th>No Notifikasi</th>
+                  <th>No Order</th>
+                  <th>No Reservasi</th>
+                  <th>No Material</th>
+                  <th>Deskripsi Material</th>
+                  <th>Qty Pembelian</th>
+                  <th>Harga Ecer</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="spb-body">
+                <tr>
+                  <td>Urgent</td>
+                  <td>Stock Refill</td>
+                  <td>5100921</td>
+                  <td>45008291</td>
+                  <td>3001021</td>
+                  <td>10023891</td>
+                  <td>Motor Fan Cooling</td>
+                  <td>2</td>
+                  <td>Rp12.500.000</td>
+                  <td><span class="tag tag-neutral">Belum ada</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Normal</td>
+                  <td>Corrective</td>
+                  <td>5100933</td>
+                  <td>45008295</td>
+                  <td>3001032</td>
+                  <td>10023900</td>
+                  <td>Solenoid Valve 24VDC</td>
+                  <td>4</td>
+                  <td>Rp2.350.000</td>
+                  <td><span class="tag tag-neutral">Belum ada</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Urgent</td>
+                  <td>Critical Equipment</td>
+                  <td>5100952</td>
+                  <td>45008312</td>
+                  <td>3001054</td>
+                  <td>10023945</td>
+                  <td>Power Supply DCS</td>
+                  <td>1</td>
+                  <td>Rp18.900.000</td>
+                  <td><span class="tag tag-neutral">Belum ada</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Normal</td>
+                  <td>Preventive</td>
+                  <td>5100964</td>
+                  <td>45008319</td>
+                  <td>3001062</td>
+                  <td>10023982</td>
+                  <td>Bearing Pump 6310 ZZ</td>
+                  <td>6</td>
+                  <td>Rp540.000</td>
+                  <td><span class="tag tag-neutral">Belum ada</span></td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mobile-card-list" id="spb-mobile"></div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="app.js?v=20260418-10"></script>
+</body>
+</html>
