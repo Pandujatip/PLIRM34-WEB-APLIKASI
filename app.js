@@ -1978,12 +1978,18 @@ async function createServiceInspectionImage(item) {
     ["Kebersihan lantai", payload.floorCleanliness || "-"],
     ["Temperature ruangan", payload.roomTemperature || "-"],
   ];
+  const defaultLabelWidth = 420;
+  const valueColumnGap = 26;
 
   let estimatedHeight = 180 + (titleLines.length * 48);
-  const measureRows = (rows) => {
-    rows.forEach(([, value]) => {
-      const wrapped = wrapCanvasText(context, value, contentWidth - 280);
-      estimatedHeight += (wrapped.length * 38) + rowGap;
+  const measureRows = (rows, totalWidth = contentWidth, labelWidth = defaultLabelWidth) => {
+    const safeLabelWidth = Math.min(labelWidth, Math.max(220, totalWidth * 0.48));
+    const valueWidth = Math.max(180, totalWidth - safeLabelWidth - valueColumnGap);
+    rows.forEach(([label, value]) => {
+      const wrappedLabel = wrapCanvasText(context, label, safeLabelWidth - 8);
+      const wrappedValue = wrapCanvasText(context, value, valueWidth);
+      const lineCount = Math.max(wrappedLabel.length, wrappedValue.length);
+      estimatedHeight += (lineCount * 38) + rowGap;
     });
   };
 
@@ -2046,19 +2052,27 @@ async function createServiceInspectionImage(item) {
     return drawer(context, startY + cardPaddingTop + titleHeight + 10, innerWidth, false) + 22;
   };
 
-  const drawRows = (rows, y, leftX = padding, widthLimit = contentWidth - 280) => {
+  const drawRows = (rows, y, leftX = padding, totalWidth = contentWidth, labelWidth = defaultLabelWidth) => {
+    const safeLabelWidth = Math.min(labelWidth, Math.max(220, totalWidth * 0.48));
+    const valueX = leftX + safeLabelWidth + valueColumnGap;
+    const valueWidth = Math.max(180, totalWidth - safeLabelWidth - valueColumnGap);
     rows.forEach(([label, value]) => {
+      const wrappedLabel = wrapCanvasText(context, label, safeLabelWidth - 8);
+      const wrappedValue = wrapCanvasText(context, value, valueWidth);
+      const lineCount = Math.max(wrappedLabel.length, wrappedValue.length);
+
       context.fillStyle = "#7cc7ff";
       context.font = "700 24px Arial";
-      context.fillText(label, leftX, y);
+      wrappedLabel.forEach((line, index) => {
+        context.fillText(line, leftX, y + (index * 34));
+      });
 
       context.fillStyle = "#eef6ff";
       context.font = "24px Arial";
-      const wrapped = wrapCanvasText(context, value, widthLimit);
-      wrapped.forEach((line, index) => {
-        context.fillText(line, leftX + 280, y + (index * 34));
+      wrappedValue.forEach((line, index) => {
+        context.fillText(line, valueX, y + (index * 34));
       });
-      y += (wrapped.length * 34) + rowGap;
+      y += (lineCount * 34) + rowGap;
     });
     return y;
   };
@@ -2179,12 +2193,12 @@ async function createServiceInspectionImage(item) {
     if (measuringOnly) {
       let currentY = cardY;
       headerLines.forEach(([, value]) => {
-        const wrapped = wrapCanvasText(context, value, innerWidth - 280);
+        const wrapped = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
         currentY += (wrapped.length * 34) + rowGap;
       });
       return currentY;
     }
-    return drawRows(headerLines, cardY, padding + 22, innerWidth - 280);
+    return drawRows(headerLines, cardY, padding + 22, innerWidth, 320);
   });
 
   y += sectionGap;
@@ -2207,9 +2221,10 @@ async function createServiceInspectionImage(item) {
     if (isElectricalRoom) {
       if (measuringOnly) {
         let currentY = cardY;
-        generalElectricalRows.forEach(([, value]) => {
-          const wrapped = wrapCanvasText(context, value, innerWidth - 280);
-          currentY += (wrapped.length * 34) + rowGap;
+        generalElectricalRows.forEach(([label, value]) => {
+          const wrappedLabel = wrapCanvasText(context, label, defaultLabelWidth - 8);
+          const wrappedValue = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
+          currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * 34) + rowGap;
         });
         currentY += 52 + (Math.ceil(batteryChargeRows.length / 2) * 42) + 42 + (transformerRows.length * 48);
         if (payload.findingPhotoName) {
@@ -2217,7 +2232,7 @@ async function createServiceInspectionImage(item) {
         }
         return currentY;
       }
-      let currentY = drawRows(generalElectricalRows, cardY, padding + 22, innerWidth - 280);
+      let currentY = drawRows(generalElectricalRows, cardY, padding + 22, innerWidth);
       currentY += 10;
       context.fillStyle = "#15b8a6";
       context.font = "700 24px Arial";
@@ -2229,9 +2244,9 @@ async function createServiceInspectionImage(item) {
       context.font = "700 24px Arial";
       context.fillText("Transformator", padding + 22, currentY);
       currentY += 34;
-      currentY = drawRows(transformerRows, currentY, padding + 22, innerWidth - 280);
+      currentY = drawRows(transformerRows, currentY, padding + 22, innerWidth);
       if (payload.findingPhotoName) {
-        currentY = drawRows([["Foto temuan", payload.findingPhotoName]], currentY + 8, padding + 22, innerWidth - 280);
+        currentY = drawRows([["Foto temuan", payload.findingPhotoName]], currentY + 8, padding + 22, innerWidth);
       }
       return currentY;
     }
@@ -2240,14 +2255,15 @@ async function createServiceInspectionImage(item) {
       const summaryRows = formatCarbonBrushPayloadLines(item);
       if (measuringOnly) {
         let currentY = cardY;
-        summaryRows.forEach(([, value]) => {
-          const wrapped = wrapCanvasText(context, value, innerWidth - 280);
-          currentY += (wrapped.length * 34) + rowGap;
+        summaryRows.forEach(([label, value]) => {
+          const wrappedLabel = wrapCanvasText(context, label, defaultLabelWidth - 8);
+          const wrappedValue = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
+          currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * 34) + rowGap;
         });
         currentY += 36 + (carbonBrushMeasurementRows.length * 40) + 42;
         return currentY;
       }
-      let currentY = drawRows(summaryRows, cardY, padding + 22, innerWidth - 280);
+      let currentY = drawRows(summaryRows, cardY, padding + 22, innerWidth);
       currentY += 18;
       currentY = drawCarbonBrushMatrix(payload.measurements || {}, item.equipmentName || "", payload.plant || "", currentY);
       return currentY;
@@ -2255,13 +2271,14 @@ async function createServiceInspectionImage(item) {
 
     if (measuringOnly) {
       let currentY = cardY;
-      payloadLines.forEach(([, value]) => {
-        const wrapped = wrapCanvasText(context, value, innerWidth - 280);
-        currentY += (wrapped.length * 34) + rowGap;
+      payloadLines.forEach(([label, value]) => {
+        const wrappedLabel = wrapCanvasText(context, label, defaultLabelWidth - 8);
+        const wrappedValue = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
+        currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * 34) + rowGap;
       });
       return currentY;
     }
-    return drawRows(payloadLines, cardY, padding + 22, innerWidth - 280);
+    return drawRows(payloadLines, cardY, padding + 22, innerWidth);
   });
 
   y += sectionGap;
