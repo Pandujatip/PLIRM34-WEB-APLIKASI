@@ -4749,13 +4749,12 @@ forms.forEach((form) => {
           battery8: String(formData.get("battery8") || ""),
           battery9: String(formData.get("battery9") || ""),
           battery10: String(formData.get("battery10") || ""),
-          transformerEquipment: String(formData.get("transformerEquipment") || ""),
-          transformerWindingTemperature: String(formData.get("transformerWindingTemperature") || ""),
-          transformerOilTemperature: String(formData.get("transformerOilTemperature") || ""),
-          transformerOilLevel: String(formData.get("transformerOilLevel") || ""),
-          transformerSilicaGel: String(formData.get("transformerSilicaGel") || "OK"),
-          findingPhotoName: photoPayload.findingPhotoName,
-          findingPhotoData: photoPayload.findingPhotoData,
+            transformerEquipment: String(formData.get("transformerEquipment") || ""),
+            transformerWindingTemperature: String(formData.get("transformerWindingTemperature") || ""),
+            transformerOilTemperature: String(formData.get("transformerOilTemperature") || ""),
+            transformerOilLevel: String(formData.get("transformerOilLevel") || ""),
+            transformerSilicaGel: String(formData.get("transformerSilicaGel") || "OK"),
+            ...photoPayload,
         },
       };
       const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
@@ -4944,8 +4943,7 @@ forms.forEach((form) => {
           payload: {
             inspectionDate: existingPayload.inspectionDate || new Date().toISOString(),
             sensorCondition: String(formData.get("sensorCondition") || ""),
-            findingPhotoName: photoPayload.findingPhotoName,
-            findingPhotoData: photoPayload.findingPhotoData,
+            ...photoPayload,
           },
       };
       const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
