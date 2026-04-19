@@ -1551,6 +1551,68 @@ function openServiceDetail(item) {
   serviceDetailModal.setAttribute("aria-hidden", "false");
 }
 
+function getBomItemById(itemId) {
+  if (!itemId) {
+    return null;
+  }
+  return getBomItemsFromDom().find((item) => item.id === itemId) || null;
+}
+
+function renderBomDetailPhotoItem(label, filename) {
+  const normalized = normalizeBomPhotoName(filename);
+  const imageUrl = buildBomPhotoPath(normalized);
+  return `
+    <div class="detail-photo-item bom-detail-photo-item">
+      <strong class="bom-detail-photo-label">${escapeHtml(label)}</strong>
+      ${
+        normalized
+          ? `<img class="detail-photo bom-detail-photo" src="${imageUrl}" alt="${escapeHtml(label)} ${escapeHtml(normalized)}">`
+          : `<div class="bom-detail-photo-empty">Belum ada foto</div>`
+      }
+      <span>${escapeHtml(normalized || "-")}</span>
+    </div>
+  `;
+}
+
+function openBomDetail(item) {
+  if (!serviceDetailModal || !serviceDetailContent || !serviceDetailTitle || !serviceDetailSubtitle) {
+    return;
+  }
+
+  const infoRows = [
+    ["Equipment", item.equipment || "-"],
+    ["Part", item.part || "-"],
+    ["Jumlah", item.qty || "-"],
+    ["Keterangan", item.note || "-"],
+  ];
+
+  serviceDetailTitle.textContent = item.part || item.equipment || "Detail BOM";
+  serviceDetailSubtitle.textContent = `${item.equipment || "-"} • detail part BOM dan lampiran foto`;
+  serviceDetailContent.innerHTML = `
+    <section class="detail-card">
+      <h4>Informasi Part</h4>
+      <div class="detail-grid">${buildDetailGridRows(infoRows)}</div>
+    </section>
+    <section class="detail-card">
+      <h4>Long Text</h4>
+      <div class="detail-analysis">
+        <div class="detail-analysis-item">${escapeHtml(item.longText || "-")}</div>
+      </div>
+    </section>
+    <section class="detail-card">
+      <h4>Foto Part</h4>
+      <div class="detail-photo-grid bom-detail-photo-grid">
+        ${renderBomDetailPhotoItem("Foto Barang", item.itemPhoto)}
+        ${renderBomDetailPhotoItem("Foto Nameplate", item.nameplatePhoto)}
+        ${renderBomDetailPhotoItem("Foto Lain", item.extraPhoto)}
+      </div>
+    </section>
+  `;
+
+  serviceDetailModal.classList.remove("hidden");
+  serviceDetailModal.setAttribute("aria-hidden", "false");
+}
+
 function openServiceGroupDetail(serviceType) {
   if (!serviceDetailModal || !serviceDetailContent || !serviceDetailTitle || !serviceDetailSubtitle) {
     return;
@@ -3813,6 +3875,8 @@ function renderBomCard(item) {
   const card = document.createElement("article");
   card.className = "bom-card";
   card.dataset.id = item.id;
+  card.dataset.openable = "true";
+  card.tabIndex = 0;
   card.innerHTML = `
     <div class="bom-visual">
       ${renderBomImageTile("Foto Barang", item.itemPhoto, "primary")}
@@ -5505,6 +5569,14 @@ bomList.addEventListener("click", async (event) => {
   const card = target.closest(".bom-card");
   if (!card) return;
 
+  if (!target.closest("[data-action]")) {
+    const item = getBomItemById(card.dataset.id || "");
+    if (item) {
+      openBomDetail(item);
+    }
+    return;
+  }
+
   if (target.dataset.action === "delete-bom") {
     try {
       await deleteItemFromBackend("bom", card.dataset.id || "");
@@ -5532,6 +5604,22 @@ bomList.addEventListener("click", async (event) => {
     });
     openSection("bom");
     openCreatePanel("bom");
+  }
+});
+
+bomList.addEventListener("keydown", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !(event.key === "Enter" || event.key === " ")) {
+    return;
+  }
+  const card = target.closest(".bom-card");
+  if (!card || target.closest("[data-action]")) {
+    return;
+  }
+  event.preventDefault();
+  const item = getBomItemById(card.dataset.id || "");
+  if (item) {
+    openBomDetail(item);
   }
 });
 
