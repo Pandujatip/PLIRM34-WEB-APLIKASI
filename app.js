@@ -138,6 +138,14 @@ const storageKeys = {
   bom: "plirm34-bom-list",
   spb: "plirm34-spb-list",
 };
+const resourceStorageKeys = new Set([
+  storageKeys.negatifList,
+  storageKeys.sparepart,
+  storageKeys.service,
+  storageKeys.bom,
+  storageKeys.spb,
+]);
+const volatileStorage = new Map();
 
 const apiResourceMap = {
   [storageKeys.negatifList]: "negatif-list",
@@ -2558,6 +2566,9 @@ function createId(prefix) {
 }
 
 function readStorage(key) {
+  if (volatileStorage.has(key)) {
+    return volatileStorage.get(key);
+  }
   try {
     const value = window.localStorage.getItem(key);
     return value ? JSON.parse(value) : [];
@@ -2567,7 +2578,34 @@ function readStorage(key) {
 }
 
 function writeStorage(key, value) {
-  window.localStorage.setItem(key, JSON.stringify(value));
+  const snapshot = JSON.parse(JSON.stringify(value));
+  volatileStorage.set(key, snapshot);
+
+  const shouldUseVolatileOnly = backendState.available
+    && backendState.sessionActive
+    && resourceStorageKeys.has(key);
+
+  if (shouldUseVolatileOnly) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(snapshot));
+  } catch (error) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+    if (!(error instanceof DOMException) || error.name !== "QuotaExceededError") {
+      console.warn("Gagal menyimpan storage", key, error);
+    }
+  }
 }
 
 async function apiRequest(path, options = {}) {
