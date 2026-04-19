@@ -544,6 +544,7 @@ def build_calendar_schedule() -> dict[str, object]:
         return schedule
 
     events: list[dict[str, object]] = []
+    recurring_exceptions: dict[str, set[str]] = {}
     current_event: dict[str, object] | None = None
 
     for line in unfold_ics_lines(ics_text):
@@ -559,15 +560,30 @@ def build_calendar_schedule() -> dict[str, object]:
                     start_params if isinstance(start_params, dict) else {},
                 )
                 if parsed_start:
+                    uid = str(current_event.get("UID", "") or "")
+                    recurrence_id_value = current_event.get("RECURRENCE_ID_VALUE")
+                    recurrence_id_params = current_event.get("RECURRENCE_ID_PARAMS", {})
+                    recurrence_id, _ = parse_ics_datetime(
+                        str(recurrence_id_value or ""),
+                        recurrence_id_params if isinstance(recurrence_id_params, dict) else {},
+                    )
+                    if uid and recurrence_id:
+                        recurring_exceptions.setdefault(uid, set()).add(recurrence_id.date().isoformat())
                     raw_event = {
+                        "uid": uid,
                         "summary": str(current_event.get("SUMMARY", "") or "Jadwal inspeksi"),
                         "location": str(current_event.get("LOCATION", "") or ""),
                         "description": str(current_event.get("DESCRIPTION", "") or ""),
                         "startAt": parsed_start,
                         "allDay": is_all_day,
                         "rrule": parse_ics_rrule(str(current_event.get("RRULE", "") or "")),
+                        "recurrenceId": recurrence_id,
                     }
-                    events.extend(expand_calendar_event(raw_event, target_dates))
+                    if recurrence_id:
+                        if parsed_start.date().isoformat() in target_dates:
+                            events.append(raw_event)
+                    else:
+                        events.extend(expand_calendar_event(raw_event, target_dates))
             current_event = None
             continue
 
@@ -582,11 +598,26 @@ def build_calendar_schedule() -> dict[str, object]:
         if name == "DTSTART":
             current_event["DTSTART_VALUE"] = value
             current_event["DTSTART_PARAMS"] = params
-        elif name in {"SUMMARY", "LOCATION", "DESCRIPTION", "RRULE"}:
+        elif name == "RECURRENCE-ID":
+            current_event["RECURRENCE_ID_VALUE"] = value
+            current_event["RECURRENCE_ID_PARAMS"] = params
+        elif name in {"SUMMARY", "LOCATION", "DESCRIPTION", "RRULE", "UID"}:
             current_event[name] = value.replace("\\n", "\n").strip()
 
-    events.sort(key=lambda item: item["startAt"])
+    filtered_events: list[dict[str, object]] = []
     for event in events:
+        uid = str(event.get("uid", "") or "")
+        recurrence_id = event.get("recurrenceId")
+        start_at = event.get("startAt")
+        if recurrence_id:
+            filtered_events.append(event)
+            continue
+        if isinstance(start_at, datetime) and uid and start_at.date().isoformat() in recurring_exceptions.get(uid, set()):
+            continue
+        filtered_events.append(event)
+
+    filtered_events.sort(key=lambda item: item["startAt"])
+    for event in filtered_events:
         start_at = event.get("startAt")
         if not isinstance(start_at, datetime):
             continue
