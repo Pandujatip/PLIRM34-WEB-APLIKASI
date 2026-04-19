@@ -29,19 +29,19 @@ Prototype aplikasi digitalisasi unit kerja `PLIRM34` dengan frontend web, backen
 2. Jalankan backend:
 
 ```powershell
-python server.py --host 0.0.0.0 --port 8015
+python server.py --host 0.0.0.0 --port 8017
 ```
 
 3. Buka browser ke:
 
 ```text
-http://127.0.0.1:8015
+http://127.0.0.1:8017
 ```
 
 Jika ingin dibuka dari HP pada jaringan yang sama, gunakan IP laptop/PC ini, misalnya:
 
 ```text
-http://192.168.x.x:8015
+http://192.168.x.x:8017
 ```
 
 ## Endpoint utama
@@ -62,7 +62,11 @@ http://192.168.x.x:8015
 - `GET /api/masters`
 - `GET /api/admin/backup`
 - `POST /api/admin/restore`
+- `GET /api/admin/masters/<resource>`
+- `POST /api/admin/masters/<resource>`
+- `DELETE /api/admin/masters/<resource>/<id>`
 - `GET /api/reports/export/<resource>`
+- `GET /api/reports/service-summary`
 
 ## Catatan
 
@@ -77,4 +81,10 @@ http://192.168.x.x:8015
   - `admin`: semua modul
   - `organik`: `negatif-list`
   - `team`: `service`
+- panel admin di web sekarang mendukung:
+  - backup database
+  - restore backup JSON
+  - export laporan CSV dari backend
+  - master management `areas`, `equipment_reference`, dan `inspection_templates`
+- modul `service` sudah mulai dinormalisasi ke tabel detail per subtype inspeksi untuk fondasi laporan yang lebih kuat
 - tabel `app_state` masih dipertahankan sementara untuk kompatibilitas migrasi dari versi prototype sebelumnya

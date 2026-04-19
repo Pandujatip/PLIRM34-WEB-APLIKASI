@@ -349,6 +349,72 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS service_electrical_room_details (
+                service_id TEXT PRIMARY KEY,
+                panel_door_condition TEXT NOT NULL DEFAULT '',
+                floor_cleanliness TEXT NOT NULL DEFAULT '',
+                room_temperature TEXT NOT NULL DEFAULT '',
+                battery_vdc TEXT NOT NULL DEFAULT '',
+                battery_ampere TEXT NOT NULL DEFAULT '',
+                battery_total_vdc TEXT NOT NULL DEFAULT '',
+                battery_json TEXT NOT NULL DEFAULT '{}',
+                transformer_equipment TEXT NOT NULL DEFAULT '',
+                transformer_winding_temperature TEXT NOT NULL DEFAULT '',
+                transformer_oil_temperature TEXT NOT NULL DEFAULT '',
+                transformer_oil_level TEXT NOT NULL DEFAULT '',
+                transformer_silica_gel TEXT NOT NULL DEFAULT '',
+                finding_photo_name TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS service_motor_mv_details (
+                service_id TEXT PRIMARY KEY,
+                vibration_de TEXT NOT NULL DEFAULT '',
+                vibration_nde TEXT NOT NULL DEFAULT '',
+                winding_temperature TEXT NOT NULL DEFAULT '',
+                bearing_condition TEXT NOT NULL DEFAULT '',
+                motor_current TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS service_motor_mv_carbon_brush_details (
+                service_id TEXT PRIMARY KEY,
+                plant TEXT NOT NULL DEFAULT '',
+                location TEXT NOT NULL DEFAULT '',
+                equipment_category TEXT NOT NULL DEFAULT '',
+                replacement_count TEXT NOT NULL DEFAULT '',
+                megger_value TEXT NOT NULL DEFAULT '',
+                pic TEXT NOT NULL DEFAULT '',
+                measurements_json TEXT NOT NULL DEFAULT '{}',
+                stats_json TEXT NOT NULL DEFAULT '{}',
+                FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS service_ehca_details (
+                service_id TEXT PRIMARY KEY,
+                system_pressure TEXT NOT NULL DEFAULT '',
+                fluid_level TEXT NOT NULL DEFAULT '',
+                filter_condition TEXT NOT NULL DEFAULT '',
+                leak_condition TEXT NOT NULL DEFAULT '',
+                unit_condition TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS service_instrument_details (
+                service_id TEXT PRIMARY KEY,
+                sensor_condition TEXT NOT NULL DEFAULT '',
+                finding_photo_name TEXT NOT NULL DEFAULT '',
+                finding_photo_data TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS service_dcs_details (
+                service_id TEXT PRIMARY KEY,
+                equipment_function TEXT NOT NULL DEFAULT '',
+                environment_cleanliness TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS bom_items (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -598,6 +664,8 @@ def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
             """,
             row,
         )
+        if resource_key == "service":
+            sync_service_detail_tables(connection, item)
         refresh_snapshot(connection, resource_key)
 
     saved_item = get_item_by_id(resource_key, str(item["id"]))
@@ -617,6 +685,143 @@ def delete_item(resource_key: str, item_id: str) -> bool:
         if deleted:
             refresh_snapshot(connection, resource_key)
     return deleted
+
+
+def sync_service_detail_tables(connection: sqlite3.Connection, item: dict) -> None:
+    service_id = str(item.get("id", ""))
+    payload = item.get("payload", {}) if isinstance(item.get("payload", {}), dict) else {}
+    form_type = str(item.get("formType", ""))
+
+    detail_tables = [
+        "service_electrical_room_details",
+        "service_motor_mv_details",
+        "service_motor_mv_carbon_brush_details",
+        "service_ehca_details",
+        "service_instrument_details",
+        "service_dcs_details",
+    ]
+    for table in detail_tables:
+        connection.execute(f"DELETE FROM {table} WHERE service_id = ?", (service_id,))
+
+    if form_type == "service-electrical-room":
+        battery_map = {key: payload.get(key, "") for key in [
+            "battery1", "battery2", "battery3", "battery4", "battery5",
+            "battery6", "battery7", "battery8", "battery9", "battery10",
+        ]}
+        connection.execute(
+            """
+            INSERT INTO service_electrical_room_details (
+                service_id, panel_door_condition, floor_cleanliness, room_temperature,
+                battery_vdc, battery_ampere, battery_total_vdc, battery_json,
+                transformer_equipment, transformer_winding_temperature, transformer_oil_temperature,
+                transformer_oil_level, transformer_silica_gel, finding_photo_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                service_id,
+                str(payload.get("panelDoorCondition", "")),
+                str(payload.get("floorCleanliness", "")),
+                str(payload.get("roomTemperature", "")),
+                str(payload.get("batteryVdc", "")),
+                str(payload.get("batteryAmpere", "")),
+                str(payload.get("batteryTotalVdc", "")),
+                json.dumps(battery_map, ensure_ascii=False),
+                str(payload.get("transformerEquipment", "")),
+                str(payload.get("transformerWindingTemperature", "")),
+                str(payload.get("transformerOilTemperature", "")),
+                str(payload.get("transformerOilLevel", "")),
+                str(payload.get("transformerSilicaGel", "")),
+                str(payload.get("findingPhotoName", "")),
+            ),
+        )
+        return
+
+    if form_type == "service-motor-mv":
+        connection.execute(
+            """
+            INSERT INTO service_motor_mv_details (
+                service_id, vibration_de, vibration_nde, winding_temperature, bearing_condition, motor_current
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                service_id,
+                str(payload.get("vibrationDe", "")),
+                str(payload.get("vibrationNde", "")),
+                str(payload.get("windingTemperature", "")),
+                str(payload.get("bearingCondition", "")),
+                str(payload.get("motorCurrent", "")),
+            ),
+        )
+        return
+
+    if form_type == "service-motor-mv-carbon-brush":
+        connection.execute(
+            """
+            INSERT INTO service_motor_mv_carbon_brush_details (
+                service_id, plant, location, equipment_category, replacement_count, megger_value, pic, measurements_json, stats_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                service_id,
+                str(payload.get("plant", "")),
+                str(payload.get("location", "")),
+                str(payload.get("category", "")),
+                str(payload.get("replacement", "")),
+                str(payload.get("megger", "")),
+                str(payload.get("pic", "")),
+                json.dumps(payload.get("measurements", {}), ensure_ascii=False),
+                json.dumps(payload.get("stats", {}), ensure_ascii=False),
+            ),
+        )
+        return
+
+    if form_type == "service-ehca":
+        connection.execute(
+            """
+            INSERT INTO service_ehca_details (
+                service_id, system_pressure, fluid_level, filter_condition, leak_condition, unit_condition
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                service_id,
+                str(payload.get("systemPressure", "")),
+                str(payload.get("fluidLevel", "")),
+                str(payload.get("filterCondition", "")),
+                str(payload.get("leakCondition", "")),
+                str(payload.get("unitCondition", "")),
+            ),
+        )
+        return
+
+    if form_type == "service-instrument":
+        connection.execute(
+            """
+            INSERT INTO service_instrument_details (
+                service_id, sensor_condition, finding_photo_name, finding_photo_data
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (
+                service_id,
+                str(payload.get("sensorCondition", "")),
+                str(payload.get("findingPhotoName", "")),
+                str(payload.get("findingPhotoData", "")),
+            ),
+        )
+        return
+
+    if form_type == "service-dcs":
+        connection.execute(
+            """
+            INSERT INTO service_dcs_details (
+                service_id, equipment_function, environment_cleanliness
+            ) VALUES (?, ?, ?)
+            """,
+            (
+                service_id,
+                str(payload.get("equipmentFunction", "")),
+                str(payload.get("environmentCleanliness", "")),
+            ),
+        )
 
 
 def refresh_snapshot(connection: sqlite3.Connection, resource_key: str) -> None:
@@ -1051,6 +1256,150 @@ def list_equipment_references(source_group: str | None = None) -> list[dict]:
     return references
 
 
+def list_master_records(resource_name: str) -> list[dict]:
+    if resource_name == "areas":
+        return list_areas()
+    if resource_name == "inspection-templates":
+        return list_inspection_templates()
+    if resource_name == "equipment-references":
+        return list_equipment_references()
+    raise ValueError("Master resource tidak dikenal")
+
+
+def save_master_record(resource_name: str, record: dict) -> dict:
+    with get_connection() as connection:
+        if resource_name == "areas":
+            code = str(record.get("code", "")).strip()
+            if not code:
+                raise ValueError("Code area wajib diisi")
+            connection.execute(
+                """
+                INSERT INTO areas (code, name, plant, sort_order, is_active)
+                VALUES (?, ?, ?, ?, 1)
+                ON CONFLICT(code) DO UPDATE SET
+                    name = excluded.name,
+                    plant = excluded.plant,
+                    sort_order = excluded.sort_order,
+                    is_active = 1
+                """,
+                (
+                    code,
+                    str(record.get("name", "")),
+                    str(record.get("plant", "")),
+                    int(record.get("sortOrder", record.get("sort_order", 0)) or 0),
+                ),
+            )
+            row = connection.execute(
+                "SELECT code, name, plant, sort_order FROM areas WHERE code = ?",
+                (code,),
+            ).fetchone()
+            return dict(row) if row else {}
+
+        if resource_name == "inspection-templates":
+            module_name = str(record.get("moduleName", "")).strip()
+            inspection_type = str(record.get("inspectionType", "")).strip()
+            inspection_subtype = str(record.get("inspectionSubtype", "")).strip()
+            if not module_name or not inspection_type or not inspection_subtype:
+                raise ValueError("Module, type, dan subtype template wajib diisi")
+            definition = record.get("definition", {})
+            connection.execute(
+                """
+                INSERT INTO inspection_templates (module_name, inspection_type, inspection_subtype, title, definition_json, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+                ON CONFLICT(module_name, inspection_type, inspection_subtype) DO UPDATE SET
+                    title = excluded.title,
+                    definition_json = excluded.definition_json,
+                    is_active = 1
+                """,
+                (
+                    module_name,
+                    inspection_type,
+                    inspection_subtype,
+                    str(record.get("title", "")),
+                    json.dumps(definition if isinstance(definition, dict) else {}, ensure_ascii=False),
+                ),
+            )
+            return next(
+                (
+                    item
+                    for item in list_inspection_templates()
+                    if item["moduleName"] == module_name
+                    and item["inspectionType"] == inspection_type
+                    and item["inspectionSubtype"] == inspection_subtype
+                ),
+                {},
+            )
+
+        if resource_name == "equipment-references":
+            source_group = str(record.get("sourceGroup", "")).strip()
+            equipment_code = str(record.get("equipmentCode", "")).strip()
+            equipment_name = str(record.get("equipmentName", "")).strip()
+            if not source_group or not equipment_name:
+                raise ValueError("Source group dan nama equipment wajib diisi")
+            connection.execute(
+                """
+                INSERT INTO equipment_reference (
+                    source_group, equipment_code, equipment_name, category, area, plant, source_url, metadata_json, is_active, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                ON CONFLICT(source_group, equipment_code, equipment_name) DO UPDATE SET
+                    category = excluded.category,
+                    area = excluded.area,
+                    plant = excluded.plant,
+                    source_url = excluded.source_url,
+                    metadata_json = excluded.metadata_json,
+                    is_active = 1,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    source_group,
+                    equipment_code or equipment_name.split(" ")[0],
+                    equipment_name,
+                    str(record.get("category", "")),
+                    str(record.get("area", "")),
+                    str(record.get("plant", "")),
+                    str(record.get("sourceUrl", "")),
+                    json.dumps(record.get("metadata", {}), ensure_ascii=False),
+                    utc_now().isoformat(),
+                ),
+            )
+            return next(
+                (
+                    item
+                    for item in list_equipment_references(source_group)
+                    if item["equipmentName"] == equipment_name
+                ),
+                {},
+            )
+
+    raise ValueError("Master resource tidak dikenal")
+
+
+def delete_master_record(resource_name: str, identifier: str) -> bool:
+    with get_connection() as connection:
+        if resource_name == "areas":
+            cursor = connection.execute("DELETE FROM areas WHERE code = ?", (identifier,))
+            return cursor.rowcount > 0
+        if resource_name == "inspection-templates":
+            parts = identifier.split("|", 2)
+            if len(parts) != 3:
+                return False
+            cursor = connection.execute(
+                """
+                DELETE FROM inspection_templates
+                WHERE module_name = ? AND inspection_type = ? AND inspection_subtype = ?
+                """,
+                tuple(parts),
+            )
+            return cursor.rowcount > 0
+        if resource_name == "equipment-references":
+            cursor = connection.execute(
+                "DELETE FROM equipment_reference WHERE id = ? OR equipment_name = ?",
+                (identifier, identifier),
+            )
+            return cursor.rowcount > 0
+    return False
+
+
 def build_backup_payload() -> dict:
     return {
         "meta": {
@@ -1189,6 +1538,67 @@ def export_resource_csv(resource_key: str) -> str:
     raise ValueError("Resource export tidak dikenal")
 
 
+def build_service_summary() -> dict:
+    with get_connection() as connection:
+        subtype_rows = connection.execute(
+            """
+            SELECT subtype, COUNT(*) AS total
+            FROM service_items
+            GROUP BY subtype
+            ORDER BY subtype
+            """
+        ).fetchall()
+        electrical_room = connection.execute(
+            """
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN panel_door_condition = 'NOT OK' THEN 1 ELSE 0 END) AS panel_not_ok
+            FROM service_electrical_room_details
+            """
+        ).fetchone()
+        motor_mv = connection.execute(
+            """
+            SELECT COUNT(*) AS total,
+                   AVG(CASE WHEN vibration_de != '' THEN CAST(vibration_de AS REAL) END) AS avg_vibration_de
+            FROM service_motor_mv_details
+            """
+        ).fetchone()
+        carbon_brush = connection.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM service_motor_mv_carbon_brush_details
+            """
+        ).fetchone()
+        ehca = connection.execute("SELECT COUNT(*) AS total FROM service_ehca_details").fetchone()
+        instrument = connection.execute("SELECT COUNT(*) AS total FROM service_instrument_details").fetchone()
+        dcs = connection.execute("SELECT COUNT(*) AS total FROM service_dcs_details").fetchone()
+
+    return {
+        "subtypes": [dict(row) for row in subtype_rows],
+        "details": {
+            "electricalRoom": {
+                "total": int(electrical_room["total"] or 0),
+                "panelNotOk": int(electrical_room["panel_not_ok"] or 0),
+            },
+            "motorMv": {
+                "total": int(motor_mv["total"] or 0),
+                "avgVibrationDe": float(motor_mv["avg_vibration_de"] or 0),
+            },
+            "carbonBrush": {
+                "total": int(carbon_brush["total"] or 0),
+            },
+            "ehca": {
+                "total": int(ehca["total"] or 0),
+            },
+            "instrument": {
+                "total": int(instrument["total"] or 0),
+            },
+            "dcs": {
+                "total": int(dcs["total"] or 0),
+            },
+        },
+    }
+
+
 class PLIRMRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT_DIR), **kwargs)
@@ -1212,8 +1622,16 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_export_report(parsed.path)
             return
 
+        if parsed.path == "/api/reports/service-summary":
+            self._handle_service_summary_get()
+            return
+
         if parsed.path == "/api/admin/backup":
             self._handle_backup_get()
+            return
+
+        if parsed.path.startswith("/api/admin/masters/"):
+            self._handle_admin_masters_get(parsed.path)
             return
 
         if parsed.path.startswith("/api/items/"):
@@ -1256,6 +1674,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_restore_post()
             return
 
+        if parsed.path.startswith("/api/admin/masters/"):
+            self._handle_admin_masters_post(parsed.path)
+            return
+
         if parsed.path.startswith("/api/items/"):
             self._handle_items_post(parsed.path)
             return
@@ -1294,6 +1716,9 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/admin/masters/"):
+            self._handle_admin_masters_delete(parsed.path)
+            return
         if parsed.path.startswith("/api/items/"):
             self._handle_items_delete(parsed.path)
             return
@@ -1414,6 +1839,12 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             extra_headers={"Content-Disposition": f'attachment; filename="{resource_key}.csv"'},
         )
 
+    def _handle_service_summary_get(self):
+        user = self._require_user()
+        if not user:
+            return
+        self._send_json(build_service_summary())
+
     def _handle_backup_get(self):
         user = self._require_user()
         if not user:
@@ -1439,6 +1870,64 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Payload backup harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
             return
         restore_backup_payload(backup)
+        self._send_json({"ok": True})
+
+    def _handle_admin_masters_get(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        resource_name = path.removeprefix("/api/admin/masters/").strip("/")
+        try:
+            self._send_json({"items": list_master_records(resource_name)})
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.NOT_FOUND)
+
+    def _handle_admin_masters_post(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        resource_name = path.removeprefix("/api/admin/masters/").strip("/")
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+        item = payload.get("item")
+        if not isinstance(item, dict):
+            self._send_json({"error": "Payload item harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        try:
+            saved_item = save_master_record(resource_name, item)
+            self._send_json({"ok": True, "item": saved_item})
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_admin_masters_delete(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        remainder = path.removeprefix("/api/admin/masters/").strip("/")
+        parts = remainder.split("/", 1)
+        if len(parts) != 2:
+            self._send_json({"error": "Endpoint hapus master tidak valid"}, status=HTTPStatus.NOT_FOUND)
+            return
+        resource_name, identifier = parts[0], unquote(parts[1])
+        try:
+            deleted = delete_master_record(resource_name, identifier)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        if not deleted:
+            self._send_json({"error": "Master data tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
+            return
         self._send_json({"ok": True})
 
     def _handle_items_get(self, path: str):

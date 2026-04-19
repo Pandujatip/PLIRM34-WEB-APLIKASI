@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260419-32">
+  <link rel="stylesheet" href="styles.css?v=20260419-33">
 </head>
 <body>
   <div class="app-shell">
@@ -1367,8 +1367,177 @@
             <p>Ubah role user langsung dari aplikasi.</p>
           </div>
           <div class="module-intro">
-            Menu ini hanya aktif untuk admin. Perubahan role disimpan di browser lokal prototype.
+            Menu ini hanya aktif untuk admin. Panel ini dipakai untuk tools admin, master data, dan manajemen user.
           </div>
+
+          <div class="admin-grid">
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Admin Tools</p>
+                <h4>Backup, Restore, Export</h4>
+              </div>
+              <div class="admin-tools">
+                <button class="btn btn-secondary" id="admin-backup-button" type="button">Download Backup</button>
+                <label class="search-field compact">
+                  <span>Export laporan</span>
+                  <select id="admin-export-resource">
+                    <option value="negatif-list">Negatif List</option>
+                    <option value="sparepart">Sparepart</option>
+                    <option value="service">Service</option>
+                    <option value="bom">BOM</option>
+                    <option value="spb">SPB</option>
+                  </select>
+                </label>
+                <button class="btn btn-secondary" id="admin-export-button" type="button">Download Export</button>
+                <label class="btn btn-secondary file-trigger" for="admin-restore-input">Pilih File Restore</label>
+                <input id="admin-restore-input" type="file" accept="application/json" hidden>
+                <button class="btn btn-primary" id="admin-restore-button" type="button">Restore Backup</button>
+              </div>
+            </section>
+
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Master Area</p>
+                <h4>Kelola area aktif</h4>
+              </div>
+              <form class="input-form compact-form" id="admin-area-form">
+                <div class="form-grid form-grid-4">
+                  <label>
+                    Code
+                    <input name="code" type="text" placeholder="tuban-3" required>
+                  </label>
+                  <label>
+                    Nama
+                    <input name="name" type="text" placeholder="Tuban 3" required>
+                  </label>
+                  <label>
+                    Plant
+                    <input name="plant" type="text" placeholder="Tuban 3" required>
+                  </label>
+                  <label>
+                    Urutan
+                    <input name="sortOrder" type="number" placeholder="1" required>
+                  </label>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan Area</button>
+              </form>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Nama</th>
+                      <th>Plant</th>
+                      <th>Urutan</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-areas-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Master Equipment</p>
+                <h4>Kelola equipment reference</h4>
+              </div>
+              <form class="input-form compact-form" id="admin-equipment-form">
+                <div class="form-grid form-grid-6">
+                  <label>
+                    Source Group
+                    <select name="sourceGroup" required>
+                      <option value="negatif-list">negatif-list</option>
+                      <option value="carbon-brush">carbon-brush</option>
+                    </select>
+                  </label>
+                  <label>
+                    Code
+                    <input name="equipmentCode" type="text" placeholder="343RM1">
+                  </label>
+                  <label class="full-span">
+                    Nama Equipment
+                    <input name="equipmentName" type="text" placeholder="343RM1 - ABB" required>
+                  </label>
+                  <label>
+                    Kategori
+                    <input name="category" type="text" placeholder="Electrical">
+                  </label>
+                  <label>
+                    Area
+                    <input name="area" type="text" placeholder="Tuban 3">
+                  </label>
+                  <label>
+                    Plant
+                    <input name="plant" type="text" placeholder="Tuban 3">
+                  </label>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan Equipment</button>
+              </form>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Code</th>
+                      <th>Nama Equipment</th>
+                      <th>Area</th>
+                      <th>Plant</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-equipment-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Master Template</p>
+                <h4>Kelola inspection template</h4>
+              </div>
+              <form class="input-form compact-form" id="admin-template-form">
+                <div class="form-grid form-grid-4">
+                  <label>
+                    Module
+                    <input name="moduleName" type="text" placeholder="service" required>
+                  </label>
+                  <label>
+                    Type
+                    <input name="inspectionType" type="text" placeholder="Electrical" required>
+                  </label>
+                  <label>
+                    Subtype
+                    <input name="inspectionSubtype" type="text" placeholder="Electrical Room" required>
+                  </label>
+                  <label>
+                    Judul
+                    <input name="title" type="text" placeholder="Inspeksi Electrical Room" required>
+                  </label>
+                  <label class="full-span">
+                    Field JSON
+                    <textarea name="definition" rows="4" placeholder='{"fields":["panelDoorCondition","floorCleanliness"]}' required></textarea>
+                  </label>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan Template</button>
+              </form>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Module</th>
+                      <th>Type</th>
+                      <th>Subtype</th>
+                      <th>Judul</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-templates-body"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
           <div class="table-wrap">
             <table>
               <thead>
@@ -1404,6 +1573,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260419-32"></script>
+  <script src="app.js?v=20260419-33"></script>
 </body>
 </html>

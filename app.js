@@ -40,6 +40,17 @@ const serviceDetailTitle = document.getElementById("service-detail-title");
 const serviceDetailSubtitle = document.getElementById("service-detail-subtitle");
 const serviceDetailContent = document.getElementById("service-detail-content");
 const userManagementBody = document.getElementById("user-management-body");
+const adminBackupButton = document.getElementById("admin-backup-button");
+const adminExportButton = document.getElementById("admin-export-button");
+const adminExportResource = document.getElementById("admin-export-resource");
+const adminRestoreInput = document.getElementById("admin-restore-input");
+const adminRestoreButton = document.getElementById("admin-restore-button");
+const adminAreaForm = document.getElementById("admin-area-form");
+const adminEquipmentForm = document.getElementById("admin-equipment-form");
+const adminTemplateForm = document.getElementById("admin-template-form");
+const adminAreasBody = document.getElementById("admin-areas-body");
+const adminEquipmentBody = document.getElementById("admin-equipment-body");
+const adminTemplatesBody = document.getElementById("admin-templates-body");
 const negatifListBody = document.getElementById("negatif-list-body");
 const sparepartBody = document.getElementById("sparepart-body");
 const serviceCardList = document.getElementById("service-card-list");
@@ -1965,6 +1976,62 @@ async function loadMastersFromBackend(sourceGroup = "") {
   return result;
 }
 
+async function fetchAdminMaster(resourceName) {
+  const result = await apiRequest(`/admin/masters/${resourceName}`);
+  return Array.isArray(result.items) ? result.items : [];
+}
+
+async function saveAdminMaster(resourceName, item) {
+  const result = await apiRequest(`/admin/masters/${resourceName}`, {
+    method: "POST",
+    body: { item },
+  });
+  return result.item || item;
+}
+
+async function deleteAdminMaster(resourceName, identifier) {
+  await apiRequest(`/admin/masters/${resourceName}/${encodeURIComponent(identifier)}`, {
+    method: "DELETE",
+  });
+}
+
+async function downloadAdminBackup() {
+  const result = await apiRequest("/admin/backup");
+  const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `plirm34-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function restoreAdminBackup(file) {
+  const text = await file.text();
+  const backup = JSON.parse(text);
+  await apiRequest("/admin/restore", {
+    method: "POST",
+    body: { backup },
+  });
+}
+
+async function downloadBackendExport(resourceName) {
+  const response = await fetch(`/api/reports/export/${resourceName}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Export gagal (${response.status})`);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${resourceName}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function getStoredUsers() {
   const storedUsers = readStorage(storageKeys.users);
   if (Array.isArray(storedUsers) && storedUsers.length > 0) {
@@ -2015,6 +2082,7 @@ async function hydrateFromBackendAfterLogin() {
   await loadAllDataFromBackend();
   await loadMastersFromBackend();
   renderUserManagementTable();
+  await refreshAdminMasters();
 
   if (!hasAnyStoredData()) {
     await applySampleDataState();
@@ -2038,6 +2106,7 @@ async function restoreBackendSession() {
     await loadAllDataFromBackend();
     await loadMastersFromBackend();
     loginWithUser(bootstrap.user);
+    await refreshAdminMasters();
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
     return true;
@@ -2105,6 +2174,88 @@ function renderUserManagementTable() {
     `;
     userManagementBody.append(row);
   });
+}
+
+function renderAdminAreasTable(items) {
+  if (!adminAreasBody) {
+    return;
+  }
+  adminAreasBody.innerHTML = "";
+  items.forEach((item) => {
+    const row = document.createElement("tr");
+    row.dataset.code = item.code;
+    row.innerHTML = `
+      <td>${item.code}</td>
+      <td>${item.name}</td>
+      <td>${item.plant}</td>
+      <td>${item.sort_order ?? item.sortOrder ?? ""}</td>
+      <td class="action-cell">
+        <button class="table-action danger" data-action="delete-area" type="button">Hapus</button>
+      </td>
+    `;
+    adminAreasBody.append(row);
+  });
+}
+
+function renderAdminEquipmentTable(items) {
+  if (!adminEquipmentBody) {
+    return;
+  }
+  adminEquipmentBody.innerHTML = "";
+  items.slice(0, 200).forEach((item) => {
+    const row = document.createElement("tr");
+    row.dataset.identifier = item.equipmentName;
+    row.innerHTML = `
+      <td>${item.sourceGroup}</td>
+      <td>${item.equipmentCode || "-"}</td>
+      <td>${item.equipmentName}</td>
+      <td>${item.area || "-"}</td>
+      <td>${item.plant || "-"}</td>
+      <td class="action-cell">
+        <button class="table-action danger" data-action="delete-equipment-master" type="button">Hapus</button>
+      </td>
+    `;
+    adminEquipmentBody.append(row);
+  });
+}
+
+function renderAdminTemplatesTable(items) {
+  if (!adminTemplatesBody) {
+    return;
+  }
+  adminTemplatesBody.innerHTML = "";
+  items.forEach((item) => {
+    const row = document.createElement("tr");
+    row.dataset.identifier = `${item.moduleName}|${item.inspectionType}|${item.inspectionSubtype}`;
+    row.innerHTML = `
+      <td>${item.moduleName}</td>
+      <td>${item.inspectionType}</td>
+      <td>${item.inspectionSubtype}</td>
+      <td>${item.title}</td>
+      <td class="action-cell">
+        <button class="table-action danger" data-action="delete-template" type="button">Hapus</button>
+      </td>
+    `;
+    adminTemplatesBody.append(row);
+  });
+}
+
+async function refreshAdminMasters() {
+  if (!backendState.available || !backendState.sessionActive || activeRole !== "admin") {
+    return;
+  }
+  try {
+    const [areas, equipmentReferences, templates] = await Promise.all([
+      fetchAdminMaster("areas"),
+      fetchAdminMaster("equipment-references"),
+      fetchAdminMaster("inspection-templates"),
+    ]);
+    renderAdminAreasTable(areas);
+    renderAdminEquipmentTable(equipmentReferences);
+    renderAdminTemplatesTable(templates);
+  } catch (error) {
+    console.error("Gagal memuat master admin:", error);
+  }
 }
 
 function getNegatifItemsFromDom() {
@@ -3200,6 +3351,156 @@ userManagementBody?.addEventListener("click", async (event) => {
   }
 
   showToast("Manajemen User", `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
+});
+
+adminBackupButton?.addEventListener("click", async () => {
+  try {
+    await downloadAdminBackup();
+    showToast("Admin Tools", "Backup database berhasil diunduh.");
+  } catch (error) {
+    showToast("Admin Tools", error.message || "Gagal membuat backup.");
+  }
+});
+
+adminExportButton?.addEventListener("click", async () => {
+  const resourceName = adminExportResource?.value || "negatif-list";
+  try {
+    await downloadBackendExport(resourceName);
+    showToast("Admin Tools", `Export ${resourceName} berhasil diunduh.`);
+  } catch (error) {
+    showToast("Admin Tools", error.message || "Gagal export laporan.");
+  }
+});
+
+adminRestoreButton?.addEventListener("click", async () => {
+  const file = adminRestoreInput?.files?.[0];
+  if (!file) {
+    showToast("Admin Tools", "Pilih file backup JSON terlebih dahulu.");
+    return;
+  }
+  try {
+    await restoreAdminBackup(file);
+    await hydrateFromBackendAfterLogin();
+    await refreshAdminMasters();
+    showToast("Admin Tools", "Restore backup berhasil.");
+    adminRestoreInput.value = "";
+  } catch (error) {
+    showToast("Admin Tools", error.message || "Gagal restore backup.");
+  }
+});
+
+adminAreaForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(adminAreaForm);
+  try {
+    await saveAdminMaster("areas", {
+      code: String(formData.get("code") || "").trim(),
+      name: String(formData.get("name") || "").trim(),
+      plant: String(formData.get("plant") || "").trim(),
+      sortOrder: Number(formData.get("sortOrder") || 0),
+    });
+    adminAreaForm.reset();
+    await refreshAdminMasters();
+    showToast("Master Area", "Area berhasil disimpan.");
+  } catch (error) {
+    showToast("Master Area", error.message || "Gagal menyimpan area.");
+  }
+});
+
+adminEquipmentForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(adminEquipmentForm);
+  try {
+    await saveAdminMaster("equipment-references", {
+      sourceGroup: String(formData.get("sourceGroup") || "").trim(),
+      equipmentCode: String(formData.get("equipmentCode") || "").trim(),
+      equipmentName: String(formData.get("equipmentName") || "").trim(),
+      category: String(formData.get("category") || "").trim(),
+      area: String(formData.get("area") || "").trim(),
+      plant: String(formData.get("plant") || "").trim(),
+    });
+    adminEquipmentForm.reset();
+    await refreshAdminMasters();
+    await Promise.allSettled([
+      loadEquipmentReference(),
+      loadCarbonBrushEquipmentReference(),
+    ]);
+    showToast("Master Equipment", "Equipment reference berhasil disimpan.");
+  } catch (error) {
+    showToast("Master Equipment", error.message || "Gagal menyimpan equipment reference.");
+  }
+});
+
+adminTemplateForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(adminTemplateForm);
+  try {
+    const definition = JSON.parse(String(formData.get("definition") || "{}"));
+    await saveAdminMaster("inspection-templates", {
+      moduleName: String(formData.get("moduleName") || "").trim(),
+      inspectionType: String(formData.get("inspectionType") || "").trim(),
+      inspectionSubtype: String(formData.get("inspectionSubtype") || "").trim(),
+      title: String(formData.get("title") || "").trim(),
+      definition,
+    });
+    adminTemplateForm.reset();
+    await refreshAdminMasters();
+    showToast("Master Template", "Inspection template berhasil disimpan.");
+  } catch (error) {
+    showToast("Master Template", error.message || "Gagal menyimpan inspection template.");
+  }
+});
+
+adminAreasBody?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-area") {
+    return;
+  }
+  const row = target.closest("tr");
+  const code = row?.dataset.code || "";
+  try {
+    await deleteAdminMaster("areas", code);
+    await refreshAdminMasters();
+    showToast("Master Area", "Area berhasil dihapus.");
+  } catch (error) {
+    showToast("Master Area", error.message || "Gagal menghapus area.");
+  }
+});
+
+adminEquipmentBody?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-equipment-master") {
+    return;
+  }
+  const row = target.closest("tr");
+  const identifier = row?.dataset.identifier || "";
+  try {
+    await deleteAdminMaster("equipment-references", identifier);
+    await refreshAdminMasters();
+    await Promise.allSettled([
+      loadEquipmentReference(),
+      loadCarbonBrushEquipmentReference(),
+    ]);
+    showToast("Master Equipment", "Equipment reference berhasil dihapus.");
+  } catch (error) {
+    showToast("Master Equipment", error.message || "Gagal menghapus equipment reference.");
+  }
+});
+
+adminTemplatesBody?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-template") {
+    return;
+  }
+  const row = target.closest("tr");
+  const identifier = row?.dataset.identifier || "";
+  try {
+    await deleteAdminMaster("inspection-templates", identifier);
+    await refreshAdminMasters();
+    showToast("Master Template", "Inspection template berhasil dihapus.");
+  } catch (error) {
+    showToast("Master Template", error.message || "Gagal menghapus template.");
+  }
 });
 
 void initializeApplication();
