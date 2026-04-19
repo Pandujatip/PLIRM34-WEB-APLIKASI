@@ -36,6 +36,7 @@ const carbonBrushMeasurementGrid = document.getElementById("carbon-brush-measure
 const carbonBrushStats = document.getElementById("carbon-brush-stats");
 const serviceElectricalCarbonBrushForm = document.querySelector('[data-form-type="service-motor-mv-carbon-brush"]');
 const serviceElectricalRoomForm = document.querySelector('[data-form-type="service-electrical-room"]');
+const serviceItemCache = new Map();
 const electricalRoomNameInput = document.getElementById("electrical-room-name-input");
 const electricalRoomReferenceListElement = document.getElementById("electrical-room-reference-list");
 const electricalRoomReferenceHint = document.getElementById("electrical-room-reference-hint");
@@ -3112,15 +3113,26 @@ function getNegatifItemsFromDom() {
 
 function getServiceItemsFromDom() {
   return [...serviceCardList.querySelectorAll(".service-list-item")].map((row) => ({
-    id: row.dataset.id,
-    type: row.dataset.type,
-    subtype: row.dataset.subtype || row.dataset.type,
-    formType: row.dataset.formType || "",
-    equipmentName: row.dataset.equipmentName || "",
-    description: row.dataset.description || "",
-    detail: row.dataset.detail || "",
-    payload: row.dataset.payload ? JSON.parse(row.dataset.payload) : {},
+    ...(serviceItemCache.get(row.dataset.id || "") || {
+      id: row.dataset.id,
+      type: row.dataset.type,
+      subtype: row.dataset.subtype || row.dataset.type,
+      formType: row.dataset.formType || "",
+      equipmentName: row.dataset.equipmentName || "",
+      description: row.dataset.description || "",
+      detail: row.dataset.detail || "",
+      payload: {},
+    }),
   }));
+}
+
+function getServiceItemById(itemId) {
+  if (!itemId) {
+    return null;
+  }
+  return serviceItemCache.get(itemId)
+    || readStorage(storageKeys.service).find((item) => item.id === itemId)
+    || null;
 }
 
 function persistNegatifList() {
@@ -3509,6 +3521,10 @@ function renderNegatifRow(item) {
 }
 
 function renderServiceCard(item) {
+  serviceItemCache.set(item.id, {
+    ...item,
+    payload: item.payload || {},
+  });
   const card = document.createElement("article");
   card.className = "service-list-item";
   card.dataset.openable = "true";
@@ -3520,7 +3536,6 @@ function renderServiceCard(item) {
   card.dataset.equipmentName = item.equipmentName || "";
   card.dataset.description = item.description || "";
   card.dataset.detail = item.detail || "";
-  card.dataset.payload = JSON.stringify(item.payload || {});
 
   const carbonBrushStatsPayload = item.formType === "service-motor-mv-carbon-brush"
     ? (item.payload?.stats || computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || ""))
@@ -3571,6 +3586,7 @@ function renderServiceBoard(items) {
   ];
 
   serviceCardList.innerHTML = "";
+  serviceItemCache.clear();
 
   groups.forEach((group) => {
     const column = document.createElement("section");
@@ -5203,15 +5219,11 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   const item = {
-    id: card.dataset.id,
-    type: card.dataset.type,
-    subtype: card.dataset.subtype || card.dataset.type,
-    formType: card.dataset.formType || "",
-    equipmentName: card.dataset.equipmentName || "",
-    description: card.dataset.description || "",
-    detail: card.dataset.detail || "",
-    payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
+    ...getServiceItemById(card.dataset.id || ""),
   };
+  if (!item?.id) {
+    return;
+  }
 
   if (!target.closest("[data-action]")) {
     openServiceDetail(item);
@@ -5265,16 +5277,10 @@ serviceCardList.addEventListener("keydown", (event) => {
   }
 
   event.preventDefault();
-  openServiceDetail({
-    id: card.dataset.id,
-    type: card.dataset.type,
-    subtype: card.dataset.subtype || card.dataset.type,
-    formType: card.dataset.formType || "",
-    equipmentName: card.dataset.equipmentName || "",
-    description: card.dataset.description || "",
-    detail: card.dataset.detail || "",
-    payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
-  });
+  const item = getServiceItemById(card.dataset.id || "");
+  if (item) {
+    openServiceDetail(item);
+  }
 });
 
 serviceDetailContent?.addEventListener("click", (event) => {
