@@ -107,6 +107,7 @@ const filterSparepartCondition = document.getElementById("filter-sparepart-condi
 const searchService = document.getElementById("search-service");
 const filterServiceType = document.getElementById("filter-service-type");
 const searchBom = document.getElementById("search-bom");
+const filterBomArea = document.getElementById("filter-bom-area");
 const bomTabs = document.querySelectorAll("[data-bom-tab]");
 const bomPanes = document.querySelectorAll("[data-bom-pane]");
 const searchSpb = document.getElementById("search-spb");
@@ -3664,6 +3665,20 @@ function matchesSearch(text, query) {
   return text.toLowerCase().includes(query.trim().toLowerCase());
 }
 
+function getBomAreaFromEquipment(equipmentName) {
+  const code = String(equipmentName || "").trim();
+  const prefixMatch = code.match(/^(\d{3,})/);
+  const prefix = prefixMatch ? prefixMatch[1] : code.replace(/\D/g, "");
+  const areaDigit = prefix?.[2] || "";
+  if (areaDigit === "3") {
+    return "Tuban 3";
+  }
+  if (areaDigit === "4") {
+    return "Tuban 4";
+  }
+  return "Tuban 34";
+}
+
 function applyNegatifListFilter() {
   const query = searchNegatifList?.value || "";
   const status = filterNegatifPriority?.value || "semua";
@@ -3730,10 +3745,14 @@ function applyServiceFilter() {
 
 function applyBomFilter() {
   const query = searchBom?.value || "";
+  const area = filterBomArea?.value || "semua";
   const targetList = activeBomPane === "motor" ? bomMotorList : bomList;
   [...(targetList?.querySelectorAll(".bom-card") || [])].forEach((card) => {
     const cardText = card.textContent || "";
-    card.hidden = !!query && !matchesSearch(cardText, query);
+    const cardArea = card.dataset.area || getBomAreaFromEquipment(card.dataset.equipment || "");
+    const matchesQuery = !query || matchesSearch(cardText, query);
+    const matchesArea = area === "semua" || cardArea === area;
+    card.hidden = !(matchesQuery && matchesArea);
   });
 }
 
@@ -3761,6 +3780,7 @@ function resetFilters() {
   if (searchService) searchService.value = "";
   if (filterServiceType) filterServiceType.value = "semua";
   if (searchBom) searchBom.value = "";
+  if (filterBomArea) filterBomArea.value = "semua";
   if (searchSpb) searchSpb.value = "";
   if (filterSpbStatus) filterSpbStatus.value = "semua";
 }
@@ -3987,10 +4007,13 @@ function renderBomCard(item) {
   const part = escapeHtml(item.part || "-");
   const qty = escapeHtml(item.qty || "-");
   const note = escapeHtml(item.note || "-");
+  const area = getBomAreaFromEquipment(item.equipment || "");
   const longText = item.longText ? `<div class="bom-long-text">${escapeHtml(item.longText)}</div>` : "";
   const card = document.createElement("article");
   card.className = "bom-card";
   card.dataset.id = item.id;
+  card.dataset.equipment = item.equipment || "";
+  card.dataset.area = area;
   card.dataset.openable = "true";
   card.tabIndex = 0;
   card.innerHTML = `
@@ -4003,6 +4026,7 @@ function renderBomCard(item) {
       <strong>${equipment}</strong>
       <p>${part}</p>
       <small data-value="${qty}">Jumlah: ${qty}</small>
+      <span>Area: ${escapeHtml(area)}</span>
       <span>${note}</span>
       ${longText}
     </div>
@@ -4017,6 +4041,7 @@ function renderBomCard(item) {
 function renderBomMotorCard(item) {
   const equipment = escapeHtml(item.equipment || "-");
   const manufacture = escapeHtml(item.manufacture || "-");
+  const area = getBomAreaFromEquipment(item.equipment || "");
   const specs = [
     item.power ? `${escapeHtml(item.power)} kW` : null,
     item.voltage ? `${escapeHtml(item.voltage)} V` : null,
@@ -4030,6 +4055,7 @@ function renderBomMotorCard(item) {
   card.dataset.id = item.id;
   card.dataset.inspectionDate = item.inspectionDate || "";
   card.dataset.equipment = item.equipment || "";
+  card.dataset.area = area;
   card.dataset.manufacture = item.manufacture || "";
   card.dataset.power = item.power || "";
   card.dataset.ampere = item.ampere || "";
@@ -4051,6 +4077,7 @@ function renderBomMotorCard(item) {
       <strong>${equipment}</strong>
       <p>${manufacture}</p>
       <small>${specs}</small>
+      <span>Area: ${escapeHtml(area)}</span>
       <span>Frame: ${frame}</span>
       <span>Serial: ${serialNumber}</span>
       <span>${note}</span>
@@ -6000,6 +6027,7 @@ filterSparepartCondition?.addEventListener("change", applySparepartFilter);
 searchService?.addEventListener("input", applyServiceFilter);
 filterServiceType?.addEventListener("change", applyServiceFilter);
 searchBom?.addEventListener("input", applyBomFilter);
+filterBomArea?.addEventListener("change", applyBomFilter);
 bomTabs.forEach((button) => {
   button.addEventListener("click", () => {
     openBomPane(button.dataset.bomTab || "general");
