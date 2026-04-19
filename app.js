@@ -892,6 +892,10 @@ function openSection(sectionName) {
   if (sectionName === "activity-log") {
     void refreshActivityLogs();
   }
+
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    sidebar?.classList.remove("menu-open");
+  }
 }
 
 function applyRoleAccess(role) {
@@ -3119,6 +3123,7 @@ function loginWithUser(user) {
   saveSession(user.username, user.role);
   loginScreen.classList.add("hidden");
   workspace.classList.remove("hidden");
+  sidebar?.classList.remove("menu-open");
   renderUserManagementTable();
   openSection("dashboard");
   resetIdleLogoutTimer();
@@ -5421,9 +5426,6 @@ menuItems.forEach((item) => {
   item.addEventListener("click", () => {
     openSection(item.dataset.section);
     closeAllCreatePanels();
-    if (window.innerWidth <= 640) {
-      sidebar?.classList.remove("menu-open");
-    }
   });
 });
 
@@ -5431,6 +5433,9 @@ jumpButtons.forEach((button) => {
   button.addEventListener("click", () => {
     openSection(button.dataset.sectionJump);
     closeAllCreatePanels();
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      sidebar?.classList.remove("menu-open");
+    }
   });
 });
 
