@@ -1036,13 +1036,17 @@ function normalizeServiceItem(item) {
 
   if (item.type === "Instrument") {
     const match = item.detail.match(/Kondisi sensor: (.*) \| Foto: (.*)/);
+    const photoCompatibility = buildFindingPhotoCompatibility(normalizeFindingPhotosPayload(item.payload || {
+      findingPhotoName: match?.[2] || "",
+      findingPhotoData: "",
+    }));
     return {
       ...item,
       subtype: "Instrument",
       formType: "service-instrument",
       payload: {
         sensorCondition: match?.[1] || "",
-        findingPhotoName: match?.[2] || "",
+        ...photoCompatibility,
       },
     };
   }
@@ -1057,6 +1061,7 @@ function normalizeServiceItem(item) {
 }
 
 function normalizeDcsPayload(payload = {}, legacyDcsMatch = null) {
+  const photoCompatibility = buildFindingPhotoCompatibility(normalizeFindingPhotosPayload(payload));
   return {
     inspectionDate: payload.inspectionDate || new Date().toISOString(),
     plcPowerSupplyModule: payload.plcPowerSupplyModule || "",
@@ -1077,6 +1082,7 @@ function normalizeDcsPayload(payload = {}, legacyDcsMatch = null) {
     roomCleanliness: payload.roomCleanliness || payload.environmentCleanliness || legacyDcsMatch?.[2] || "",
     damagedPartReplacement: payload.damagedPartReplacement || "",
     adjustmentRepair: payload.adjustmentRepair || "",
+    ...photoCompatibility,
   };
 }
 
@@ -1149,6 +1155,7 @@ function formatCarbonBrushPayloadLines(item) {
   const meta = decodeCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
   const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
   const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
+  const photoSummary = buildFindingPhotoCompatibility(getInspectionPhotoEntries(payload)).findingPhotoName;
   return [
     ["Plant", payload.plant || meta.plant || "-"],
     ["Lokasi", payload.location || meta.location || "-"],
@@ -1162,6 +1169,7 @@ function formatCarbonBrushPayloadLines(item) {
     ["Megger", payload.megger || "-"],
     ["Titik diganti", replacedPoints.length ? replacedPoints.join(", ") : "-"],
     ["Titik perhatian", stats.attentionPoints?.length ? stats.attentionPoints.join(", ") : "-"],
+    ["Foto temuan", photoSummary],
   ];
 }
 
@@ -1460,11 +1468,19 @@ function openServiceDetail(item) {
     `;
   }
 
-  const photoHtml = payload.findingPhotoData
+  const photoEntries = getInspectionPhotoEntries(payload);
+  const photoHtml = photoEntries.length > 0
     ? `
       <section class="detail-card">
         <h4>Lampiran Foto</h4>
-        <img class="detail-photo" src="${payload.findingPhotoData}" alt="Lampiran inspeksi ${escapeHtml(item.equipmentName || "")}">
+        <div class="detail-photo-grid">
+          ${photoEntries.map((entry, index) => `
+            <div class="detail-photo-item">
+              <img class="detail-photo" src="${escapeHtml(entry.data)}" alt="Lampiran inspeksi ${escapeHtml(item.equipmentName || "")} ${index + 1}">
+              <span>${escapeHtml(entry.name || `Foto ${index + 1}`)}</span>
+            </div>
+          `).join("")}
+        </div>
       </section>
     `
     : "";
@@ -1600,6 +1616,7 @@ function showToast(title, message) {
 
 function formatServicePayloadLines(item) {
   const payload = item.payload || {};
+  const photoSummary = buildFindingPhotoCompatibility(getInspectionPhotoEntries(payload)).findingPhotoName;
 
   if (item.formType === "service-electrical-room") {
     return [
@@ -1624,7 +1641,7 @@ function formatServicePayloadLines(item) {
       ["Temperature oil", payload.transformerOilTemperature || "-"],
       ["Level oil", payload.transformerOilLevel || "-"],
       ["Silica gel", payload.transformerSilicaGel || "-"],
-      ["Foto temuan", payload.findingPhotoName || "-"],
+      ["Foto temuan", photoSummary],
     ];
   }
 
@@ -1635,6 +1652,7 @@ function formatServicePayloadLines(item) {
       ["Suhu winding", payload.windingTemperature || "-"],
       ["Kondisi bearing", payload.bearingCondition || "-"],
       ["Arus motor", payload.motorCurrent || "-"],
+      ["Foto temuan", photoSummary],
     ];
   }
 
@@ -1649,13 +1667,14 @@ function formatServicePayloadLines(item) {
       ["Kondisi filter", payload.filterCondition || "-"],
       ["Kebocoran", payload.leakCondition || "-"],
       ["Kondisi unit", payload.unitCondition || "-"],
+      ["Foto temuan", photoSummary],
     ];
   }
 
   if (item.formType === "service-instrument") {
     return [
       ["Kondisi sensor", payload.sensorCondition || "-"],
-      ["Foto temuan", payload.findingPhotoName || "-"],
+      ["Foto temuan", photoSummary],
     ];
   }
 
@@ -1680,6 +1699,7 @@ function formatServicePayloadLines(item) {
       ["Room & Panel - Kebersihan", payload.roomCleanliness || "-"],
       ["Kondisi Rusak - Penggantian Part", payload.damagedPartReplacement || "-"],
       ["Terjadi Penyimpangan - Adjustment / Repair", payload.adjustmentRepair || "-"],
+      ["Foto temuan", photoSummary],
     ];
   }
 
@@ -1922,8 +1942,22 @@ function buildCarbonBrushTrendHtml(item, pointKey) {
 async function createServiceInspectionImage(item) {
   const payloadLines = formatServicePayloadLines(item);
   const payload = item.payload || {};
-  const photoData = payload.findingPhotoData || "";
-  const photoImage = photoData ? await loadImageElement(photoData).catch(() => null) : null;
+  const photoEntries = getInspectionPhotoEntries(payload);
+  const photoImages = (await Promise.all(
+    photoEntries.map(async (entry, index) => {
+      if (!entry?.data) {
+        return null;
+      }
+      const image = await loadImageElement(entry.data).catch(() => null);
+      if (!image) {
+        return null;
+      }
+      return {
+        image,
+        name: entry.name || `Foto ${index + 1}`,
+      };
+    }),
+  )).filter(Boolean);
   const titleText = `HASIL INSPEKSI ${String(item.subtype || item.type || "SERVICE").toUpperCase()} - ${item.equipmentName || "-"}`;
   const inspectionDate = formatInspectionDate(payload.inspectionDate);
   const analysisLines = analyzeServiceItem(item);
@@ -2019,8 +2053,18 @@ async function createServiceInspectionImage(item) {
     const wrapped = wrapCanvasText(context, entry, contentWidth - 36);
     estimatedHeight += (wrapped.length * 36) + 24;
   });
-  if (photoImage) {
-    estimatedHeight += sectionGap + 420;
+  if (photoImages.length > 0) {
+    const photoColumns = photoImages.length === 1 ? 1 : 2;
+    const photoCardWidth = (contentWidth - 44 - ((photoColumns - 1) * 18)) / photoColumns;
+    const photoHeights = photoImages.map(({ image }) => {
+      const ratio = Math.min(photoCardWidth / image.width, 220 / image.height, 1);
+      return (image.height * ratio) + 34;
+    });
+    const photoRows = [];
+    for (let index = 0; index < photoHeights.length; index += photoColumns) {
+      photoRows.push(Math.max(...photoHeights.slice(index, index + photoColumns)));
+    }
+    estimatedHeight += sectionGap + photoRows.reduce((total, rowHeight) => total + rowHeight + 18, 0);
   }
   estimatedHeight += 80;
 
@@ -2294,21 +2338,54 @@ async function createServiceInspectionImage(item) {
     return drawAnalysis(analysisLines, cardY, padding + 22, innerWidth);
   });
 
-  if (photoImage) {
+  if (photoImages.length > 0) {
     y += sectionGap;
     y = drawCardSection("Lampiran Foto", y, (_ctx, cardY, innerWidth, measuringOnly) => {
-      const maxPhotoWidth = innerWidth;
-      const maxPhotoHeight = 360;
-      const ratio = Math.min(maxPhotoWidth / photoImage.width, maxPhotoHeight / photoImage.height, 1);
-      const drawWidth = photoImage.width * ratio;
-      const drawHeight = photoImage.height * ratio;
       if (measuringOnly) {
-        return cardY + drawHeight;
+        const columns = photoImages.length === 1 ? 1 : 2;
+        const gap = 18;
+        const photoBoxWidth = (innerWidth - ((columns - 1) * gap)) / columns;
+        let currentY = cardY;
+        for (let index = 0; index < photoImages.length; index += columns) {
+          const rowItems = photoImages.slice(index, index + columns);
+          const rowHeight = Math.max(...rowItems.map(({ image }) => {
+            const ratio = Math.min(photoBoxWidth / image.width, 220 / image.height, 1);
+            return (image.height * ratio) + 34;
+          }));
+          currentY += rowHeight + gap;
+        }
+        return currentY;
       }
-      context.fillStyle = "rgba(255,255,255,0.03)";
-      context.fillRect(padding + 22, cardY, drawWidth, drawHeight);
-      context.drawImage(photoImage, padding + 22, cardY, drawWidth, drawHeight);
-      return cardY + drawHeight;
+      const columns = photoImages.length === 1 ? 1 : 2;
+      const gap = 18;
+      const photoBoxWidth = (innerWidth - ((columns - 1) * gap)) / columns;
+      let currentY = cardY;
+
+      for (let index = 0; index < photoImages.length; index += columns) {
+        const rowItems = photoImages.slice(index, index + columns);
+        const rowHeight = Math.max(...rowItems.map(({ image }) => {
+          const ratio = Math.min(photoBoxWidth / image.width, 220 / image.height, 1);
+          return (image.height * ratio) + 34;
+        }));
+
+        rowItems.forEach(({ image, name }, columnIndex) => {
+          const ratio = Math.min(photoBoxWidth / image.width, 220 / image.height, 1);
+          const drawWidth = image.width * ratio;
+          const drawHeight = image.height * ratio;
+          const drawX = padding + 22 + (columnIndex * (photoBoxWidth + gap));
+
+          context.fillStyle = "rgba(255,255,255,0.03)";
+          context.fillRect(drawX, currentY, photoBoxWidth, rowHeight - 8);
+          context.drawImage(image, drawX, currentY, drawWidth, drawHeight);
+          context.fillStyle = "#9bb0c8";
+          context.font = "20px Arial";
+          context.fillText(String(name || `Foto ${index + columnIndex + 1}`), drawX, currentY + drawHeight + 24);
+        });
+
+        currentY += rowHeight + gap;
+      }
+
+      return currentY;
     });
   }
 
@@ -2346,19 +2423,56 @@ function readFileAsDataUrl(file) {
   });
 }
 
-async function getFindingPhotoPayload(formData, existingPayload = {}) {
-  const photo = formData.get("findingPhoto");
-  if (photo && typeof photo === "object" && "name" in photo && photo.name && "size" in photo && photo.size > 0) {
-    return {
-      findingPhotoName: photo.name,
-      findingPhotoData: await readFileAsDataUrl(photo),
-    };
+function normalizeFindingPhotosPayload(payload = {}) {
+  const existingItems = Array.isArray(payload.findingPhotos)
+    ? payload.findingPhotos
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry) => ({
+          name: String(entry.name || "").trim() || "foto",
+          data: String(entry.data || "").trim(),
+        }))
+        .filter((entry) => entry.data)
+    : [];
+
+  if (existingItems.length > 0) {
+    return existingItems;
   }
 
+  if (payload.findingPhotoData) {
+    return [{
+      name: String(payload.findingPhotoName || "foto-temuan").trim() || "foto-temuan",
+      data: String(payload.findingPhotoData || ""),
+    }];
+  }
+
+  return [];
+}
+
+function buildFindingPhotoCompatibility(photos = []) {
+  const safePhotos = photos.filter((entry) => entry && entry.data);
+  const firstPhoto = safePhotos[0] || null;
   return {
-    findingPhotoName: existingPayload.findingPhotoName || "tidak ada file",
-    findingPhotoData: existingPayload.findingPhotoData || "",
+    findingPhotos: safePhotos,
+    findingPhotoName: safePhotos.length > 0
+      ? safePhotos.map((entry) => entry.name).join(", ")
+      : "tidak ada file",
+    findingPhotoData: firstPhoto?.data || "",
   };
+}
+
+async function getFindingPhotoPayload(formData, existingPayload = {}) {
+  const photoFiles = formData.getAll("findingPhoto")
+    .filter((photo) => photo && typeof photo === "object" && "name" in photo && photo.name && "size" in photo && photo.size > 0);
+
+  if (photoFiles.length > 0) {
+    const findingPhotos = await Promise.all(photoFiles.map(async (photo) => ({
+      name: photo.name,
+      data: await readFileAsDataUrl(photo),
+    })));
+    return buildFindingPhotoCompatibility(findingPhotos);
+  }
+
+  return buildFindingPhotoCompatibility(normalizeFindingPhotosPayload(existingPayload));
 }
 
 function loadImageElement(src) {
@@ -2368,6 +2482,10 @@ function loadImageElement(src) {
     image.onerror = () => reject(new Error("Gagal memuat image lampiran"));
     image.src = src;
   });
+}
+
+function getInspectionPhotoEntries(payload = {}) {
+  return normalizeFindingPhotosPayload(payload);
 }
 
 async function sendServiceToWhatsApp(item) {
@@ -4644,6 +4762,10 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-motor-mv") {
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
       const item = {
         id: editingServiceId || createId("service"),
         type: "Electrical",
@@ -4661,6 +4783,7 @@ forms.forEach((form) => {
             windingTemperature: String(formData.get("windingTemperature") || ""),
             bearingCondition: String(formData.get("bearingCondition") || ""),
             motorCurrent: String(formData.get("motorCurrent") || ""),
+            ...photoPayload,
         },
       };
       const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
@@ -4696,6 +4819,7 @@ forms.forEach((form) => {
       const existingPayload = editingServiceId
         ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
         : {};
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
       const item = {
         id: editingServiceId || createId("service"),
         type: "Electrical",
@@ -4721,6 +4845,7 @@ forms.forEach((form) => {
             min: stats.min,
             attentionPoints: stats.attentionPoints,
           },
+          ...photoPayload,
         },
       };
       const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
@@ -4744,6 +4869,10 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-ehca") {
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
       const item = {
           id: editingServiceId || createId("service"),
           type: "Electrical",
@@ -4761,6 +4890,7 @@ forms.forEach((form) => {
             filterCondition: String(formData.get("filterCondition") || ""),
             leakCondition: String(formData.get("leakCondition") || ""),
             unitCondition: String(formData.get("unitCondition") || ""),
+            ...photoPayload,
         },
       };
       const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
@@ -4822,10 +4952,12 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-dcs") {
+        const existingPayload = editingServiceId
+          ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+          : {};
+        const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
         const payload = normalizeDcsPayload({
-          inspectionDate: editingServiceId
-            ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload?.inspectionDate || new Date().toISOString()
-            : new Date().toISOString(),
+          inspectionDate: existingPayload.inspectionDate || new Date().toISOString(),
           plcPowerSupplyModule: String(formData.get("plcPowerSupplyModule") || ""),
           plcCommunicationModule: String(formData.get("plcCommunicationModule") || ""),
           plcProcessorModule: String(formData.get("plcProcessorModule") || ""),
@@ -4844,6 +4976,7 @@ forms.forEach((form) => {
           roomCleanliness: String(formData.get("roomCleanliness") || ""),
           damagedPartReplacement: String(formData.get("damagedPartReplacement") || ""),
           adjustmentRepair: String(formData.get("adjustmentRepair") || ""),
+          ...photoPayload,
         });
 
         const item = {
