@@ -1893,6 +1893,33 @@ async function syncResourceToBackend(resourceKey, items) {
   pendingSyncTimers.set(resourceKey, timerId);
 }
 
+async function saveItemToBackend(resourceKey, item, isEditing = false) {
+  if (!backendState.available || !backendState.sessionActive) {
+    return item;
+  }
+
+  const path = isEditing
+    ? `/items/${resourceKey}/${encodeURIComponent(item.id)}`
+    : `/items/${resourceKey}`;
+  const method = isEditing ? "PUT" : "POST";
+  const result = await apiRequest(path, {
+    method,
+    body: { item },
+  });
+  return result.item || item;
+}
+
+async function deleteItemFromBackend(resourceKey, itemId) {
+  if (!backendState.available || !backendState.sessionActive) {
+    return true;
+  }
+
+  await apiRequest(`/items/${resourceKey}/${encodeURIComponent(itemId)}`, {
+    method: "DELETE",
+  });
+  return true;
+}
+
 function getStoredUsers() {
   const storedUsers = readStorage(storageKeys.users);
   if (Array.isArray(storedUsers) && storedUsers.length > 0) {
@@ -3255,6 +3282,8 @@ forms.forEach((form) => {
     const formType = form.dataset.formType;
     const formData = new FormData(form);
 
+    try {
+
     if (formType === "negatif-list") {
       const selectedEquipment = String(formData.get("equipment") || "").trim();
       if (!selectedEquipment || selectedEquipment !== selectedEquipmentReference || !equipmentReferenceList.includes(selectedEquipment)) {
@@ -3274,16 +3303,17 @@ forms.forEach((form) => {
         category: String(formData.get("category") || "-"),
         area: String(formData.get("area") || "-"),
       };
+      const savedItem = await saveItemToBackend("negatif-list", item, Boolean(editingNegatifId));
       if (editingNegatifId) {
         const existing = negatifListBody.querySelector(`tr[data-id="${editingNegatifId}"]`);
         if (existing) {
-          existing.replaceWith(renderNegatifRow(item));
+          existing.replaceWith(renderNegatifRow(savedItem));
         }
         setSubmitNote(form, "Negatif list berhasil diperbarui.");
         showToast("Negatif List", "Data berhasil diperbarui.");
         editingNegatifId = null;
       } else {
-        appendNegatifListRow(item);
+        appendNegatifListRow(savedItem);
         setSubmitNote(form, "Negatif list baru berhasil ditambahkan ke tabel frontend.");
         showToast("Negatif List", "Item baru berhasil ditambahkan.");
       }
@@ -3332,16 +3362,17 @@ forms.forEach((form) => {
           findingPhotoData: photoPayload.findingPhotoData,
         },
       };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
-          existing.replaceWith(renderServiceCard(item));
+          existing.replaceWith(renderServiceCard(savedItem));
         }
         setSubmitNote(form, "Electrical Room berhasil diperbarui.");
         showToast("Electrical Room", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
-        appendServiceCard(item);
+        appendServiceCard(savedItem);
         setSubmitNote(form, "Inspeksi Electrical Room berhasil ditambahkan.");
         showToast("Electrical Room", "Item baru berhasil ditambahkan.");
       }
@@ -3370,16 +3401,17 @@ forms.forEach((form) => {
             motorCurrent: String(formData.get("motorCurrent") || ""),
         },
       };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
-          existing.replaceWith(renderServiceCard(item));
+          existing.replaceWith(renderServiceCard(savedItem));
         }
         setSubmitNote(form, "Motor MV berhasil diperbarui.");
         showToast("Motor MV", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
-        appendServiceCard(item);
+        appendServiceCard(savedItem);
         setSubmitNote(form, "Inspeksi Motor MV berhasil ditambahkan.");
         showToast("Motor MV", "Item baru berhasil ditambahkan.");
       }
@@ -3429,17 +3461,18 @@ forms.forEach((form) => {
           },
         },
       };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
 
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
-          existing.replaceWith(renderServiceCard(item));
+          existing.replaceWith(renderServiceCard(savedItem));
         }
         setSubmitNote(form, "Motor MV Carbon Brush berhasil diperbarui.");
         showToast("Carbon Brush", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
-        appendServiceCard(item);
+        appendServiceCard(savedItem);
         setSubmitNote(form, "Inspeksi Motor MV Carbon Brush berhasil ditambahkan.");
         showToast("Carbon Brush", "Item baru berhasil ditambahkan.");
       }
@@ -3468,16 +3501,17 @@ forms.forEach((form) => {
             unitCondition: String(formData.get("unitCondition") || ""),
         },
       };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
-          existing.replaceWith(renderServiceCard(item));
+          existing.replaceWith(renderServiceCard(savedItem));
         }
         setSubmitNote(form, "EH/CA berhasil diperbarui.");
         showToast("EH/CA", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
-        appendServiceCard(item);
+        appendServiceCard(savedItem);
         setSubmitNote(form, "Inspeksi EH/CA berhasil ditambahkan.");
         showToast("EH/CA", "Item baru berhasil ditambahkan.");
       }
@@ -3506,16 +3540,17 @@ forms.forEach((form) => {
             findingPhotoData: photoPayload.findingPhotoData,
           },
       };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
-          existing.replaceWith(renderServiceCard(item));
+          existing.replaceWith(renderServiceCard(savedItem));
         }
         setSubmitNote(form, "Service instrument berhasil diperbarui.");
         showToast("Service Instrument", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
-        appendServiceCard(item);
+        appendServiceCard(savedItem);
         setSubmitNote(form, "Service instrument berhasil ditambahkan ke daftar service.");
         showToast("Service Instrument", "Item baru berhasil ditambahkan.");
       }
@@ -3541,16 +3576,17 @@ forms.forEach((form) => {
             environmentCleanliness: String(formData.get("environmentCleanliness") || ""),
           },
         };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
-          existing.replaceWith(renderServiceCard(item));
+          existing.replaceWith(renderServiceCard(savedItem));
         }
         setSubmitNote(form, "Service DCS berhasil diperbarui.");
         showToast("Service DCS", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
-        appendServiceCard(item);
+        appendServiceCard(savedItem);
         setSubmitNote(form, "Service DCS berhasil ditambahkan ke daftar service.");
         showToast("Service DCS", "Item baru berhasil ditambahkan.");
       }
@@ -3569,9 +3605,10 @@ forms.forEach((form) => {
         qty: String(formData.get("qty") || "0"),
         condition: String(formData.get("condition") || "Ready"),
       };
+      const savedItem = await saveItemToBackend("sparepart", item, Boolean(editingSparepartId));
       if (editingSparepartId) {
         const existing = sparepartBody.querySelector(`tr[data-id="${editingSparepartId}"]`);
-        if (existing) existing.replaceWith(renderSparepartRow(item));
+        if (existing) existing.replaceWith(renderSparepartRow(savedItem));
         setSubmitNote(form, "Sparepart berhasil diperbarui.");
         showToast("Sparepart", "Data berhasil diperbarui.");
         editingSparepartId = null;
@@ -3579,7 +3616,7 @@ forms.forEach((form) => {
         updateDashboardStats();
         applySparepartFilter();
       } else {
-        appendSparepartRow(item);
+        appendSparepartRow(savedItem);
         setSubmitNote(form, "Sparepart berhasil ditambahkan.");
         showToast("Sparepart", "Item baru berhasil ditambahkan.");
       }
@@ -3596,9 +3633,10 @@ forms.forEach((form) => {
         itemPhoto: itemPhoto && typeof itemPhoto === "object" && "name" in itemPhoto && itemPhoto.name ? itemPhoto.name : "Foto Barang",
         nameplatePhoto: nameplatePhoto && typeof nameplatePhoto === "object" && "name" in nameplatePhoto && nameplatePhoto.name ? nameplatePhoto.name : "Foto Nameplate",
       };
+      const savedItem = await saveItemToBackend("bom", item, Boolean(editingBomId));
       if (editingBomId) {
         const existing = bomList.querySelector(`[data-id="${editingBomId}"]`);
-        if (existing) existing.replaceWith(renderBomCard(item));
+        if (existing) existing.replaceWith(renderBomCard(savedItem));
         setSubmitNote(form, "BOM berhasil diperbarui.");
         showToast("BOM", "Data berhasil diperbarui.");
         editingBomId = null;
@@ -3606,7 +3644,7 @@ forms.forEach((form) => {
         updateDashboardStats();
         applyBomFilter();
       } else {
-        appendBomCard(item);
+        appendBomCard(savedItem);
         setSubmitNote(form, "BOM berhasil ditambahkan.");
         showToast("BOM", "Item baru berhasil ditambahkan.");
       }
@@ -3626,9 +3664,10 @@ forms.forEach((form) => {
         price: String(formData.get("price") || "0"),
         status: String(formData.get("status") || "Belum ada"),
       };
+      const savedItem = await saveItemToBackend("spb", item, Boolean(editingSpbId));
       if (editingSpbId) {
         const existing = spbBody.querySelector(`tr[data-id="${editingSpbId}"]`);
-        if (existing) existing.replaceWith(renderSpbRow(item));
+        if (existing) existing.replaceWith(renderSpbRow(savedItem));
         setSubmitNote(form, "SPB berhasil diperbarui.");
         showToast("SPB", "Data berhasil diperbarui.");
         editingSpbId = null;
@@ -3636,7 +3675,7 @@ forms.forEach((form) => {
         updateDashboardStats();
         applySpbFilter();
       } else {
-        appendSpbRow(item);
+        appendSpbRow(savedItem);
         setSubmitNote(form, "SPB berhasil ditambahkan.");
         showToast("SPB", "Item baru berhasil ditambahkan.");
       }
@@ -3653,10 +3692,15 @@ forms.forEach((form) => {
       updateCarbonBrushEquipmentMeta("");
       updateCarbonBrushMeasurementColors();
     }
+    } catch (error) {
+      console.error(`Gagal menyimpan form ${formType}:`, error);
+      setSubmitNote(form, `Gagal menyimpan data: ${error.message || "terjadi kesalahan"}`);
+      showToast("Simpan Gagal", error.message || "Terjadi kesalahan saat menyimpan data.");
+    }
   });
 });
 
-negatifListBody.addEventListener("click", (event) => {
+negatifListBody.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
     return;
@@ -3667,11 +3711,16 @@ negatifListBody.addEventListener("click", (event) => {
   }
 
   if (target.dataset.action === "delete-negatif") {
-    row.remove();
-    persistNegatifList();
-    updateDashboardStats();
-    applyNegatifListFilter();
-    showToast("Negatif List", "Item berhasil dihapus.");
+    try {
+      await deleteItemFromBackend("negatif-list", row.dataset.id || "");
+      row.remove();
+      persistNegatifList();
+      updateDashboardStats();
+      applyNegatifListFilter();
+      showToast("Negatif List", "Item berhasil dihapus.");
+    } catch (error) {
+      showToast("Negatif List", error.message || "Gagal menghapus item.");
+    }
   }
 
   if (target.dataset.action === "edit-negatif") {
@@ -3691,18 +3740,23 @@ negatifListBody.addEventListener("click", (event) => {
   }
 });
 
-sparepartBody.addEventListener("click", (event) => {
+sparepartBody.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
   const row = target.closest("tr");
   if (!row) return;
 
   if (target.dataset.action === "delete-sparepart") {
-    row.remove();
-    persistSparepartList();
-    updateDashboardStats();
-    applySparepartFilter();
-    showToast("Sparepart", "Item berhasil dihapus.");
+    try {
+      await deleteItemFromBackend("sparepart", row.dataset.id || "");
+      row.remove();
+      persistSparepartList();
+      updateDashboardStats();
+      applySparepartFilter();
+      showToast("Sparepart", "Item berhasil dihapus.");
+    } catch (error) {
+      showToast("Sparepart", error.message || "Gagal menghapus item.");
+    }
   }
 
   if (target.dataset.action === "edit-sparepart") {
@@ -3720,7 +3774,7 @@ sparepartBody.addEventListener("click", (event) => {
   }
 });
 
-serviceCardList.addEventListener("click", (event) => {
+serviceCardList.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
     return;
@@ -3745,11 +3799,16 @@ serviceCardList.addEventListener("click", (event) => {
   }
 
   if (target.dataset.action === "delete-service") {
-    card.remove();
-    persistServiceList();
-    updateDashboardStats();
-    applyServiceFilter();
-    showToast("Service", "Item berhasil dihapus.");
+    try {
+      await deleteItemFromBackend("service", card.dataset.id || "");
+      card.remove();
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
+      showToast("Service", "Item berhasil dihapus.");
+    } catch (error) {
+      showToast("Service", error.message || "Gagal menghapus item.");
+    }
   }
 
   if (target.dataset.action === "send-service") {
@@ -3818,18 +3877,23 @@ serviceCardList.addEventListener("keydown", (event) => {
   });
 });
 
-bomList.addEventListener("click", (event) => {
+bomList.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
   const card = target.closest(".bom-card");
   if (!card) return;
 
   if (target.dataset.action === "delete-bom") {
-    card.remove();
-    persistBomList();
-    updateDashboardStats();
-    applyBomFilter();
-    showToast("BOM", "Item berhasil dihapus.");
+    try {
+      await deleteItemFromBackend("bom", card.dataset.id || "");
+      card.remove();
+      persistBomList();
+      updateDashboardStats();
+      applyBomFilter();
+      showToast("BOM", "Item berhasil dihapus.");
+    } catch (error) {
+      showToast("BOM", error.message || "Gagal menghapus item.");
+    }
   }
 
   if (target.dataset.action === "edit-bom") {
@@ -3844,18 +3908,23 @@ bomList.addEventListener("click", (event) => {
   }
 });
 
-spbBody.addEventListener("click", (event) => {
+spbBody.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
   const row = target.closest("tr");
   if (!row) return;
 
   if (target.dataset.action === "delete-spb") {
-    row.remove();
-    persistSpbList();
-    updateDashboardStats();
-    applySpbFilter();
-    showToast("SPB", "Item berhasil dihapus.");
+    try {
+      await deleteItemFromBackend("spb", row.dataset.id || "");
+      row.remove();
+      persistSpbList();
+      updateDashboardStats();
+      applySpbFilter();
+      showToast("SPB", "Item berhasil dihapus.");
+    } catch (error) {
+      showToast("SPB", error.message || "Gagal menghapus item.");
+    }
   }
 
   if (target.dataset.action === "edit-spb") {

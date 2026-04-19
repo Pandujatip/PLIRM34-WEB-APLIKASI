@@ -12,7 +12,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -153,6 +153,12 @@ DEFAULT_USERS = [
     ("team.plirm34", "team123", "team"),
 ]
 
+ROLE_EDITABLE = {
+    "admin": {"negatif-list", "sparepart", "service", "bom", "spb", "users"},
+    "organik": {"negatif-list"},
+    "team": {"service"},
+}
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -223,6 +229,8 @@ def init_db() -> None:
                 work_status TEXT NOT NULL,
                 category TEXT NOT NULL,
                 area TEXT NOT NULL,
+                created_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
                 updated_at TEXT NOT NULL
             );
 
@@ -234,6 +242,8 @@ def init_db() -> None:
                 location TEXT NOT NULL,
                 qty TEXT NOT NULL,
                 condition TEXT NOT NULL,
+                created_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
                 updated_at TEXT NOT NULL
             );
 
@@ -246,6 +256,8 @@ def init_db() -> None:
                 description TEXT NOT NULL,
                 detail TEXT NOT NULL,
                 payload_json TEXT NOT NULL,
+                created_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
                 updated_at TEXT NOT NULL
             );
 
@@ -256,6 +268,8 @@ def init_db() -> None:
                 meta TEXT NOT NULL,
                 item_photo TEXT NOT NULL,
                 nameplate_photo TEXT NOT NULL,
+                created_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
                 updated_at TEXT NOT NULL
             );
 
@@ -271,6 +285,8 @@ def init_db() -> None:
                 qty TEXT NOT NULL,
                 price TEXT NOT NULL,
                 status TEXT NOT NULL,
+                created_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
                 updated_at TEXT NOT NULL
             );
             """
@@ -301,6 +317,7 @@ def init_db() -> None:
             )
 
         migrate_snapshot_state(connection)
+        ensure_audit_columns(connection)
 
 
 def get_user_by_username(username: str) -> sqlite3.Row | None:
@@ -423,9 +440,9 @@ def get_state_snapshot() -> dict:
     }
 
 
-def save_state(resource_key: str, payload: list) -> None:
+def save_state(resource_key: str, payload: list, user_id: int | None = None) -> None:
     with get_connection() as connection:
-        replace_resource_items(connection, resource_key, payload)
+        replace_resource_items(connection, resource_key, payload, user_id=user_id)
         connection.execute(
             """
             INSERT INTO app_state (resource, payload, updated_at)
@@ -442,6 +459,92 @@ def save_state(resource_key: str, payload: list) -> None:
         )
 
 
+def get_item_by_id(resource_key: str, item_id: str) -> dict | None:
+    resource_config = RESOURCE_TABLES[resource_key]
+    with get_connection() as connection:
+        row = connection.execute(
+            f"SELECT * FROM {resource_config['table']} WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+    return deserialize_resource_item(resource_key, row) if row else None
+
+
+def list_items(resource_key: str) -> list[dict]:
+    return load_resource_items(resource_key)
+
+
+def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
+    if not item.get("id"):
+        raise ValueError("ID item wajib ada")
+
+    resource_config = RESOURCE_TABLES[resource_key]
+    table = resource_config["table"]
+    columns = resource_config["columns"]
+    placeholders = ", ".join(["?"] * (len(columns) + 3))
+    insert_columns = ", ".join(columns + ["created_by_user_id", "updated_by_user_id", "updated_at"])
+    update_assignments = ", ".join([f"{column} = excluded.{column}" for column in columns[1:]])
+
+    with get_connection() as connection:
+        existing = connection.execute(
+            f"SELECT created_by_user_id FROM {table} WHERE id = ?",
+            (item["id"],),
+        ).fetchone()
+        created_by_user_id = existing["created_by_user_id"] if existing else user_id
+        row = serialize_resource_item(resource_key, item) + (created_by_user_id, user_id, utc_now().isoformat())
+        connection.execute(
+            f"""
+            INSERT INTO {table} ({insert_columns}) VALUES ({placeholders})
+            ON CONFLICT(id) DO UPDATE SET
+                {update_assignments},
+                updated_by_user_id = excluded.updated_by_user_id,
+                updated_at = excluded.updated_at
+            """,
+            row,
+        )
+        refresh_snapshot(connection, resource_key)
+
+    saved_item = get_item_by_id(resource_key, str(item["id"]))
+    if not saved_item:
+        raise ValueError("Gagal menyimpan item")
+    return saved_item
+
+
+def delete_item(resource_key: str, item_id: str) -> bool:
+    resource_config = RESOURCE_TABLES[resource_key]
+    with get_connection() as connection:
+        cursor = connection.execute(
+            f"DELETE FROM {resource_config['table']} WHERE id = ?",
+            (item_id,),
+        )
+        deleted = cursor.rowcount > 0
+        if deleted:
+            refresh_snapshot(connection, resource_key)
+    return deleted
+
+
+def refresh_snapshot(connection: sqlite3.Connection, resource_key: str) -> None:
+    items = [
+        deserialize_resource_item(resource_key, row)
+        for row in connection.execute(
+            f"SELECT * FROM {RESOURCE_TABLES[resource_key]['table']} ORDER BY updated_at DESC, rowid DESC"
+        ).fetchall()
+    ]
+    connection.execute(
+        """
+        INSERT INTO app_state (resource, payload, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(resource) DO UPDATE SET
+            payload = excluded.payload,
+            updated_at = excluded.updated_at
+        """,
+        (
+            STATE_KEYS[resource_key],
+            json.dumps(items, ensure_ascii=False),
+            utc_now().isoformat(),
+        ),
+    )
+
+
 def serialize_resource_item(resource_key: str, item: dict) -> tuple:
     if resource_key == "service":
         return (
@@ -453,7 +556,6 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("description", "")),
             str(item.get("detail", "")),
             json.dumps(item.get("payload", {}), ensure_ascii=False),
-            utc_now().isoformat(),
         )
 
     if resource_key == "negatif-list":
@@ -467,7 +569,6 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("workStatus", "")),
             str(item.get("category", "")),
             str(item.get("area", "")),
-            utc_now().isoformat(),
         )
 
     if resource_key == "sparepart":
@@ -479,7 +580,6 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("location", "")),
             str(item.get("qty", "")),
             str(item.get("condition", "")),
-            utc_now().isoformat(),
         )
 
     if resource_key == "bom":
@@ -490,7 +590,6 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("meta", "")),
             str(item.get("itemPhoto", "")),
             str(item.get("nameplatePhoto", "")),
-            utc_now().isoformat(),
         )
 
     if resource_key == "spb":
@@ -506,7 +605,6 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("qty", "")),
             str(item.get("price", "")),
             str(item.get("status", "")),
-            utc_now().isoformat(),
         )
 
     raise ValueError(f"Resource tidak dikenal: {resource_key}")
@@ -581,18 +679,18 @@ def deserialize_resource_item(resource_key: str, row: sqlite3.Row) -> dict:
     raise ValueError(f"Resource tidak dikenal: {resource_key}")
 
 
-def replace_resource_items(connection: sqlite3.Connection, resource_key: str, items: list) -> None:
+def replace_resource_items(connection: sqlite3.Connection, resource_key: str, items: list, user_id: int | None = None) -> None:
     resource_config = RESOURCE_TABLES[resource_key]
     table = resource_config["table"]
     columns = resource_config["columns"]
-    placeholders = ", ".join(["?"] * (len(columns) + 1))
-    insert_columns = ", ".join(columns + ["updated_at"])
+    placeholders = ", ".join(["?"] * (len(columns) + 3))
+    insert_columns = ", ".join(columns + ["created_by_user_id", "updated_by_user_id", "updated_at"])
 
     connection.execute(f"DELETE FROM {table}")
     if not items:
         return
 
-    rows = [serialize_resource_item(resource_key, item) for item in items]
+    rows = [serialize_resource_item(resource_key, item) + (user_id, user_id, utc_now().isoformat()) for item in items]
     connection.executemany(
         f"INSERT INTO {table} ({insert_columns}) VALUES ({placeholders})",
         rows,
@@ -633,6 +731,23 @@ def migrate_snapshot_state(connection: sqlite3.Connection) -> None:
             replace_resource_items(connection, resource_key, items)
 
 
+def ensure_audit_columns(connection: sqlite3.Connection) -> None:
+    for resource_config in RESOURCE_TABLES.values():
+        table = resource_config["table"]
+        columns = {
+            row["name"]
+            for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if "created_by_user_id" not in columns:
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN created_by_user_id INTEGER")
+        if "updated_by_user_id" not in columns:
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN updated_by_user_id INTEGER")
+
+
+def can_edit_resource(role: str, resource_key: str) -> bool:
+    return resource_key in ROLE_EDITABLE.get(role, set())
+
+
 class PLIRMRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT_DIR), **kwargs)
@@ -646,6 +761,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             self._send_json({"ok": True, "timestamp": utc_now().isoformat()})
+            return
+
+        if parsed.path.startswith("/api/items/"):
+            self._handle_items_get(parsed.path)
             return
 
         if parsed.path == "/api/auth/me":
@@ -680,6 +799,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/items/"):
+            self._handle_items_post(parsed.path)
+            return
+
         if parsed.path == "/api/auth/login":
             self._handle_login()
             return
@@ -696,6 +819,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/items/"):
+            self._handle_items_put(parsed.path)
+            return
+
         if parsed.path.startswith("/api/sync/"):
             resource_key = parsed.path.rsplit("/", 1)[-1]
             self._handle_sync(resource_key)
@@ -706,6 +833,13 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_update_user_role(username)
             return
 
+        self.send_error(HTTPStatus.NOT_FOUND, "Endpoint tidak ditemukan")
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/items/"):
+            self._handle_items_delete(parsed.path)
+            return
         self.send_error(HTTPStatus.NOT_FOUND, "Endpoint tidak ditemukan")
 
     def log_message(self, format: str, *args):
@@ -767,6 +901,110 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return user
         self._send_json({"error": "Autentikasi diperlukan"}, status=HTTPStatus.UNAUTHORIZED)
         return None
+
+    def _parse_item_route(self, path: str) -> tuple[str | None, str | None]:
+        parts = [part for part in path.split("/") if part]
+        if len(parts) < 3 or parts[0] != "api" or parts[1] != "items":
+            return None, None
+        resource_key = parts[2]
+        item_id = unquote(parts[3]) if len(parts) > 3 else None
+        return resource_key, item_id
+
+    def _require_edit_access(self, user: dict, resource_key: str) -> bool:
+        if can_edit_resource(user["role"], resource_key):
+            return True
+        self._send_json({"error": "Akses edit tidak diizinkan untuk modul ini"}, status=HTTPStatus.FORBIDDEN)
+        return False
+
+    def _handle_items_get(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        resource_key, item_id = self._parse_item_route(path)
+        if resource_key not in RESOURCE_TABLES:
+            self._send_json({"error": "Resource item tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if item_id:
+            item = get_item_by_id(resource_key, item_id)
+            if not item:
+                self._send_json({"error": "Item tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
+                return
+            self._send_json({"item": item})
+            return
+        self._send_json({"items": list_items(resource_key)})
+
+    def _handle_items_post(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        resource_key, item_id = self._parse_item_route(path)
+        if resource_key not in RESOURCE_TABLES or item_id:
+            self._send_json({"error": "Endpoint create item tidak valid"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if not self._require_edit_access(user, resource_key):
+            return
+
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+
+        item = payload.get("item")
+        if not isinstance(item, dict):
+            self._send_json({"error": "Payload item harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        try:
+            saved_item = create_or_update_item(resource_key, item, user["id"])
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self._send_json({"ok": True, "item": saved_item}, status=HTTPStatus.CREATED)
+
+    def _handle_items_put(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        resource_key, item_id = self._parse_item_route(path)
+        if resource_key not in RESOURCE_TABLES or not item_id:
+            self._send_json({"error": "Endpoint update item tidak valid"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if not self._require_edit_access(user, resource_key):
+            return
+
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+
+        item = payload.get("item")
+        if not isinstance(item, dict):
+            self._send_json({"error": "Payload item harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        item["id"] = item_id
+
+        try:
+            saved_item = create_or_update_item(resource_key, item, user["id"])
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self._send_json({"ok": True, "item": saved_item})
+
+    def _handle_items_delete(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        resource_key, item_id = self._parse_item_route(path)
+        if resource_key not in RESOURCE_TABLES or not item_id:
+            self._send_json({"error": "Endpoint hapus item tidak valid"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if not self._require_edit_access(user, resource_key):
+            return
+        deleted = delete_item(resource_key, item_id)
+        if not deleted:
+            self._send_json({"error": "Item tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
+            return
+        self._send_json({"ok": True, "id": item_id})
 
     def _handle_login(self):
         try:
@@ -840,14 +1078,17 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Payload items harus berupa array"}, status=HTTPStatus.BAD_REQUEST)
             return
 
-        save_state(resource_key, items)
+        if not self._require_edit_access(user, resource_key):
+            return
+
+        save_state(resource_key, items, user["id"])
         self._send_json({"ok": True, "resource": resource_key, "count": len(items)})
 
     def _handle_update_user_role(self, username: str):
         user = self._require_user()
         if not user:
             return
-        if user["role"] != "admin":
+        if not can_edit_resource(user["role"], "users"):
             self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
             return
         if not username:

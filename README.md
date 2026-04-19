@@ -54,6 +54,11 @@ http://192.168.x.x:8012
 - `PUT /api/sync/<resource>`
 - `GET /api/users`
 - `PUT /api/users/<username>/role`
+- `GET /api/items/<resource>`
+- `GET /api/items/<resource>/<id>`
+- `POST /api/items/<resource>`
+- `PUT /api/items/<resource>/<id>`
+- `DELETE /api/items/<resource>/<id>`
 
 ## Catatan
 
@@ -64,4 +69,8 @@ http://192.168.x.x:8012
   - `service_items`
   - `bom_items`
   - `spb_items`
+- backend sekarang juga mendukung CRUD per item dan validasi role edit:
+  - `admin`: semua modul
+  - `organik`: `negatif-list`
+  - `team`: `service`
 - tabel `app_state` masih dipertahankan sementara untuk kompatibilitas migrasi dari versi prototype sebelumnya
