@@ -2688,16 +2688,24 @@ h3,
     linear-gradient(180deg, rgba(17, 17, 17, 0.98), rgba(10, 10, 10, 0.96)),
     linear-gradient(90deg, rgba(255, 106, 0, 0.08), transparent 20%);
   border-color: rgba(255, 140, 66, 0.18);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
 }
 
 .topbar-title-block {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 .player-hud {
   gap: 10px;
   align-items: center;
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .player-avatar {
@@ -2820,6 +2828,14 @@ h3,
   color: #dce8ff;
 }
 
+.topbar-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
 .hero-banner {
   padding: 18px;
   gap: 16px;
@@ -2893,8 +2909,11 @@ h3,
 .hero-ring-meta strong {
   display: block;
   margin-top: 4px;
-  font-family: "Orbitron", sans-serif;
+  font-family: "Sora", sans-serif;
   font-size: 1.35rem;
+  line-height: 1.25;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .hero-ring-panel {
@@ -2941,12 +2960,14 @@ h3,
 
 .hero-ring-meta {
   text-align: center;
+  max-width: 100%;
 }
 
 .hero-ring-meta small {
   display: block;
   margin-top: 6px;
   color: #b9b3ab;
+  line-height: 1.45;
 }
 
 .banner-stats article,

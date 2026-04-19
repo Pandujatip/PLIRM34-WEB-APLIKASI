@@ -201,6 +201,8 @@ const backendState = {
     appSettings: [],
   },
 };
+const IDLE_LOGOUT_MS = 3 * 60 * 1000;
+const IDLE_ACTIVITY_EVENTS = ["click", "keydown", "mousemove", "touchstart", "scroll"];
 
 let activeRole = "admin";
 let editingNegatifId = null;
@@ -219,6 +221,7 @@ let dashboardInspectionSchedule = {
   today: [],
   tomorrow: [],
 };
+let idleLogoutTimer = null;
 
 const roleLabels = {
   admin: "Admin",
@@ -882,7 +885,7 @@ function openSection(sectionName) {
 
   const activeItem = [...menuItems].find((item) => item.dataset.section === sectionName);
   if (activeItem) {
-    pageTitle.textContent = activeItem.textContent;
+    pageTitle.textContent = activeItem.querySelector(".menu-item-main strong")?.textContent || activeItem.dataset.section || "Dashboard";
   }
 
   window.localStorage.setItem(storageKeys.lastSection, sectionName);
@@ -926,6 +929,57 @@ function saveSession(username, role) {
 function clearSession() {
   window.localStorage.removeItem(storageKeys.session);
   window.localStorage.removeItem(storageKeys.lastSection);
+}
+
+function stopIdleLogoutTimer() {
+  if (idleLogoutTimer) {
+    window.clearTimeout(idleLogoutTimer);
+    idleLogoutTimer = null;
+  }
+}
+
+async function performLogout(reason = "") {
+  stopIdleLogoutTimer();
+  if (backendState.available && backendState.sessionActive) {
+    try {
+      await apiRequest("/auth/logout", { method: "POST" });
+    } catch (error) {
+      console.error("Logout backend gagal:", error);
+    }
+    backendState.sessionActive = false;
+  }
+  workspace.classList.add("hidden");
+  loginScreen.classList.remove("hidden");
+  loginForm.reset();
+  activeRole = "admin";
+  dashboardInspectionSchedule = {
+    calendarName: "PMS PLIRM34",
+    timezone: "Asia/Jakarta",
+    today: [],
+    tomorrow: [],
+  };
+  clearSession();
+  if (reason) {
+    showToast("Sesi Berakhir", reason);
+  }
+}
+
+function resetIdleLogoutTimer() {
+  stopIdleLogoutTimer();
+  if (workspace.classList.contains("hidden")) {
+    return;
+  }
+  idleLogoutTimer = window.setTimeout(() => {
+    void performLogout("Tidak ada aktivitas selama 3 menit. Silakan login kembali.");
+  }, IDLE_LOGOUT_MS);
+}
+
+function initializeIdleActivityTracking() {
+  IDLE_ACTIVITY_EVENTS.forEach((eventName) => {
+    window.addEventListener(eventName, () => {
+      resetIdleLogoutTimer();
+    }, { passive: true });
+  });
 }
 
 function restoreSession() {
@@ -3067,6 +3121,7 @@ function loginWithUser(user) {
   workspace.classList.remove("hidden");
   renderUserManagementTable();
   openSection("dashboard");
+  resetIdleLogoutTimer();
 }
 
 async function loadAllDataFromBackend() {
@@ -3154,6 +3209,7 @@ async function initializeApplication() {
     loadStoredData();
     restoreSession();
   }
+  initializeIdleActivityTracking();
 
   await Promise.allSettled([
     loadEquipmentReference(),
@@ -6359,11 +6415,20 @@ if (printButton) {
 }
 
 if (refreshButton) {
-  refreshButton.addEventListener("click", () => {
-    showToast("Refresh Tampilan", "Memuat ulang aplikasi tanpa perlu login ulang.");
-    window.setTimeout(() => {
-      window.location.reload();
-    }, 300);
+  refreshButton.addEventListener("click", async () => {
+    try {
+      if (backendState.available && backendState.sessionActive) {
+        const activeSection = [...sections].find((section) => section.classList.contains("visible"))?.dataset.panel || "dashboard";
+        await hydrateFromBackendAfterLogin();
+        openSection(activeSection);
+      } else {
+        loadStoredData();
+      }
+      resetIdleLogoutTimer();
+      showToast("Refresh Tampilan", "Data berhasil disegarkan tanpa logout.");
+    } catch (error) {
+      showToast("Refresh Tampilan", error.message || "Gagal menyegarkan data.");
+    }
   });
 }
 
@@ -6375,24 +6440,6 @@ if (mobileMenuToggle) {
 
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
-    if (backendState.available) {
-      try {
-        await apiRequest("/auth/logout", { method: "POST" });
-      } catch (error) {
-        console.error("Logout backend gagal:", error);
-      }
-      backendState.sessionActive = false;
-    }
-    workspace.classList.add("hidden");
-    loginScreen.classList.remove("hidden");
-    loginForm.reset();
-    activeRole = "admin";
-    dashboardInspectionSchedule = {
-      calendarName: "PMS PLIRM34",
-      timezone: "Asia/Jakarta",
-      today: [],
-      tomorrow: [],
-    };
-    clearSession();
+    await performLogout();
   });
 }
