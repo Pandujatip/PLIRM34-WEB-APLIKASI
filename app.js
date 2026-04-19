@@ -96,6 +96,19 @@ const hudRankBadge = document.getElementById("hud-rank-badge");
 const hudXpFill = document.getElementById("hud-xp-fill");
 const hudXpText = document.getElementById("hud-xp-text");
 const hudPoints = document.getElementById("hud-points");
+const sidebarStreakValue = document.getElementById("sidebar-streak-value");
+const sidebarStreakNote = document.getElementById("sidebar-streak-note");
+const achievementTitle = document.getElementById("achievement-title");
+const achievementStatus = document.getElementById("achievement-status");
+const achievementDesc = document.getElementById("achievement-desc");
+const missionTitle = document.getElementById("mission-title");
+const missionProgressFill = document.getElementById("mission-progress-fill");
+const missionProgressText = document.getElementById("mission-progress-text");
+const missionDesc = document.getElementById("mission-desc");
+const streakTitle = document.getElementById("streak-title");
+const streakReward = document.getElementById("streak-reward");
+const streakDesc = document.getElementById("streak-desc");
+const menuBadges = document.querySelectorAll("[data-menu-badge]");
 const heroLevelTitle = document.getElementById("hero-level-title");
 const heroNextLevel = document.getElementById("hero-next-level");
 const heroProgressValue = document.getElementById("hero-progress-value");
@@ -3497,6 +3510,36 @@ function updateDashboardStats() {
           : "Bronze Operator";
   const rankBadge = rankName.split(" ")[0].toUpperCase();
   const dailyProgress = Math.max(0, Math.min(100, Math.round(((todayServiceItems.length * 35) + (Math.max(0, 6 - openNegatifItems.length) * 8)) / 2)));
+  const streakDays = getConsecutiveServiceStreak(serviceItems);
+  const achievementUnlocked = streakDays >= 3 || todayServiceItems.length >= 3 || openNegatifItems.length === 0;
+  const achievementLabel = openNegatifItems.length === 0
+    ? "Zero Pending Hunter"
+    : streakDays >= 3
+      ? "Inspection Streak"
+      : todayServiceItems.length >= 3
+        ? "Field Runner"
+        : "Locked Achievement";
+  const achievementDescription = openNegatifItems.length === 0
+    ? "Semua negatif list open berhasil dibersihkan dari dashboard."
+    : streakDays >= 3
+      ? `Streak inspeksi aktif ${streakDays} hari berturut-turut.`
+      : todayServiceItems.length >= 3
+        ? "Target inspeksi harian berhasil menembus 3 item atau lebih."
+        : "Butuh streak inspeksi, service harian, atau zero pending untuk unlock.";
+  const missionScore = Math.max(0, Math.min(100, Math.round(((todayServiceItems.length * 28) + ((sparepartItems.length > 0 ? 1 : 0) * 18) + ((openNegatifItems.length === 0 ? 1 : 0) * 24)) / 1.4)));
+  const missionTargetText = openNegatifItems.length > 0
+    ? `Kurangi ${openNegatifItems.length} pending open dan capai inspeksi harian stabil.`
+    : "Pending open sudah aman, lanjut dorong inspeksi dan resource control.";
+  const moduleScores = {
+    dashboard: 100,
+    "negatif-list": Math.max(0, 100 - (openNegatifItems.length * 8)),
+    sparepart: Math.min(100, sparepartItems.length * 6),
+    service: Math.min(100, serviceItems.length * 5 + todayServiceItems.length * 12),
+    bom: Math.min(100, (bomItems.length + bomMotorItems.length) * 2),
+    spb: Math.min(100, spbItems.length * 7),
+    "user-management": 95,
+    "activity-log": 92,
+  };
 
   statNegatif.textContent = `${openNegatifItems.length} item`;
   statSpbBelumAda.textContent = formatCompactCurrency(currentYearSpbTotal);
@@ -3518,6 +3561,22 @@ function updateDashboardStats() {
   if (heroXpCaption) heroXpCaption.textContent = `${currentLevelXp} XP collected on this level`;
   if (heroRankName) heroRankName.textContent = rankName;
   if (heroXpRing) heroXpRing.style.setProperty("--xp-progress", `${xpPercent}%`);
+  if (sidebarStreakValue) sidebarStreakValue.textContent = `${streakDays} hari`;
+  if (sidebarStreakNote) sidebarStreakNote.textContent = streakDays > 0 ? `Chain inspeksi aktif ${streakDays} hari berturut-turut.` : "Belum ada chain inspeksi aktif.";
+  if (achievementTitle) achievementTitle.textContent = achievementLabel;
+  if (achievementStatus) achievementStatus.textContent = achievementUnlocked ? "Unlocked" : "Locked";
+  if (achievementDesc) achievementDesc.textContent = achievementDescription;
+  if (missionTitle) missionTitle.textContent = openNegatifItems.length > 0 ? "Reduce Pending Open" : "Maintain Clean Operations";
+  if (missionProgressFill) missionProgressFill.style.width = `${missionScore}%`;
+  if (missionProgressText) missionProgressText.textContent = `${missionScore}%`;
+  if (missionDesc) missionDesc.textContent = missionTargetText;
+  if (streakTitle) streakTitle.textContent = `${streakDays} hari`;
+  if (streakReward) streakReward.textContent = `+${streakDays * 24} XP chain`;
+  if (streakDesc) streakDesc.textContent = streakDays > 0 ? "Lanjutkan inspeksi harian tanpa putus untuk bonus rank." : "Mulai satu inspeksi hari ini untuk membangun streak baru.";
+  menuBadges.forEach((badge) => {
+    const section = badge.dataset.menuBadge || "";
+    badge.textContent = section === "dashboard" ? rankBadge : getModuleRankLabel(moduleScores[section] || 0);
+  });
   renderMiniCharts(negatifItems, serviceItems, spbItems);
   renderDashboardPreviews(negatifItems, serviceItems, spbItems);
   renderMobileCards(negatifItems, spbItems);
@@ -3719,6 +3778,38 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
 
 function matchesSearch(text, query) {
   return text.toLowerCase().includes(query.trim().toLowerCase());
+}
+
+function getModuleRankLabel(score) {
+  if (score >= 90) return "S";
+  if (score >= 70) return "A";
+  if (score >= 45) return "B";
+  if (score >= 20) return "C";
+  return "D";
+}
+
+function getConsecutiveServiceStreak(serviceItems) {
+  const dates = [...new Set(
+    serviceItems
+      .map((item) => String(item.payload?.inspectionDate || "").slice(0, 10))
+      .filter(Boolean),
+  )].sort((left, right) => right.localeCompare(left));
+  if (!dates.length) {
+    return 0;
+  }
+  let streak = 1;
+  let cursor = new Date(`${dates[0]}T00:00:00`);
+  for (let index = 1; index < dates.length; index += 1) {
+    const next = new Date(`${dates[index]}T00:00:00`);
+    const diffDays = Math.round((cursor.getTime() - next.getTime()) / 86400000);
+    if (diffDays === 1) {
+      streak += 1;
+      cursor = next;
+      continue;
+    }
+    break;
+  }
+  return streak;
 }
 
 function getBomAreaFromEquipment(equipmentName) {

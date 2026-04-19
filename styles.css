@@ -575,6 +575,43 @@ select:focus {
   gap: 10px;
 }
 
+.sidebar-hud-card {
+  margin-top: auto;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 255, 178, 0.16);
+  background:
+    linear-gradient(180deg, rgba(0, 255, 178, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.02);
+  box-shadow: 0 0 18px rgba(0, 255, 178, 0.06);
+}
+
+.sidebar-hud-card span,
+.sidebar-hud-card strong,
+.sidebar-hud-card small {
+  display: block;
+}
+
+.sidebar-hud-card span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sidebar-hud-card strong {
+  margin-top: 6px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.35rem;
+  color: var(--success);
+}
+
+.sidebar-hud-card small {
+  margin-top: 6px;
+  color: #d1e9e1;
+  line-height: 1.5;
+}
+
 .mobile-menu-toggle {
   display: none;
   min-height: 44px;
@@ -599,6 +636,44 @@ select:focus {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+}
+
+.menu-item-main {
+  display: grid;
+  gap: 4px;
+}
+
+.menu-item-main strong,
+.menu-item-main small {
+  display: block;
+}
+
+.menu-item-main strong {
+  font-size: 0.92rem;
+}
+
+.menu-item-main small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.menu-item-badge {
+  margin-left: auto;
+  min-width: 38px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 140, 66, 0.2);
+  background: rgba(255, 106, 0, 0.14);
+  color: #ffe7d2;
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
 }
 
 .menu-item.active {
@@ -797,6 +872,51 @@ select:focus {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.reward-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reward-card-body {
+  display: grid;
+  gap: 10px;
+}
+
+.reward-card-body strong {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.18rem;
+  color: #fff3e6;
+}
+
+.reward-card-body p {
+  margin: 0;
+  color: #d8cec4;
+  line-height: 1.6;
+}
+
+.achievement-card {
+  background:
+    linear-gradient(180deg, rgba(162, 89, 255, 0.12), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.02);
+}
+
+.mission-card {
+  background:
+    linear-gradient(180deg, rgba(255, 106, 0, 0.12), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.02);
+}
+
+.streak-card {
+  background:
+    linear-gradient(180deg, rgba(0, 255, 178, 0.1), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.02);
+}
+
+.mission-track {
+  margin-top: 2px;
 }
 
 .chart-grid {
@@ -2542,6 +2662,10 @@ h3,
   min-height: 50px;
   border-radius: 18px;
   letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
 }
 
 .menu-item.active {
