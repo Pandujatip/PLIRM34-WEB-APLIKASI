@@ -81,6 +81,7 @@ const bomList = document.getElementById("bom-list");
 const spbBody = document.getElementById("spb-body");
 const dashboardNegatifPreview = document.getElementById("dashboard-negatif-preview");
 const dashboardSpbPreview = document.getElementById("dashboard-spb-preview");
+const dashboardServicePreview = document.getElementById("dashboard-service-preview");
 const statNegatif = document.getElementById("stat-negatif");
 const statSpbBelumAda = document.getElementById("stat-spb-belum-ada");
 const statService = document.getElementById("stat-service");
@@ -88,9 +89,6 @@ const metricSparepartTotal = document.getElementById("metric-sparepart-total");
 const metricBomTotal = document.getElementById("metric-bom-total");
 const metricServiceElectrical = document.getElementById("metric-service-electrical");
 const metricSpbTotal = document.getElementById("metric-spb-total");
-const areaElectricalCount = document.getElementById("area-electrical-count");
-const areaInstrumentCount = document.getElementById("area-instrument-count");
-const areaDcsCount = document.getElementById("area-dcs-count");
 const chartNegatif = document.getElementById("chart-negatif");
 const chartService = document.getElementById("chart-service");
 const chartSpb = document.getElementById("chart-spb");
@@ -3002,6 +3000,41 @@ function formatActivityLogDate(value) {
   });
 }
 
+function isSameCalendarDate(value, targetDate = new Date()) {
+  if (!value) {
+    return false;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+  return date.getFullYear() === targetDate.getFullYear()
+    && date.getMonth() === targetDate.getMonth()
+    && date.getDate() === targetDate.getDate();
+}
+
+function extractSpbYear(item) {
+  const text = [
+    item.notificationNo,
+    item.orderNo,
+    item.reservationNo,
+    item.materialDescription,
+  ].map((value) => String(value || "")).join(" ");
+  const match = text.match(/\b(20\d{2})\b/);
+  return match ? match[1] : String(new Date().getFullYear());
+}
+
+function formatCompactCurrency(value) {
+  const numeric = Number(value || 0);
+  if (numeric >= 1000000000) {
+    return `Rp${(numeric / 1000000000).toFixed(1).replace(".0", "")} M`;
+  }
+  if (numeric >= 1000000) {
+    return `Rp${Math.round(numeric / 1000000)} jt`;
+  }
+  return `Rp${numeric.toLocaleString("id-ID")}`;
+}
+
 function renderActivityLogTable(items) {
   if (!activityLogBody) {
     return;
@@ -3168,21 +3201,24 @@ function updateDashboardStats() {
   const serviceItems = getServiceItemsFromDom();
   const bomItems = getBomItemsFromDom();
   const spbItems = getSpbItemsFromDom();
-
-  const belumAdaCount = spbItems.filter((item) => item.status === "Belum ada").length;
+  const today = new Date();
+  const currentYear = String(today.getFullYear());
+  const openNegatifItems = negatifItems.filter((item) => String(item.workStatus || "").toLowerCase() === "open");
+  const todayServiceItems = serviceItems.filter((item) => isSameCalendarDate(item.payload?.inspectionDate, today));
+  const currentYearSpbTotal = spbItems
+    .filter((item) => extractSpbYear(item) === currentYear)
+    .reduce((sum, item) => sum + Number(item.price || 0), 0);
   const electricalCount = serviceItems.filter((item) => item.type === "Electrical").length;
-  const totalSpb = spbItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
 
-  statNegatif.textContent = `${negatifItems.length} item`;
-  statSpbBelumAda.textContent = `${belumAdaCount} item`;
-  statService.textContent = `${serviceItems.length} area`;
+  statNegatif.textContent = `${openNegatifItems.length} item`;
+  statSpbBelumAda.textContent = formatCompactCurrency(currentYearSpbTotal);
+  statService.textContent = `${todayServiceItems.length} item`;
   metricSparepartTotal.textContent = `${sparepartItems.length}`;
   metricBomTotal.textContent = `${bomItems.length} mesin`;
   metricServiceElectrical.textContent = `${electricalCount} temuan`;
-  metricSpbTotal.textContent = `Rp${Math.round(totalSpb / 1000000)} jt`;
-  renderExecutiveSummary(negatifItems, serviceItems, spbItems);
+  metricSpbTotal.textContent = formatCompactCurrency(currentYearSpbTotal);
   renderMiniCharts(negatifItems, serviceItems, spbItems);
-  renderDashboardPreviews(negatifItems, spbItems);
+  renderDashboardPreviews(negatifItems, serviceItems, spbItems);
   renderMobileCards(negatifItems, spbItems);
   renderNegatifModuleSummary(negatifItems);
   renderNegatifCharts(negatifItems);
@@ -3217,16 +3253,6 @@ function renderNegatifCharts(negatifItems) {
   ]);
 }
 
-function renderExecutiveSummary(negatifItems, serviceItems, spbItems) {
-  const electrical = negatifItems.filter((item) => item.category === "Electrical").length + serviceItems.filter((item) => item.type === "Electrical").length;
-  const instrument = negatifItems.filter((item) => item.category === "Instrument").length + serviceItems.filter((item) => item.type === "Instrument").length;
-  const dcs = negatifItems.filter((item) => item.category === "DCS").length + serviceItems.filter((item) => item.type === "DCS").length + spbItems.filter((item) => /DCS|network|monitor/i.test(item.materialDescription)).length;
-
-  areaElectricalCount.textContent = `${electrical} item`;
-  areaInstrumentCount.textContent = `${instrument} item`;
-  areaDcsCount.textContent = `${dcs} item`;
-}
-
 function renderChart(container, rows) {
   if (!container) return;
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
@@ -3247,21 +3273,29 @@ function renderChart(container, rows) {
 
 function renderMiniCharts(negatifItems, serviceItems, spbItems) {
   renderChart(chartNegatif, [
-    { label: "Material", value: negatifItems.filter((item) => item.pendingMark === "Menunggu material").length },
-    { label: "Rawmill", value: negatifItems.filter((item) => item.pendingMark === "Menunggu Rawmill service").length },
-    { label: "OVH", value: negatifItems.filter((item) => item.pendingMark === "Menunggu OVH").length },
+    { label: "Material", value: negatifItems.filter((item) => item.pendingMark === "Menunggu material" && item.workStatus === "Open").length },
+    { label: "Rawmill", value: negatifItems.filter((item) => item.pendingMark === "Menunggu Rawmill service" && item.workStatus === "Open").length },
+    { label: "OVH", value: negatifItems.filter((item) => item.pendingMark === "Menunggu OVH" && item.workStatus === "Open").length },
   ]);
 
+  const today = new Date();
   renderChart(chartService, [
-    { label: "Electrical", value: serviceItems.filter((item) => item.type === "Electrical").length },
-    { label: "Instrument", value: serviceItems.filter((item) => item.type === "Instrument").length },
-    { label: "DCS", value: serviceItems.filter((item) => item.type === "DCS").length },
+    { label: "Electrical", value: serviceItems.filter((item) => item.type === "Electrical" && isSameCalendarDate(item.payload?.inspectionDate, today)).length },
+    { label: "Instrument", value: serviceItems.filter((item) => item.type === "Instrument" && isSameCalendarDate(item.payload?.inspectionDate, today)).length },
+    { label: "DCS", value: serviceItems.filter((item) => item.type === "DCS" && isSameCalendarDate(item.payload?.inspectionDate, today)).length },
   ]);
 
-  renderChart(chartSpb, [
-    { label: "Belum ada", value: spbItems.filter((item) => item.status === "Belum ada").length },
-    { label: "Proses", value: spbItems.filter((item) => item.status === "Proses").length },
-    { label: "Selesai", value: spbItems.filter((item) => item.status === "Selesai").length },
+  const yearlyTotals = [...spbItems.reduce((map, item) => {
+    const year = extractSpbYear(item);
+    map.set(year, (map.get(year) || 0) + Number(item.price || 0));
+    return map;
+  }, new Map()).entries()]
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .slice(-4)
+    .map(([label, value]) => ({ label, value }));
+
+  renderChart(chartSpb, yearlyTotals.length ? yearlyTotals : [
+    { label: String(new Date().getFullYear()), value: 0 },
   ]);
 }
 
@@ -3308,31 +3342,74 @@ function renderMobileCards(negatifItems, spbItems) {
   }
 }
 
-function renderDashboardPreviews(negatifItems, spbItems) {
+function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
   if (dashboardNegatifPreview) {
-    const previewItems = negatifItems.slice(0, 3);
+    const previewItems = negatifItems
+      .filter((item) => String(item.workStatus || "").toLowerCase() === "open")
+      .slice(0, 5);
     dashboardNegatifPreview.innerHTML = "";
+    if (!previewItems.length) {
+      dashboardNegatifPreview.innerHTML = `<tr><td colspan="4">Tidak ada negatif list open.</td></tr>`;
+    }
     previewItems.forEach((item) => {
       const row = document.createElement("tr");
       row.innerHTML = `
         <td>${item.equipment}</td>
-        <td>${item.category}</td>
+        <td>${item.pendingMark || "-"}</td>
         <td>${item.area}</td>
-        <td>${item.workStatus}</td>
+        <td>${item.category}</td>
       `;
       dashboardNegatifPreview.append(row);
     });
   }
 
-  if (dashboardSpbPreview) {
-    const previewItems = spbItems.filter((item) => item.status === "Belum ada").slice(0, 4);
-    dashboardSpbPreview.innerHTML = "";
+  if (dashboardServicePreview) {
+    const previewItems = serviceItems
+      .filter((item) => isSameCalendarDate(item.payload?.inspectionDate, new Date()))
+      .slice(0, 5);
+    dashboardServicePreview.innerHTML = "";
+    if (!previewItems.length) {
+      dashboardServicePreview.innerHTML = `
+        <article>
+          <strong>Belum ada service hari ini</strong>
+          <span>Hasil inspeksi hari berjalan akan tampil di sini</span>
+          <small>Filter berdasarkan tanggal inspeksi</small>
+        </article>
+      `;
+    }
     previewItems.forEach((item) => {
       const article = document.createElement("article");
       article.innerHTML = `
-        <strong>${item.materialDescription}</strong>
-        <span>No order: ${item.orderNo}</span>
-        <small>Status: ${item.status}</small>
+        <strong>${item.equipmentName}</strong>
+        <span>${item.subtype || item.type}</span>
+        <small>${formatInspectionDate(item.payload?.inspectionDate)}</small>
+      `;
+      dashboardServicePreview.append(article);
+    });
+  }
+
+  if (dashboardSpbPreview) {
+    const yearlyTotals = [...spbItems.reduce((map, item) => {
+      const year = extractSpbYear(item);
+      map.set(year, (map.get(year) || 0) + Number(item.price || 0));
+      return map;
+    }, new Map()).entries()].sort((left, right) => right[0].localeCompare(left[0])).slice(0, 5);
+    dashboardSpbPreview.innerHTML = "";
+    if (!yearlyTotals.length) {
+      dashboardSpbPreview.innerHTML = `
+        <article>
+          <strong>Belum ada data SPB</strong>
+          <span>Biaya ajuan tahunan akan tampil di sini</span>
+          <small>Input data real melalui menu SPB</small>
+        </article>
+      `;
+    }
+    yearlyTotals.forEach(([year, total]) => {
+      const article = document.createElement("article");
+      article.innerHTML = `
+        <strong>${year}</strong>
+        <span>Total ajuan: ${formatCompactCurrency(total)}</span>
+        <small>${spbItems.filter((item) => extractSpbYear(item) === year).length} item</small>
       `;
       dashboardSpbPreview.append(article);
     });

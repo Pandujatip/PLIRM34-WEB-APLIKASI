@@ -96,69 +96,47 @@
               <strong id="current-user">admin.plirm34</strong>
             </div>
             <div class="access-chip" id="access-summary">Akses penuh seluruh modul</div>
-            <button class="btn btn-secondary" id="refresh-button" type="button">Refresh Tampilan</button>
-            <button class="btn btn-secondary" id="print-button" type="button">Cetak Laporan</button>
-            <button class="btn btn-secondary" id="logout-button" type="button">Keluar</button>
+            <button class="btn btn-secondary icon-button" id="refresh-button" type="button" title="Refresh Tampilan" aria-label="Refresh Tampilan">&#8635;</button>
+            <button class="btn btn-secondary icon-button" id="print-button" type="button" title="Cetak Laporan" aria-label="Cetak Laporan">&#9113;</button>
+            <button class="btn btn-secondary icon-button" id="logout-button" type="button" title="Keluar" aria-label="Keluar">&#10539;</button>
           </div>
         </header>
 
         <section class="panel-section visible" data-panel="dashboard">
           <div class="hero-banner">
-            <div class="hero-copy">
-              <p class="eyebrow">Ringkasan Hari Ini</p>
-              <h3>Kontrol operasional PLIRM34 untuk pending job, service, sparepart, dan pengadaan.</h3>
-              <p id="sample-data-status" class="sample-data-status">Data operasional akan tampil setelah input atau sinkronisasi database.</p>
-            </div>
             <div class="banner-stats">
               <article>
-                <span>Negatif list aktif</span>
+                <span>Negatif list open</span>
                 <strong id="stat-negatif">0 item</strong>
               </article>
               <article>
-                <span>SPB belum ada status</span>
-                <strong id="stat-spb-belum-ada">0 item</strong>
+                <span>Service hari ini</span>
+                <strong id="stat-service">0 item</strong>
               </article>
               <article>
-                <span>Inspeksi due minggu ini</span>
-                <strong id="stat-service">0 area</strong>
+                <span>SPB tahun ini</span>
+                <strong id="stat-spb-belum-ada">Rp0</strong>
               </article>
             </div>
-          </div>
-
-          <div class="executive-grid">
-            <article class="executive-card">
-              <p class="eyebrow">Electrical</p>
-              <strong id="area-electrical-count">0 item</strong>
-              <span>Pending material dan service electrical yang perlu diprioritaskan.</span>
-            </article>
-            <article class="executive-card">
-              <p class="eyebrow">Instrument</p>
-              <strong id="area-instrument-count">0 item</strong>
-              <span>Temuan instrument, kebutuhan kalibrasi, dan material kritis area field.</span>
-            </article>
-            <article class="executive-card">
-              <p class="eyebrow">DCS</p>
-              <strong id="area-dcs-count">0 item</strong>
-              <span>Isu sistem kontrol, jaringan, HMI, dan kebutuhan material penunjang DCS.</span>
-            </article>
+            <p id="sample-data-status" class="sample-data-status">Data operasional akan tampil setelah input atau sinkronisasi database.</p>
           </div>
 
           <div class="metric-grid">
             <article class="metric-card">
-              <span>Total sparepart terdata</span>
-              <strong id="metric-sparepart-total">186</strong>
+              <span>Sparepart</span>
+              <strong id="metric-sparepart-total">0</strong>
             </article>
             <article class="metric-card">
-              <span>BOM selesai diverifikasi</span>
-              <strong id="metric-bom-total">23 mesin</strong>
+              <span>BOM</span>
+              <strong id="metric-bom-total">0 mesin</strong>
             </article>
             <article class="metric-card">
-              <span>Service electrical open</span>
-              <strong id="metric-service-electrical">3 temuan</strong>
+              <span>Service Electrical</span>
+              <strong id="metric-service-electrical">0 temuan</strong>
             </article>
             <article class="metric-card">
-              <span>Nilai SPB berjalan</span>
-              <strong id="metric-spb-total">Rp128 jt</strong>
+              <span>Biaya Ajuan Tahun Ini</span>
+              <strong id="metric-spb-total">Rp0</strong>
             </article>
           </div>
 
@@ -180,7 +158,7 @@
             <section class="content-card">
               <div class="card-head compact-head">
                 <p class="eyebrow">Chart SPB</p>
-                <h3>Status pengadaan berjalan</h3>
+                <h3>Biaya ajuan per tahun</h3>
               </div>
               <div class="mini-chart" id="chart-spb"></div>
             </section>
@@ -191,7 +169,7 @@
               <div class="card-head inline">
                 <div>
                   <p class="eyebrow">Negatif List</p>
-                  <h3>Material yang belum tersedia</h3>
+                  <h3>Open item prioritas</h3>
                 </div>
                 <button class="chip-button" data-section-jump="negatif-list" type="button">Buka detail</button>
               </div>
@@ -199,10 +177,10 @@
                 <table>
                   <thead>
                     <tr>
-                      <th>Material</th>
+                      <th>Equipment</th>
+                      <th>Mark</th>
                       <th>Area</th>
-                      <th>Qty minus</th>
-                      <th>Prioritas</th>
+                      <th>Kategori</th>
                     </tr>
                   </thead>
                   <tbody id="dashboard-negatif-preview">
@@ -217,16 +195,33 @@
             <section class="content-card">
               <div class="card-head inline">
                 <div>
+                  <p class="eyebrow">Service</p>
+                  <h3>Inspeksi hari ini</h3>
+                </div>
+                <button class="chip-button" data-section-jump="service" type="button">Buka detail</button>
+              </div>
+              <div class="status-list" id="dashboard-service-preview">
+                <article>
+                  <strong>Belum ada service hari ini</strong>
+                  <span>Hasil inspeksi hari berjalan akan tampil di sini</span>
+                  <small>Filter berdasarkan tanggal inspeksi</small>
+                </article>
+              </div>
+            </section>
+
+            <section class="content-card">
+              <div class="card-head inline">
+                <div>
                   <p class="eyebrow">SPB</p>
-                  <h3>Pembelian dengan status belum ada</h3>
+                  <h3>Biaya ajuan per tahun</h3>
                 </div>
                 <button class="chip-button" data-section-jump="spb" type="button">Buka detail</button>
-                </div>
+              </div>
               <div class="status-list" id="dashboard-spb-preview">
                 <article>
                   <strong>Belum ada data SPB</strong>
-                  <span>Input data real melalui menu SPB</span>
-                  <small>Status akan muncul di sini</small>
+                  <span>Biaya ajuan tahunan akan tampil di sini</span>
+                  <small>Input data real melalui menu SPB</small>
                 </article>
               </div>
             </section>
