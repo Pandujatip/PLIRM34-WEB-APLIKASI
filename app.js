@@ -1181,6 +1181,35 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function normalizeBomPhotoName(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.split(/[\\/]/).pop() || "";
+}
+
+function buildBomPhotoPath(filename) {
+  const normalized = normalizeBomPhotoName(filename);
+  if (!normalized) return "";
+  return `/bom-images/${encodeURIComponent(normalized)}`;
+}
+
+function renderBomImageTile(label, filename, tone) {
+  const normalized = normalizeBomPhotoName(filename);
+  const imageUrl = buildBomPhotoPath(normalized);
+  const dataKey = tone === "primary" ? "item" : tone === "secondary" ? "nameplate" : "extra";
+  return `
+    <div class="image-placeholder ${tone}" data-bom-photo="${dataKey}" data-filename="${escapeHtml(normalized)}">
+      <div class="bom-image-label">${escapeHtml(label)}</div>
+      ${
+        normalized
+          ? `<img src="${imageUrl}" alt="${escapeHtml(label)} ${escapeHtml(normalized)}" loading="lazy" onerror="this.closest('.image-placeholder')?.classList.add('is-missing'); this.remove();">`
+          : `<div class="bom-image-empty">Belum ada foto</div>`
+      }
+      <div class="bom-image-name">${escapeHtml(normalized || "-")}</div>
+    </div>
+  `;
+}
+
 function buildDetailGridRows(rows) {
   return rows.map(([label, value]) => `
     <div class="detail-item">
@@ -3738,18 +3767,26 @@ function renderSparepartRow(item) {
 }
 
 function renderBomCard(item) {
+  const equipment = escapeHtml(item.equipment || "-");
+  const part = escapeHtml(item.part || "-");
+  const qty = escapeHtml(item.qty || "-");
+  const note = escapeHtml(item.note || "-");
+  const longText = item.longText ? `<div class="bom-long-text">${escapeHtml(item.longText)}</div>` : "";
   const card = document.createElement("article");
   card.className = "bom-card";
   card.dataset.id = item.id;
   card.innerHTML = `
     <div class="bom-visual">
-      <div class="image-placeholder">${item.itemPhoto || "Foto Barang"}</div>
-      <div class="image-placeholder secondary">${item.nameplatePhoto || "Foto Nameplate"}</div>
+      ${renderBomImageTile("Foto Barang", item.itemPhoto, "primary")}
+      ${renderBomImageTile("Foto Nameplate", item.nameplatePhoto, "secondary")}
+      ${renderBomImageTile("Foto Lain", item.extraPhoto, "tertiary")}
     </div>
     <div class="bom-copy">
-      <strong>${item.name}</strong>
-      <p>${item.description}</p>
-      <small>${item.meta}</small>
+      <strong>${equipment}</strong>
+      <p>${part}</p>
+      <small data-value="${qty}">Jumlah: ${qty}</small>
+      <span>${note}</span>
+      ${longText}
     </div>
     <div class="card-actions">
       <button class="table-action" data-action="edit-bom" type="button">Edit</button>
@@ -3856,11 +3893,14 @@ function getSparepartItemsFromDom() {
 function getBomItemsFromDom() {
   return [...bomList.querySelectorAll(".bom-card")].map((card) => ({
     id: card.dataset.id,
-    name: card.querySelector(".bom-copy strong").textContent,
-    description: card.querySelector(".bom-copy p").textContent,
-    meta: card.querySelector(".bom-copy small").textContent,
-    itemPhoto: card.querySelector(".bom-visual .image-placeholder").textContent,
-    nameplatePhoto: card.querySelector(".bom-visual .secondary").textContent,
+    equipment: card.querySelector(".bom-copy strong")?.textContent || "-",
+    part: card.querySelector(".bom-copy p")?.textContent || "-",
+    qty: card.querySelector(".bom-copy small")?.dataset.value || "-",
+    note: card.querySelector(".bom-copy span")?.textContent || "-",
+    longText: card.querySelector(".bom-long-text")?.textContent || "",
+    itemPhoto: card.querySelector('[data-bom-photo="item"]')?.dataset.filename || "",
+    nameplatePhoto: card.querySelector('[data-bom-photo="nameplate"]')?.dataset.filename || "",
+    extraPhoto: card.querySelector('[data-bom-photo="extra"]')?.dataset.filename || "",
   }));
 }
 
@@ -4098,11 +4138,16 @@ function hydrateSparepartForm(item) {
 
 function hydrateBomForm(item) {
   const form = document.querySelector('[data-form-type="bom"]');
-  form.name.value = item.name;
-  form.description.value = item.description;
-  form.meta.value = item.meta;
+  form.equipment.value = item.equipment || "";
+  form.part.value = item.part || "";
+  form.qty.value = item.qty || "";
+  form.itemPhoto.value = item.itemPhoto || "";
+  form.nameplatePhoto.value = item.nameplatePhoto || "";
+  form.extraPhoto.value = item.extraPhoto || "";
+  form.note.value = item.note || "";
+  form.longText.value = item.longText || "";
   editingBomId = item.id;
-  setSubmitNote(form, "Mode edit aktif untuk BOM. File foto tidak diisi ulang otomatis.");
+  setSubmitNote(form, "Mode edit aktif untuk BOM.");
 }
 
 function hydrateSpbForm(item) {
@@ -5129,15 +5174,16 @@ forms.forEach((form) => {
     }
 
     if (formType === "bom") {
-      const itemPhoto = formData.get("itemPhoto");
-      const nameplatePhoto = formData.get("nameplatePhoto");
       const item = {
         id: editingBomId || createId("bom"),
-        name: String(formData.get("name") || "-"),
-        description: String(formData.get("description") || "-"),
-        meta: String(formData.get("meta") || "-"),
-        itemPhoto: itemPhoto && typeof itemPhoto === "object" && "name" in itemPhoto && itemPhoto.name ? itemPhoto.name : "Foto Barang",
-        nameplatePhoto: nameplatePhoto && typeof nameplatePhoto === "object" && "name" in nameplatePhoto && nameplatePhoto.name ? nameplatePhoto.name : "Foto Nameplate",
+        equipment: String(formData.get("equipment") || "-").trim() || "-",
+        part: String(formData.get("part") || "-").trim() || "-",
+        qty: String(formData.get("qty") || "-").trim() || "-",
+        itemPhoto: String(formData.get("itemPhoto") || "").trim(),
+        nameplatePhoto: String(formData.get("nameplatePhoto") || "").trim(),
+        extraPhoto: String(formData.get("extraPhoto") || "").trim(),
+        note: String(formData.get("note") || "-").trim() || "-",
+        longText: String(formData.get("longText") || "").trim(),
       };
       const savedItem = await saveItemToBackend("bom", item, Boolean(editingBomId));
       if (editingBomId) {
@@ -5437,9 +5483,14 @@ bomList.addEventListener("click", async (event) => {
   if (target.dataset.action === "edit-bom") {
     hydrateBomForm({
       id: card.dataset.id,
-      name: card.querySelector(".bom-copy strong").textContent,
-      description: card.querySelector(".bom-copy p").textContent,
-      meta: card.querySelector(".bom-copy small").textContent,
+      equipment: card.querySelector(".bom-copy strong")?.textContent || "",
+      part: card.querySelector(".bom-copy p")?.textContent || "",
+      qty: card.querySelector(".bom-copy small")?.dataset.value || "",
+      note: card.querySelector(".bom-copy span")?.textContent || "",
+      longText: card.querySelector(".bom-long-text")?.textContent || "",
+      itemPhoto: card.querySelector('[data-bom-photo="item"]')?.dataset.filename || "",
+      nameplatePhoto: card.querySelector('[data-bom-photo="nameplate"]')?.dataset.filename || "",
+      extraPhoto: card.querySelector('[data-bom-photo="extra"]')?.dataset.filename || "",
     });
     openSection("bom");
     openCreatePanel("bom");
@@ -5535,7 +5586,11 @@ exportButtons.forEach((button) => {
 
     if (exportType === "bom") {
       const items = getBomItemsFromDom();
-      downloadCsv("bom.csv", ["Nama", "Deskripsi", "Meta", "Foto Barang", "Foto Nameplate"], items.map((item) => [item.name, item.description, item.meta, item.itemPhoto, item.nameplatePhoto]));
+      downloadCsv(
+        "bom.csv",
+        ["Equipment", "Part", "Jumlah", "Keterangan", "Long Text", "Foto Barang", "Foto Nameplate", "Foto Lain"],
+        items.map((item) => [item.equipment, item.part, item.qty, item.note, item.longText, item.itemPhoto, item.nameplatePhoto, item.extraPhoto]),
+      );
       showToast("Export", "BOM berhasil diexport ke CSV.");
     }
 

@@ -5,3 +5,5 @@ plirm34.db
 *.db-shm
 *.db-wal
 __pycache__/
+
+bom-images/

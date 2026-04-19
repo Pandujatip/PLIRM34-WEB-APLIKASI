@@ -109,14 +109,20 @@ RESOURCE_TABLES = {
             "meta",
             "item_photo",
             "nameplate_photo",
+            "extra_photo",
+            "long_text",
+            "qty",
         ],
         "payload_keys": [
             "id",
-            "name",
-            "description",
-            "meta",
+            "equipment",
+            "part",
+            "note",
             "itemPhoto",
             "nameplatePhoto",
+            "extraPhoto",
+            "longText",
+            "qty",
         ],
     },
     "spb": {
@@ -183,11 +189,14 @@ IMPORT_FIELD_ALIASES = {
     },
     "bom": {
         "id": ["id"],
-        "name": ["name", "nama"],
-        "description": ["description", "deskripsi"],
-        "meta": ["meta"],
-        "itemPhoto": ["itemPhoto", "item photo", "fotoBarang", "foto barang"],
-        "nameplatePhoto": ["nameplatePhoto", "nameplate photo", "fotoNameplate", "foto nameplate"],
+        "equipment": ["equipment", "name", "nama"],
+        "part": ["part", "description", "deskripsi"],
+        "qty": ["qty", "jumlah"],
+        "note": ["note", "meta", "keterangan"],
+        "longText": ["longText", "long text"],
+        "itemPhoto": ["itemPhoto", "item photo", "fotoBarang", "foto barang", "foto barang "],
+        "nameplatePhoto": ["nameplatePhoto", "nameplate photo", "fotoNameplate", "foto nameplate", "foto nameplate "],
+        "extraPhoto": ["extraPhoto", "extra photo", "fotoLain", "foto lain", "foto lain "],
     },
     "spb": {
         "id": ["id"],
@@ -536,6 +545,9 @@ def init_db() -> None:
                 meta TEXT NOT NULL,
                 item_photo TEXT NOT NULL,
                 nameplate_photo TEXT NOT NULL,
+                extra_photo TEXT NOT NULL DEFAULT '',
+                long_text TEXT NOT NULL DEFAULT '',
+                qty TEXT NOT NULL DEFAULT '',
                 created_by_user_id INTEGER,
                 updated_by_user_id INTEGER,
                 updated_at TEXT NOT NULL
@@ -587,6 +599,7 @@ def init_db() -> None:
         seed_master_data(connection)
         migrate_snapshot_state(connection)
         ensure_audit_columns(connection)
+        ensure_bom_columns(connection)
 
 
 def get_user_by_username(username: str) -> sqlite3.Row | None:
@@ -1182,11 +1195,14 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
     if resource_key == "bom":
         return (
             str(item.get("id", "")),
-            str(item.get("name", "")),
-            str(item.get("description", "")),
-            str(item.get("meta", "")),
+            str(item.get("equipment", item.get("name", ""))),
+            str(item.get("part", item.get("description", ""))),
+            str(item.get("note", item.get("meta", ""))),
             str(item.get("itemPhoto", "")),
             str(item.get("nameplatePhoto", "")),
+            str(item.get("extraPhoto", "")),
+            str(item.get("longText", "")),
+            str(item.get("qty", "")),
         )
 
     if resource_key == "spb":
@@ -1251,11 +1267,14 @@ def deserialize_resource_item(resource_key: str, row: sqlite3.Row) -> dict:
     if resource_key == "bom":
         return {
             "id": row["id"],
-            "name": row["name"],
-            "description": row["description"],
-            "meta": row["meta"],
+            "equipment": row["name"],
+            "part": row["description"],
+            "note": row["meta"],
             "itemPhoto": row["item_photo"],
             "nameplatePhoto": row["nameplate_photo"],
+            "extraPhoto": row["extra_photo"],
+            "longText": row["long_text"],
+            "qty": row["qty"],
         }
 
     if resource_key == "spb":
@@ -1339,6 +1358,19 @@ def ensure_audit_columns(connection: sqlite3.Connection) -> None:
             connection.execute(f"ALTER TABLE {table} ADD COLUMN created_by_user_id INTEGER")
         if "updated_by_user_id" not in columns:
             connection.execute(f"ALTER TABLE {table} ADD COLUMN updated_by_user_id INTEGER")
+
+
+def ensure_bom_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(bom_items)").fetchall()
+    }
+    if "extra_photo" not in columns:
+        connection.execute("ALTER TABLE bom_items ADD COLUMN extra_photo TEXT NOT NULL DEFAULT ''")
+    if "long_text" not in columns:
+        connection.execute("ALTER TABLE bom_items ADD COLUMN long_text TEXT NOT NULL DEFAULT ''")
+    if "qty" not in columns:
+        connection.execute("ALTER TABLE bom_items ADD COLUMN qty TEXT NOT NULL DEFAULT ''")
 
 
 def can_edit_resource(role: str, resource_key: str) -> bool:

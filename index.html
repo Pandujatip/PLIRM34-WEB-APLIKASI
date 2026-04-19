@@ -1197,24 +1197,36 @@
             <form class="input-form" data-editable-for="admin" data-form-type="bom">
               <div class="form-grid form-grid-3">
                 <label>
-                  Nama mesin / equipment
-                  <input type="text" name="name" placeholder="Pump Cooling Water P-204" required>
+                  Equipment
+                  <input type="text" name="equipment" placeholder="Contoh: 864MP01" required>
+                </label>
+                <label>
+                  Part
+                  <input type="text" name="part" placeholder="Contoh: PLC CPU" required>
+                </label>
+                <label>
+                  Jumlah
+                  <input type="text" name="qty" placeholder="Contoh: 2">
                 </label>
                 <label>
                   Foto barang
-                  <input type="file" name="itemPhoto" accept="image/*">
+                  <input type="text" name="itemPhoto" placeholder="Contoh: fec33a26.FOTO BARANG.034718.jpg">
                 </label>
                 <label>
                   Foto nameplate
-                  <input type="file" name="nameplatePhoto" accept="image/*">
+                  <input type="text" name="nameplatePhoto" placeholder="Contoh: fec33a26.FOTO NAMEPLATE.034718.jpg">
+                </label>
+                <label>
+                  Foto lain
+                  <input type="text" name="extraPhoto" placeholder="Contoh: fec33a26.FOTO LAIN.034718.jpg">
                 </label>
                 <label class="full-span">
-                  Deskripsi barang
-                  <textarea name="description" rows="4" placeholder="Deskripsi mesin atau equipment" required></textarea>
+                  Keterangan
+                  <textarea name="note" rows="3" placeholder="Catatan singkat item BOM"></textarea>
                 </label>
                 <label class="full-span">
-                  Detail tambahan
-                  <input type="text" name="meta" placeholder="Tag: P-204 | Vendor: KSB | Serial: CW-204A" required>
+                  Long Text
+                  <textarea name="longText" rows="6" placeholder="Isi long text / detail nameplate / spesifikasi"></textarea>
                 </label>
               </div>
               <button class="btn btn-primary" type="submit">Simpan BOM</button>
@@ -1226,28 +1238,15 @@
           <div class="bom-grid" id="bom-list">
             <article class="bom-card">
               <div class="bom-visual">
-                <div class="image-placeholder">Foto Barang</div>
-                <div class="image-placeholder secondary">Foto Nameplate</div>
+                <div class="image-placeholder">FOTO BARANG</div>
+                <div class="image-placeholder secondary">FOTO NAMEPLATE</div>
+                <div class="image-placeholder tertiary">FOTO LAIN</div>
               </div>
               <div class="bom-copy">
-                <strong>Pump Cooling Water P-204</strong>
-                <p>Centrifugal pump untuk sirkulasi cooling water pada line produksi utama.</p>
-                <small>Tag: P-204 | Vendor: KSB | Serial: CW-204A</small>
-              </div>
-              <div class="card-actions">
-                <button class="table-action" type="button">Edit</button>
-                <button class="table-action danger" type="button">Hapus</button>
-              </div>
-            </article>
-            <article class="bom-card">
-              <div class="bom-visual">
-                <div class="image-placeholder">Foto Barang</div>
-                <div class="image-placeholder secondary">Foto Nameplate</div>
-              </div>
-              <div class="bom-copy">
-                <strong>Panel DCS Cabinet C-11</strong>
-                <p>Kabinet kontrol DCS untuk monitoring dan interlock area utility.</p>
-                <small>Tag: DCS-C11 | Vendor: Yokogawa | Serial: DCS-1188</small>
+                <strong>864MP01</strong>
+                <p>PLC CPU</p>
+                <small>Jumlah: 1</small>
+                <span>Catatan item BOM</span>
               </div>
               <div class="card-actions">
                 <button class="table-action" type="button">Edit</button>
