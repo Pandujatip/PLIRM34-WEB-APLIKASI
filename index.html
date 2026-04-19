@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260419-33">
+  <link rel="stylesheet" href="styles.css?v=20260419-35">
 </head>
 <body>
   <div class="app-shell">
@@ -106,20 +106,20 @@
             <div class="hero-copy">
               <p class="eyebrow">Ringkasan Hari Ini</p>
               <h3>Kontrol operasional PLIRM34 untuk pending job, service, sparepart, dan pengadaan.</h3>
-              <p id="sample-data-status" class="sample-data-status">Sample data aktif otomatis saat data lokal kosong, dan bisa dimuat ulang kapan saja.</p>
+              <p id="sample-data-status" class="sample-data-status">Data operasional akan tampil setelah input atau sinkronisasi database.</p>
             </div>
             <div class="banner-stats">
               <article>
                 <span>Negatif list aktif</span>
-                <strong id="stat-negatif">7 item</strong>
+                <strong id="stat-negatif">0 item</strong>
               </article>
               <article>
                 <span>SPB belum ada status</span>
-                <strong id="stat-spb-belum-ada">4 item</strong>
+                <strong id="stat-spb-belum-ada">0 item</strong>
               </article>
               <article>
                 <span>Inspeksi due minggu ini</span>
-                <strong id="stat-service">5 area</strong>
+                <strong id="stat-service">0 area</strong>
               </article>
             </div>
           </div>
@@ -206,22 +206,7 @@
                   </thead>
                   <tbody id="dashboard-negatif-preview">
                     <tr>
-                      <td>Pressure Transmitter 3051</td>
-                      <td>Instrument</td>
-                      <td>-2</td>
-                      <td><span class="tag tag-danger">Tinggi</span></td>
-                    </tr>
-                    <tr>
-                      <td>MCB 3P 32A</td>
-                      <td>Electrical</td>
-                      <td>-4</td>
-                      <td><span class="tag tag-warning">Sedang</span></td>
-                    </tr>
-                    <tr>
-                      <td>HMI Touch Panel 10"</td>
-                      <td>DCS</td>
-                      <td>-1</td>
-                      <td><span class="tag tag-danger">Tinggi</span></td>
+                      <td colspan="4">Belum ada data negatif list.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -238,24 +223,9 @@
                 </div>
               <div class="status-list" id="dashboard-spb-preview">
                 <article>
-                  <strong>Motor Fan Cooling</strong>
-                  <span>No order: 45008291</span>
-                  <small>Status: belum ada</small>
-                </article>
-                <article>
-                  <strong>Solenoid Valve 24VDC</strong>
-                  <span>No order: 45008295</span>
-                  <small>Status: belum ada</small>
-                </article>
-                <article>
-                  <strong>Power Supply DCS</strong>
-                  <span>No order: 45008312</span>
-                  <small>Status: belum ada</small>
-                </article>
-                <article>
-                  <strong>Bearing Pump 6310 ZZ</strong>
-                  <span>No order: 45008319</span>
-                  <small>Status: belum ada</small>
+                  <strong>Belum ada data SPB</strong>
+                  <span>Input data real melalui menu SPB</span>
+                  <small>Status akan muncul di sini</small>
                 </article>
               </div>
             </section>
@@ -1393,6 +1363,29 @@
                 <input id="admin-restore-input" type="file" accept="application/json" hidden>
                 <button class="btn btn-primary" id="admin-restore-button" type="button">Restore Backup</button>
               </div>
+              <div class="admin-tools import-tools">
+                <label class="search-field compact">
+                  <span>Import modul</span>
+                  <select id="admin-import-resource">
+                    <option value="negatif-list">Negatif List</option>
+                    <option value="sparepart">Sparepart</option>
+                    <option value="service">Service</option>
+                    <option value="bom">BOM</option>
+                    <option value="spb">SPB</option>
+                  </select>
+                </label>
+                <label class="search-field compact">
+                  <span>Mode import</span>
+                  <select id="admin-import-mode">
+                    <option value="replace">Replace semua data modul</option>
+                    <option value="append">Append / update by ID</option>
+                  </select>
+                </label>
+                <label class="btn btn-secondary file-trigger" for="admin-import-input">Pilih File CSV</label>
+                <input id="admin-import-input" type="file" accept=".csv,text/csv" hidden>
+                <button class="btn btn-primary" id="admin-import-button" type="button">Import CSV</button>
+              </div>
+              <p class="form-hint">Header CSV disarankan memakai nama field aplikasi. Contoh `negatif-list`: `equipment`, `damageDescription`, `followUpPlan`, `foundDate`, `pendingMark`, `workStatus`, `category`, `area`.</p>
             </section>
 
             <section class="content-card admin-card">
@@ -1573,6 +1566,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260419-33"></script>
+  <script src="app.js?v=20260419-35"></script>
 </body>
 </html>

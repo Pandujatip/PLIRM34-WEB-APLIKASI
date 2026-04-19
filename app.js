@@ -43,6 +43,10 @@ const userManagementBody = document.getElementById("user-management-body");
 const adminBackupButton = document.getElementById("admin-backup-button");
 const adminExportButton = document.getElementById("admin-export-button");
 const adminExportResource = document.getElementById("admin-export-resource");
+const adminImportResource = document.getElementById("admin-import-resource");
+const adminImportMode = document.getElementById("admin-import-mode");
+const adminImportInput = document.getElementById("admin-import-input");
+const adminImportButton = document.getElementById("admin-import-button");
 const adminRestoreInput = document.getElementById("admin-restore-input");
 const adminRestoreButton = document.getElementById("admin-restore-button");
 const adminAreaForm = document.getElementById("admin-area-form");
@@ -170,47 +174,6 @@ const roleEditable = {
   admin: ["negatif-list", "sparepart", "service", "bom", "spb", "user-management"],
   organik: ["negatif-list"],
   team: ["service"],
-};
-
-const sampleData = {
-  negatifList: [
-    { id: "negatif-001", equipment: "Motor Raw Mill 1A", damageDescription: "Bearing motor mengalami overheat saat operasi penuh.", followUpPlan: "Menunggu bearing pengganti dan jadwal pemasangan.", foundDate: "2026-04-12", pendingMark: "Menunggu material", workStatus: "Open", category: "Electrical", area: "Tuban 3" },
-    { id: "negatif-002", equipment: "Coal Feeder FT-02", damageDescription: "Signal weight feeder tidak stabil dan perlu kalibrasi ulang.", followUpPlan: "Menunggu tim Rawmill service untuk inspeksi bersama.", foundDate: "2026-04-14", pendingMark: "Menunggu Rawmill service", workStatus: "Open", category: "Instrument", area: "Tuban 4" },
-    { id: "negatif-003", equipment: "Operator Station CCR-03", damageDescription: "Unit HMI restart sendiri saat beban monitoring tinggi.", followUpPlan: "Menunggu jadwal OVH untuk penggantian storage dan cleanup system.", foundDate: "2026-04-16", pendingMark: "Menunggu OVH", workStatus: "Open", category: "DCS", area: "Tuban 34" },
-    { id: "negatif-004", equipment: "Temperature Scanner Kiln", damageDescription: "Pembacaan beberapa channel hilang secara intermittent.", followUpPlan: "Menunggu material terminal module pengganti sebelum commissioning ulang.", foundDate: "2026-04-17", pendingMark: "Menunggu material", workStatus: "Close", category: "Instrument", area: "Tuban 34" },
-    { id: "negatif-005", equipment: "Panel MCC Finish Mill", damageDescription: "Breaker incoming trip dan belum bisa direstorasi karena part auxiliary rusak.", followUpPlan: "Menunggu material auxiliary contact kit dan pengecekan ulang wiring.", foundDate: "2026-04-18", pendingMark: "Menunggu material", workStatus: "Open", category: "Electrical", area: "Tuban 4" },
-    { id: "negatif-006", equipment: "Server Historian HS-01", damageDescription: "Storage historian menunjukkan bad sector dan performa menurun.", followUpPlan: "Menunggu jadwal OVH untuk clone disk dan penggantian storage.", foundDate: "2026-04-18", pendingMark: "Menunggu OVH", workStatus: "Open", category: "DCS", area: "Tuban 3" },
-  ],
-  sparepart: [
-    { id: "sparepart-001", code: "SPX-101", name: "Soft Starter 30kW", category: "Electrical", location: "Rak E-01", qty: "4", condition: "Ready" },
-    { id: "sparepart-002", code: "SPX-102", name: "Smart Transmitter HART", category: "Instrument", location: "Rak E-02", qty: "6", condition: "Ready" },
-    { id: "sparepart-003", code: "SPX-103", name: "Fiber Optic Converter", category: "DCS", location: "Rak E-03", qty: "2", condition: "Terbatas" },
-    { id: "sparepart-004", code: "SPX-104", name: "Pump Mechanical Seal", category: "Mechanical", location: "Rak E-04", qty: "7", condition: "Ready" },
-    { id: "sparepart-005", code: "SPX-105", name: "Isolator Signal 4-20mA", category: "Instrument", location: "Rak E-05", qty: "3", condition: "Terbatas" },
-    { id: "sparepart-006", code: "SPX-106", name: "Industrial Thin Client", category: "DCS", location: "Rak E-06", qty: "1", condition: "Rusak" },
-  ],
-  service: [
-    { id: "service-001", type: "Electrical", subtype: "Electrical Room", formType: "service-electrical-room", equipmentName: "Electrical Room Raw Mill", description: "Battery charger normal, tetapi kebersihan lantai perlu ditingkatkan dan satu pintu panel MCC belum tertutup rapat.", detail: "Pintu panel: NOT OK | Lantai: Kotor | Temperature: Dingin", payload: { panelDoorCondition: "NOT OK", floorCleanliness: "Kotor", roomTemperature: "Dingin", batteryVdc: "125 VDC", batteryAmpere: "4 A", batteryTotalVdc: "125 VDC", battery1: "12.5 VDC", battery2: "12.5 VDC", battery3: "12.4 VDC", battery4: "12.5 VDC", battery5: "12.5 VDC", battery6: "12.5 VDC", battery7: "12.4 VDC", battery8: "12.5 VDC", battery9: "12.5 VDC", battery10: "12.5 VDC", transformerEquipment: "TR-RM-01", transformerWindingTemperature: "74 C", transformerOilTemperature: "58 C", transformerOilLevel: "Normal", transformerSilicaGel: "OK", findingPhotoName: "room_rawmill.jpg" } },
-    { id: "service-002", type: "Electrical", subtype: "Motor MV", formType: "service-motor-mv", equipmentName: "Motor Raw Mill MV-01", description: "Vibrasi sisi DE meningkat dan arus motor mendekati batas operasi harian.", detail: "Vibrasi DE: 4.2 mm/s | Vibrasi NDE: 3.7 mm/s | Arus: 112 A", payload: { vibrationDe: "4.2 mm/s", vibrationNde: "3.7 mm/s", windingTemperature: "78 C", bearingCondition: "panas", motorCurrent: "112 A" } },
-    { id: "service-003", type: "Electrical", subtype: "Motor MV (Carbon Brush)", formType: "service-motor-mv-carbon-brush", equipmentName: "343RM1 - ABB", description: "Beberapa titik carbon brush turun ke zona merah dan perlu penggantian bertahap saat window shutdown berikutnya.", detail: "Merah: 1 | Kuning: 10 | Hijau: 13 | Terendah: 29.8", payload: { inspectionDate: "2026-04-18T00:00:00.000Z", plant: "Tuban 3", location: "Rawmill", category: "Equipment utama produksi", pic: "Purwanto, Rudi", replacement: "3", megger: "405", measurements: { A1: "36.37", A2: "35.38", A3: "42.31", A4: "34.64", A5: "35.04", B1: "30.56", B2: "41.48", B3: "32.62", C1: "32.3", C2: "44.95", C3: "35.46", C4: "31.65", C5: "33.26", C6: "30.47", D1: "31.7", D2: "29.80", D3: "31.74", D4: "31.36", D5: "42.03", D6: "35.35", D7: "43.58", D8: "38.55", D9: "32.62" }, stats: { low: 1, medium: 10, high: 13, empty: 57, min: 29.8, attentionPoints: ["D2", "B1", "B3", "C1", "C4", "C5", "C6", "D1"] } } },
-    { id: "service-004", type: "Electrical", subtype: "EH/CA", formType: "service-ehca", equipmentName: "Hydraulic Unit EH-01", description: "Tekanan sistem stabil, namun filter oil mendekati batas penggantian.", detail: "Pressure: 135 bar | Filter: perlu ganti | Leakage: tidak ada", payload: { systemPressure: "135 bar", fluidLevel: "normal", filterCondition: "perlu ganti", leakCondition: "tidak ada", unitCondition: "normal" } },
-    { id: "service-005", type: "Instrument", subtype: "Instrument", formType: "service-instrument", equipmentName: "Level Transmitter TK-11", description: "Pembacaan level meloncat saat agitator aktif, perlu inspeksi mounting.", detail: "Kondisi sensor: noise sinyal | Foto: level_tk11.jpg", payload: { sensorCondition: "noise sinyal", findingPhotoName: "level_tk11.jpg" } },
-    { id: "service-006", type: "DCS", subtype: "DCS", formType: "service-dcs", equipmentName: "Engineering Station ES-01", description: "Response HMI melambat pada jam beban puncak dan perlu housekeeping software.", detail: "Fungsi: engineering & konfigurasi | Kebersihan: bersih", payload: { equipmentFunction: "engineering & konfigurasi", environmentCleanliness: "bersih" } },
-  ],
-  bom: [
-    { id: "bom-001", name: "Pump Cooling Water P-204", description: "Centrifugal pump untuk sirkulasi cooling water pada line produksi utama.", meta: "Tag: P-204 | Vendor: KSB | Serial: CW-204A", itemPhoto: "pump_p204.jpg", nameplatePhoto: "nameplate_p204.jpg" },
-    { id: "bom-002", name: "Panel DCS Cabinet C-11", description: "Kabinet kontrol DCS untuk monitoring dan interlock area utility.", meta: "Tag: DCS-C11 | Vendor: Yokogawa | Serial: DCS-1188", itemPhoto: "cabinet_c11.jpg", nameplatePhoto: "nameplate_c11.jpg" },
-    { id: "bom-003", name: "Air Compressor AC-03", description: "Unit kompresor udara instrumen untuk menyuplai pneumatic valve.", meta: "Tag: AC-03 | Vendor: Atlas Copco | Serial: AC030998", itemPhoto: "compressor_ac03.jpg", nameplatePhoto: "nameplate_ac03.jpg" },
-    { id: "bom-004", name: "Motor Fan Cooling CT-01", description: "Motor induksi untuk penggerak fan cooling tower area utility.", meta: "Tag: CT-01-M | Vendor: Siemens | Serial: MTR-CT01", itemPhoto: "motor_ct01.jpg", nameplatePhoto: "nameplate_ct01.jpg" },
-  ],
-  spb: [
-    { id: "spb-001", requestType: "Urgent", requestSubtype: "Stock Refill", notificationNo: "5100921", orderNo: "45008291", reservationNo: "3001021", materialNo: "10023891", materialDescription: "Motor Fan Cooling", qty: "2", price: "12500000", status: "Belum ada" },
-    { id: "spb-002", requestType: "Normal", requestSubtype: "Corrective", notificationNo: "5100933", orderNo: "45008295", reservationNo: "3001032", materialNo: "10023900", materialDescription: "Solenoid Valve 24VDC", qty: "4", price: "2350000", status: "Belum ada" },
-    { id: "spb-003", requestType: "Urgent", requestSubtype: "Critical Equipment", notificationNo: "5100952", orderNo: "45008312", reservationNo: "3001054", materialNo: "10023945", materialDescription: "Power Supply DCS", qty: "1", price: "18900000", status: "Belum ada" },
-    { id: "spb-004", requestType: "Normal", requestSubtype: "Preventive", notificationNo: "5100964", orderNo: "45008319", reservationNo: "3001062", materialNo: "10023982", materialDescription: "Bearing Pump 6310 ZZ", qty: "6", price: "540000", status: "Belum ada" },
-    { id: "spb-005", requestType: "Normal", requestSubtype: "Improvement", notificationNo: "5100978", orderNo: "45008341", reservationNo: "3001083", materialNo: "10024022", materialDescription: "Industrial SSD 1TB", qty: "2", price: "2850000", status: "Proses" },
-    { id: "spb-006", requestType: "Urgent", requestSubtype: "Shutdown Preparation", notificationNo: "5100991", orderNo: "45008357", reservationNo: "3001090", materialNo: "10024055", materialDescription: "Seal Kit Pump P-204", qty: "3", price: "1750000", status: "Selesai" },
-  ],
 };
 
 function parseCsvRow(line) {
@@ -819,32 +782,6 @@ function restoreSession() {
   });
   const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
   openSection(lastSection);
-}
-
-function bootstrapDebugMode() {
-  const params = new URLSearchParams(window.location.search);
-  const debugDemo = params.get("demo");
-  const debugSample = params.get("sample");
-  const debugSection = params.get("section");
-
-  if (debugDemo === "1") {
-    const username = params.get("user") || "debug.plirm34";
-    const role = params.get("role") || "admin";
-    applyRoleAccess(role);
-    currentUser.textContent = username;
-    currentRole.textContent = roleLabels[role] || "Admin";
-    saveSession(username, role);
-    loginScreen.classList.add("hidden");
-    workspace.classList.remove("hidden");
-  }
-
-  if (debugSample === "1") {
-    void applySampleDataState();
-  }
-
-  if (debugDemo === "1") {
-    openSection(debugSection || "negatif-list");
-  }
 }
 
 function getPriorityTag(priority) {
@@ -2032,6 +1969,17 @@ async function downloadBackendExport(resourceName) {
   URL.revokeObjectURL(url);
 }
 
+async function importAdminCsv(resourceName, mode, file) {
+  const csvText = await file.text();
+  return apiRequest(`/admin/import/${resourceName}`, {
+    method: "POST",
+    body: {
+      mode,
+      csvText,
+    },
+  });
+}
+
 function getStoredUsers() {
   const storedUsers = readStorage(storageKeys.users);
   if (Array.isArray(storedUsers) && storedUsers.length > 0) {
@@ -2083,13 +2031,6 @@ async function hydrateFromBackendAfterLogin() {
   await loadMastersFromBackend();
   renderUserManagementTable();
   await refreshAdminMasters();
-
-  if (!hasAnyStoredData()) {
-    await applySampleDataState();
-    if (sampleDataStatus) {
-      sampleDataStatus.textContent = "Sample data aktif otomatis karena database masih kosong.";
-    }
-  }
 }
 
 async function restoreBackendSession() {
@@ -2135,16 +2076,11 @@ async function initializeApplication() {
     loadCarbonBrushEquipmentReference(),
   ]);
 
-  if (!hasAnyStoredData()) {
-    await applySampleDataState();
-    if (sampleDataStatus) {
-      sampleDataStatus.textContent = backendReady
-        ? "Sample data aktif otomatis karena database masih kosong."
-        : "Sample data aktif otomatis karena data lokal masih kosong.";
-    }
+  if (sampleDataStatus) {
+    sampleDataStatus.textContent = hasAnyStoredData()
+      ? "Data operasional aktif dari database atau browser lokal."
+      : "Belum ada data operasional. Mulai input data real melalui tiap menu.";
   }
-
-  bootstrapDebugMode();
 }
 
 function renderUserManagementTable() {
@@ -2795,49 +2731,6 @@ function replaceCardList(target, items, renderer) {
   });
 }
 
-async function applySampleDataState() {
-  [
-    storageKeys.negatifList,
-    storageKeys.sparepart,
-    storageKeys.service,
-    storageKeys.bom,
-    storageKeys.spb,
-  ].forEach((key) => {
-    window.localStorage.removeItem(key);
-  });
-  resetFilters();
-  replaceBodyRows(negatifListBody, sampleData.negatifList, renderNegatifRow);
-  replaceBodyRows(sparepartBody, sampleData.sparepart, renderSparepartRow);
-  replaceCardList(serviceCardList, sampleData.service, renderServiceCard);
-  replaceCardList(bomList, sampleData.bom, renderBomCard);
-  replaceBodyRows(spbBody, sampleData.spb, renderSpbRow);
-
-  if (backendState.available && backendState.sessionActive) {
-    await Promise.all([
-      ...sampleData.negatifList.map((item) => saveItemToBackend("negatif-list", item)),
-      ...sampleData.sparepart.map((item) => saveItemToBackend("sparepart", item)),
-      ...sampleData.service.map((item) => saveItemToBackend("service", item)),
-      ...sampleData.bom.map((item) => saveItemToBackend("bom", item)),
-      ...sampleData.spb.map((item) => saveItemToBackend("spb", item)),
-    ]);
-  }
-
-  persistNegatifList();
-  persistSparepartList();
-  persistServiceList();
-  persistBomList();
-  persistSpbList();
-  updateDashboardStats();
-  if (sampleDataStatus) {
-    sampleDataStatus.textContent = "Sample data aktif. Klik menu Negatif List, Sparepart, Service, BOM, atau SPB untuk melihat data lengkap di layar.";
-  }
-  applyNegatifListFilter();
-  applySparepartFilter();
-  applyServiceFilter();
-  applyBomFilter();
-  applySpbFilter();
-}
-
 function hasAnyStoredData() {
   return (
     readStorage(storageKeys.negatifList).length > 0 ||
@@ -2932,17 +2825,7 @@ function loadStoredData() {
     });
     writeStorage(storageKeys.negatifList, normalizedNegatif);
   } else {
-    [...negatifListBody.querySelectorAll("tr")].forEach((row) => {
-      row.dataset.id = row.dataset.id || createId("negatif");
-      const editButton = row.querySelectorAll(".table-action")[0];
-      const deleteButton = row.querySelectorAll(".table-action")[1];
-      if (editButton) {
-        editButton.dataset.action = "edit-negatif";
-      }
-      if (deleteButton) {
-        deleteButton.dataset.action = "delete-negatif";
-      }
-    });
+    negatifListBody.innerHTML = "";
     persistNegatifList();
   }
 
@@ -2953,13 +2836,7 @@ function loadStoredData() {
       sparepartBody.append(renderSparepartRow(item));
     });
   } else {
-    [...sparepartBody.querySelectorAll("tr")].forEach((row) => {
-      row.dataset.id = createId("sparepart");
-      const editButton = row.querySelectorAll(".table-action")[0];
-      const deleteButton = row.querySelectorAll(".table-action")[1];
-      if (editButton) editButton.dataset.action = "edit-sparepart";
-      if (deleteButton) deleteButton.dataset.action = "delete-sparepart";
-    });
+    sparepartBody.innerHTML = "";
     persistSparepartList();
   }
 
@@ -2973,9 +2850,6 @@ function loadStoredData() {
     writeStorage(storageKeys.service, normalizedService);
   } else {
     serviceCardList.innerHTML = "";
-    sampleData.service.forEach((item) => {
-      serviceCardList.append(renderServiceCard(item));
-    });
     persistServiceList();
   }
 
@@ -2986,13 +2860,7 @@ function loadStoredData() {
       bomList.append(renderBomCard(item));
     });
   } else {
-    [...bomList.querySelectorAll(".bom-card")].forEach((card) => {
-      card.dataset.id = createId("bom");
-      const editButton = card.querySelectorAll(".table-action")[0];
-      const deleteButton = card.querySelectorAll(".table-action")[1];
-      if (editButton) editButton.dataset.action = "edit-bom";
-      if (deleteButton) deleteButton.dataset.action = "delete-bom";
-    });
+    bomList.innerHTML = "";
     persistBomList();
   }
 
@@ -3003,13 +2871,7 @@ function loadStoredData() {
       spbBody.append(renderSpbRow(item));
     });
   } else {
-    [...spbBody.querySelectorAll("tr")].forEach((row) => {
-      row.dataset.id = createId("spb");
-      const editButton = row.querySelectorAll(".table-action")[0];
-      const deleteButton = row.querySelectorAll(".table-action")[1];
-      if (editButton) editButton.dataset.action = "edit-spb";
-      if (deleteButton) deleteButton.dataset.action = "delete-spb";
-    });
+    spbBody.innerHTML = "";
     persistSpbList();
   }
 
@@ -3369,6 +3231,28 @@ adminExportButton?.addEventListener("click", async () => {
     showToast("Admin Tools", `Export ${resourceName} berhasil diunduh.`);
   } catch (error) {
     showToast("Admin Tools", error.message || "Gagal export laporan.");
+  }
+});
+
+adminImportButton?.addEventListener("click", async () => {
+  const file = adminImportInput?.files?.[0];
+  if (!file) {
+    showToast("Admin Tools", "Pilih file CSV terlebih dahulu.");
+    return;
+  }
+  const resourceName = adminImportResource?.value || "negatif-list";
+  const mode = adminImportMode?.value || "replace";
+  try {
+    const result = await importAdminCsv(resourceName, mode, file);
+    await hydrateFromBackendAfterLogin();
+    updateDashboardMetrics();
+    if (activeRole === "admin") {
+      await refreshAdminMasters();
+    }
+    adminImportInput.value = "";
+    showToast("Admin Tools", `Import ${resourceName} selesai: ${result.imported || 0} baris (${mode}).`);
+  } catch (error) {
+    showToast("Admin Tools", error.message || "Gagal import CSV.");
   }
 });
 

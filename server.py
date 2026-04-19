@@ -150,6 +150,60 @@ RESOURCE_TABLES = {
     },
 }
 
+IMPORT_FIELD_ALIASES = {
+    "negatif-list": {
+        "id": ["id"],
+        "equipment": ["equipment"],
+        "damageDescription": ["damageDescription", "deskripsiKerusakan", "deskripsi kerusakan"],
+        "followUpPlan": ["followUpPlan", "deskripsiRencanaTindakLanjut", "deskripsi rencana tindak lanjut"],
+        "foundDate": ["foundDate", "tanggalTemuan", "tanggal temuan"],
+        "pendingMark": ["pendingMark", "mark"],
+        "workStatus": ["workStatus", "status"],
+        "category": ["category", "kategori"],
+        "area": ["area"],
+    },
+    "sparepart": {
+        "id": ["id"],
+        "code": ["code", "kode"],
+        "name": ["name", "nama"],
+        "category": ["category", "kategori"],
+        "location": ["location", "lokasi"],
+        "qty": ["qty", "jumlah"],
+        "condition": ["condition", "kondisi"],
+    },
+    "service": {
+        "id": ["id"],
+        "type": ["type", "inspectionType", "inspection type"],
+        "subtype": ["subtype", "inspectionSubtype", "inspection subtype"],
+        "formType": ["formType", "form type"],
+        "equipmentName": ["equipmentName", "equipment"],
+        "description": ["description", "deskripsi"],
+        "detail": ["detail", "keterangan"],
+        "payload": ["payload", "payloadJson", "payload json"],
+    },
+    "bom": {
+        "id": ["id"],
+        "name": ["name", "nama"],
+        "description": ["description", "deskripsi"],
+        "meta": ["meta"],
+        "itemPhoto": ["itemPhoto", "item photo", "fotoBarang", "foto barang"],
+        "nameplatePhoto": ["nameplatePhoto", "nameplate photo", "fotoNameplate", "foto nameplate"],
+    },
+    "spb": {
+        "id": ["id"],
+        "requestType": ["requestType", "jenisAjuan", "jenis ajuan"],
+        "requestSubtype": ["requestSubtype", "typeAjuan", "type ajuan"],
+        "notificationNo": ["notificationNo", "noNotifikasi", "no notifikasi"],
+        "orderNo": ["orderNo", "noOrder", "no order"],
+        "reservationNo": ["reservationNo", "noReservasi", "no reservasi"],
+        "materialNo": ["materialNo", "noMaterial", "no material"],
+        "materialDescription": ["materialDescription", "deskripsiMaterial", "deskripsi material"],
+        "qty": ["qty", "qtyPembelian", "qty pembelian"],
+        "price": ["price", "hargaEcer", "harga ecer"],
+        "status": ["status"],
+    },
+}
+
 DEFAULT_USERS = [
     ("admin.plirm34", "admin123", "admin"),
     ("organik.plirm34", "organik123", "organik"),
@@ -672,6 +726,82 @@ def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
     if not saved_item:
         raise ValueError("Gagal menyimpan item")
     return saved_item
+
+
+def generate_import_id(resource_key: str) -> str:
+    prefix = resource_key.replace("-", "")[:6]
+    return f"{prefix}-{datetime.now().strftime('%Y%m%d%H%M%S%f')}-{secrets.token_hex(2)}"
+
+
+def normalize_import_headers(fieldnames: list[str] | None) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    if not fieldnames:
+        return mapping
+    for header in fieldnames:
+        normalized = str(header or "").strip()
+        if normalized:
+            mapping[normalized.casefold()] = normalized
+    return mapping
+
+
+def resolve_import_value(row: dict, header_map: dict[str, str], aliases: list[str]) -> str:
+    for alias in aliases:
+        actual = header_map.get(alias.casefold())
+        if actual and actual in row:
+            return str(row.get(actual, "")).strip()
+    return ""
+
+
+def parse_csv_import_items(resource_key: str, csv_text: str) -> list[dict]:
+    reader = csv.DictReader(io.StringIO(csv_text))
+    header_map = normalize_import_headers(reader.fieldnames)
+    aliases = IMPORT_FIELD_ALIASES[resource_key]
+    items: list[dict] = []
+
+    for row in reader:
+        if not any(str(value or "").strip() for value in row.values()):
+            continue
+
+        item: dict[str, object] = {}
+        for payload_key, payload_aliases in aliases.items():
+            raw_value = resolve_import_value(row, header_map, payload_aliases)
+            if payload_key == "payload":
+                if raw_value:
+                    try:
+                        item[payload_key] = json.loads(raw_value)
+                    except json.JSONDecodeError as exc:
+                        raise ValueError(f"Payload JSON service tidak valid: {exc.msg}") from exc
+                else:
+                    item[payload_key] = {}
+                continue
+            item[payload_key] = raw_value
+
+        if not str(item.get("id", "")).strip():
+            item["id"] = generate_import_id(resource_key)
+        items.append(item)
+
+    return items
+
+
+def import_resource_csv(resource_key: str, csv_text: str, mode: str, user_id: int) -> dict:
+    if mode not in {"replace", "append"}:
+        raise ValueError("Mode import harus replace atau append")
+
+    items = parse_csv_import_items(resource_key, csv_text)
+    if not items:
+        raise ValueError("CSV tidak berisi data yang bisa diimport")
+
+    if mode == "replace":
+        with get_connection() as connection:
+            replace_resource_items(connection, resource_key, items, user_id=user_id)
+            refresh_snapshot(connection, resource_key)
+        return {"imported": len(items), "mode": mode}
+
+    imported = 0
+    for item in items:
+        create_or_update_item(resource_key, item, user_id)
+        imported += 1
+    return {"imported": imported, "mode": mode}
 
 
 def delete_item(resource_key: str, item_id: str) -> bool:
@@ -1674,6 +1804,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_restore_post()
             return
 
+        if parsed.path.startswith("/api/admin/import/"):
+            self._handle_admin_import_post(parsed.path)
+            return
+
         if parsed.path.startswith("/api/admin/masters/"):
             self._handle_admin_masters_post(parsed.path)
             return
@@ -1904,6 +2038,34 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         try:
             saved_item = save_master_record(resource_name, item)
             self._send_json({"ok": True, "item": saved_item})
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_admin_import_post(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        resource_name = path.removeprefix("/api/admin/import/").strip("/")
+        if resource_name not in RESOURCE_TABLES:
+            self._send_json({"error": "Resource import tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
+            return
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+
+        csv_text = str(payload.get("csvText", "") or "")
+        mode = str(payload.get("mode", "replace") or "replace")
+        if not csv_text.strip():
+            self._send_json({"error": "Isi CSV wajib diisi"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        try:
+            result = import_resource_csv(resource_name, csv_text, mode, int(user["id"]))
+            self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
 
