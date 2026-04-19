@@ -2409,9 +2409,15 @@ th {
 }
 
 @media (max-width: 900px) {
+  .app-shell {
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 8px 18px;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 10px;
   }
 
   .sidebar {
@@ -2438,6 +2444,26 @@ th {
     align-self: flex-end;
     pointer-events: auto;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+  }
+
+  .main-content,
+  .panel-section {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .topbar,
+  .hero-banner,
+  .content-card,
+  .metric-card,
+  .inspection-card,
+  .bom-card,
+  .locked-note,
+  .permission-banner {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .brand-block {
@@ -2480,6 +2506,10 @@ th {
 }
 
 @media (max-width: 640px) {
+  .app-shell {
+    padding: 6px 6px 16px;
+  }
+
   .sidebar {
     padding: 0;
     gap: 0;
@@ -2501,7 +2531,7 @@ th {
   }
 
   .topbar {
-    padding: 16px;
+    padding: 14px;
   }
 
   .hero-banner,
@@ -2512,8 +2542,8 @@ th {
   .metric-card,
   .permission-banner,
   .locked-note {
-    padding: 16px;
-    border-radius: 18px;
+    padding: 14px;
+    border-radius: 16px;
   }
 
   .banner-stats,
