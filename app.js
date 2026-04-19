@@ -2567,7 +2567,9 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = payload.error || `HTTP ${response.status}`;
+    const message = response.status === 413
+      ? "Ukuran upload foto terlalu besar. Kurangi jumlah foto atau gunakan resolusi yang lebih kecil."
+      : (payload.error || `HTTP ${response.status}`);
     throw new Error(message);
   }
 
