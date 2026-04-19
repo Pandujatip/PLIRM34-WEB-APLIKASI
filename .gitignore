@@ -1,3 +1,7 @@
 debug-sample*.png
 preview.png
 negatif-*.png
+plirm34.db
+*.db-shm
+*.db-wal
+__pycache__/

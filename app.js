@@ -106,6 +106,21 @@ const storageKeys = {
   spb: "plirm34-spb-list",
 };
 
+const apiResourceMap = {
+  [storageKeys.negatifList]: "negatif-list",
+  [storageKeys.sparepart]: "sparepart",
+  [storageKeys.service]: "service",
+  [storageKeys.bom]: "bom",
+  [storageKeys.spb]: "spb",
+};
+
+const backendState = {
+  available: false,
+  sessionActive: false,
+};
+
+const pendingSyncTimers = new Map();
+
 let activeRole = "admin";
 let editingNegatifId = null;
 let editingSparepartId = null;
@@ -1764,6 +1779,120 @@ function writeStorage(key, value) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+async function apiRequest(path, options = {}) {
+  const config = {
+    method: options.method || "GET",
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {}),
+    },
+    credentials: "same-origin",
+    cache: "no-store",
+  };
+
+  if (options.body) {
+    config.body = JSON.stringify(options.body);
+  }
+
+  const response = await fetch(`/api${path}`, config);
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    const message = payload.error || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
+async function detectBackendAvailability() {
+  try {
+    await apiRequest("/health");
+    backendState.available = true;
+    return true;
+  } catch {
+    backendState.available = false;
+    backendState.sessionActive = false;
+    return false;
+  }
+}
+
+function getCachedPasswordForUser(username) {
+  const storedUsers = readStorage(storageKeys.users);
+  if (Array.isArray(storedUsers)) {
+    const matched = storedUsers.find((user) => String(user.username || "").toLowerCase() === username.toLowerCase());
+    if (matched?.password) {
+      return matched.password;
+    }
+  }
+
+  const defaultUser = defaultAuthUsers.find((user) => user.username.toLowerCase() === username.toLowerCase());
+  return defaultUser?.password || "";
+}
+
+function cacheUsers(users) {
+  if (!Array.isArray(users)) {
+    return;
+  }
+
+  const normalizedUsers = users.map((user) => ({
+    username: user.username,
+    role: user.role,
+    password: getCachedPasswordForUser(String(user.username || "")),
+  }));
+
+  writeStorage(storageKeys.users, normalizedUsers);
+}
+
+function cacheBootstrapData(data) {
+  if (!data || typeof data !== "object") {
+    return;
+  }
+
+  const stateEntries = [
+    [storageKeys.negatifList, data.negatif_list],
+    [storageKeys.sparepart, data.sparepart],
+    [storageKeys.service, data.service],
+    [storageKeys.bom, data.bom],
+    [storageKeys.spb, data.spb],
+  ];
+
+  stateEntries.forEach(([key, items]) => {
+    writeStorage(key, Array.isArray(items) ? items : []);
+  });
+}
+
+async function syncResourceToBackend(resourceKey, items) {
+  if (!backendState.available || !backendState.sessionActive) {
+    return;
+  }
+
+  if (pendingSyncTimers.has(resourceKey)) {
+    window.clearTimeout(pendingSyncTimers.get(resourceKey));
+  }
+
+  const snapshot = JSON.parse(JSON.stringify(Array.isArray(items) ? items : []));
+  const timerId = window.setTimeout(async () => {
+    try {
+      await apiRequest(`/sync/${resourceKey}`, {
+        method: "PUT",
+        body: { items: snapshot },
+      });
+    } catch (error) {
+      console.error(`Sync gagal untuk ${resourceKey}:`, error);
+    } finally {
+      pendingSyncTimers.delete(resourceKey);
+    }
+  }, 200);
+
+  pendingSyncTimers.set(resourceKey, timerId);
+}
+
 function getStoredUsers() {
   const storedUsers = readStorage(storageKeys.users);
   if (Array.isArray(storedUsers) && storedUsers.length > 0) {
@@ -1786,6 +1915,78 @@ function loginWithUser(user) {
   workspace.classList.remove("hidden");
   renderUserManagementTable();
   openSection("dashboard");
+}
+
+async function hydrateFromBackendAfterLogin() {
+  const bootstrap = await apiRequest("/bootstrap");
+  backendState.sessionActive = true;
+  cacheBootstrapData(bootstrap.data);
+  if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
+    cacheUsers(bootstrap.users);
+  }
+  loadStoredData();
+  renderUserManagementTable();
+
+  if (!hasAnyStoredData()) {
+    applySampleDataState();
+    if (sampleDataStatus) {
+      sampleDataStatus.textContent = "Sample data aktif otomatis karena database masih kosong.";
+    }
+  }
+}
+
+async function restoreBackendSession() {
+  try {
+    const bootstrap = await apiRequest("/bootstrap");
+    if (!bootstrap?.user) {
+      return false;
+    }
+
+    backendState.sessionActive = true;
+    cacheBootstrapData(bootstrap.data);
+    if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
+      cacheUsers(bootstrap.users);
+    }
+    loadStoredData();
+    loginWithUser(bootstrap.user);
+    const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
+    openSection(lastSection);
+    return true;
+  } catch {
+    backendState.sessionActive = false;
+    return false;
+  }
+}
+
+async function initializeApplication() {
+  await Promise.allSettled([
+    loadEquipmentReference(),
+    loadCarbonBrushEquipmentReference(),
+  ]);
+  renderCarbonBrushMeasurementGrid();
+  getStoredUsers();
+
+  const backendReady = await detectBackendAvailability();
+  if (backendReady) {
+    const restored = await restoreBackendSession();
+    if (!restored) {
+      loadStoredData();
+    }
+  } else {
+    loadStoredData();
+    restoreSession();
+  }
+
+  if (!hasAnyStoredData()) {
+    applySampleDataState();
+    if (sampleDataStatus) {
+      sampleDataStatus.textContent = backendReady
+        ? "Sample data aktif otomatis karena database masih kosong."
+        : "Sample data aktif otomatis karena data lokal masih kosong.";
+    }
+  }
+
+  bootstrapDebugMode();
 }
 
 function renderUserManagementTable() {
@@ -1845,23 +2046,33 @@ function getServiceItemsFromDom() {
 }
 
 function persistNegatifList() {
-  writeStorage(storageKeys.negatifList, getNegatifItemsFromDom());
+  const items = getNegatifItemsFromDom();
+  writeStorage(storageKeys.negatifList, items);
+  void syncResourceToBackend(apiResourceMap[storageKeys.negatifList], items);
 }
 
 function persistServiceList() {
-  writeStorage(storageKeys.service, getServiceItemsFromDom());
+  const items = getServiceItemsFromDom();
+  writeStorage(storageKeys.service, items);
+  void syncResourceToBackend(apiResourceMap[storageKeys.service], items);
 }
 
 function persistSparepartList() {
-  writeStorage(storageKeys.sparepart, getSparepartItemsFromDom());
+  const items = getSparepartItemsFromDom();
+  writeStorage(storageKeys.sparepart, items);
+  void syncResourceToBackend(apiResourceMap[storageKeys.sparepart], items);
 }
 
 function persistBomList() {
-  writeStorage(storageKeys.bom, getBomItemsFromDom());
+  const items = getBomItemsFromDom();
+  writeStorage(storageKeys.bom, items);
+  void syncResourceToBackend(apiResourceMap[storageKeys.bom], items);
 }
 
 function persistSpbList() {
-  writeStorage(storageKeys.spb, getSpbItemsFromDom());
+  const items = getSpbItemsFromDom();
+  writeStorage(storageKeys.spb, items);
+  void syncResourceToBackend(apiResourceMap[storageKeys.spb], items);
 }
 
 function updateDashboardStats() {
@@ -2725,14 +2936,29 @@ function hydrateSpbForm(item) {
 }
 
 if (loginForm) {
-  loginForm.addEventListener("submit", (event) => {
+  loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const formData = new FormData(loginForm);
     const username = String(formData.get("username") || "user.plirm34").trim();
     const password = String(formData.get("password") || "");
-    const matchedUser = findUserByUsername(username);
 
+    if (backendState.available) {
+      try {
+        const result = await apiRequest("/auth/login", {
+          method: "POST",
+          body: { username, password },
+        });
+        loginWithUser(result.user);
+        await hydrateFromBackendAfterLogin();
+        showToast("Login Berhasil", `Masuk sebagai ${result.user.username} (${roleLabels[result.user.role]}).`);
+      } catch (error) {
+        showToast("Login Gagal", error.message || "Username atau password tidak cocok.");
+      }
+      return;
+    }
+
+    const matchedUser = findUserByUsername(username);
     if (!matchedUser || matchedUser.password !== password) {
       showToast("Login Gagal", "Username atau password tidak cocok.");
       return;
@@ -2743,7 +2969,7 @@ if (loginForm) {
   });
 }
 
-signupButton?.addEventListener("click", () => {
+signupButton?.addEventListener("click", async () => {
   const usernameField = document.getElementById("username");
   const passwordField = document.getElementById("password");
   const username = String(usernameField?.value || "").trim();
@@ -2751,6 +2977,24 @@ signupButton?.addEventListener("click", () => {
 
   if (!username || !password) {
     showToast("Sign Up", "Isi username dan password terlebih dahulu.");
+    return;
+  }
+
+  if (backendState.available) {
+    try {
+      const result = await apiRequest("/auth/signup", {
+        method: "POST",
+        body: { username, password },
+      });
+      const users = getStoredUsers().filter((user) => user.username.toLowerCase() !== username.toLowerCase());
+      users.push({ username, password, role: result.user.role });
+      writeStorage(storageKeys.users, users);
+      loginWithUser({ username, password, role: result.user.role });
+      await hydrateFromBackendAfterLogin();
+      showToast("Sign Up Berhasil", "Akun baru dibuat dengan role Team.");
+    } catch (error) {
+      showToast("Sign Up", error.message || "Gagal membuat akun baru.");
+    }
     return;
   }
 
@@ -2774,6 +3018,10 @@ signupButton?.addEventListener("click", () => {
 
 forgotPasswordButton?.addEventListener("click", () => {
   const username = String(document.getElementById("username")?.value || "").trim();
+  if (backendState.available) {
+    showToast("Lupa Password", `Reset password backend belum dibuat. Hubungi admin untuk reset akun ${username || "Anda"}.`);
+    return;
+  }
   if (!username) {
     showToast("Lupa Password", "Masukkan username terlebih dahulu untuk cek akun lokal.");
     return;
@@ -2788,7 +3036,7 @@ forgotPasswordButton?.addEventListener("click", () => {
   showToast("Lupa Password", `Reset backend belum tersedia. Untuk prototype ini, akun ${user.username} tersimpan lokal dan perlu diubah manual.`);
 });
 
-userManagementBody?.addEventListener("click", (event) => {
+userManagementBody?.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement) || target.dataset.action !== "save-user-role") {
     return;
@@ -2806,6 +3054,35 @@ userManagementBody?.addEventListener("click", (event) => {
   }
 
   const nextRole = roleSelect.value;
+  if (backendState.available) {
+    try {
+      const result = await apiRequest(`/users/${encodeURIComponent(username)}/role`, {
+        method: "PUT",
+        body: { role: nextRole },
+      });
+      cacheUsers(result.users);
+      renderUserManagementTable();
+
+      const session = readStorage(storageKeys.session);
+      if (session && !Array.isArray(session) && session.username === username) {
+        saveSession(session.username, nextRole);
+        applyRoleAccess(nextRole);
+        currentRole.textContent = roleLabels[nextRole] || nextRole;
+        if (nextRole !== "admin") {
+          openSection("dashboard");
+          showToast("Manajemen User", `Role akun aktif berubah menjadi ${roleLabels[nextRole]}. Akses admin ditutup.`);
+          return;
+        }
+      }
+
+      showToast("Manajemen User", `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
+    } catch (error) {
+      showToast("Manajemen User", error.message || "Gagal mengubah role user.");
+      renderUserManagementTable();
+    }
+    return;
+  }
+
   const users = getStoredUsers();
   const updatedUsers = users.map((user) => (
     user.username === username
@@ -2831,21 +3108,7 @@ userManagementBody?.addEventListener("click", (event) => {
   showToast("Manajemen User", `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
 });
 
-loadStoredData();
-loadEquipmentReference();
-renderCarbonBrushMeasurementGrid();
-loadCarbonBrushEquipmentReference();
-getStoredUsers();
-restoreSession();
-
-if (!hasAnyStoredData()) {
-  applySampleDataState();
-  if (sampleDataStatus) {
-    sampleDataStatus.textContent = "Sample data aktif otomatis karena data lokal masih kosong.";
-  }
-}
-
-bootstrapDebugMode();
+void initializeApplication();
 
 equipmentReferenceInput?.addEventListener("input", () => {
   const query = equipmentReferenceInput.value;
@@ -3700,7 +3963,15 @@ if (mobileMenuToggle) {
 }
 
 if (logoutButton) {
-  logoutButton.addEventListener("click", () => {
+  logoutButton.addEventListener("click", async () => {
+    if (backendState.available) {
+      try {
+        await apiRequest("/auth/logout", { method: "POST" });
+      } catch (error) {
+        console.error("Logout backend gagal:", error);
+      }
+      backendState.sessionActive = false;
+    }
     workspace.classList.add("hidden");
     loginScreen.classList.remove("hidden");
     loginForm.reset();
