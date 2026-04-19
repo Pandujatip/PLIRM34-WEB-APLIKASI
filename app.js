@@ -78,6 +78,7 @@ const negatifListBody = document.getElementById("negatif-list-body");
 const sparepartBody = document.getElementById("sparepart-body");
 const serviceCardList = document.getElementById("service-card-list");
 const bomList = document.getElementById("bom-list");
+const bomMotorList = document.getElementById("bom-motor-list");
 const spbBody = document.getElementById("spb-body");
 const dashboardNegatifPreview = document.getElementById("dashboard-negatif-preview");
 const dashboardSpbPreview = document.getElementById("dashboard-spb-preview");
@@ -106,6 +107,8 @@ const filterSparepartCondition = document.getElementById("filter-sparepart-condi
 const searchService = document.getElementById("search-service");
 const filterServiceType = document.getElementById("filter-service-type");
 const searchBom = document.getElementById("search-bom");
+const bomTabs = document.querySelectorAll("[data-bom-tab]");
+const bomPanes = document.querySelectorAll("[data-bom-pane]");
 const searchSpb = document.getElementById("search-spb");
 const filterSpbStatus = document.getElementById("filter-spb-status");
 const exportButtons = document.querySelectorAll(".export-button");
@@ -136,6 +139,7 @@ const storageKeys = {
   sparepart: "plirm34-sparepart-list",
   service: "plirm34-service-list",
   bom: "plirm34-bom-list",
+  bomMotor: "plirm34-bom-motor-list",
   spb: "plirm34-spb-list",
 };
 const resourceStorageKeys = new Set([
@@ -143,6 +147,7 @@ const resourceStorageKeys = new Set([
   storageKeys.sparepart,
   storageKeys.service,
   storageKeys.bom,
+  storageKeys.bomMotor,
   storageKeys.spb,
 ]);
 const volatileStorage = new Map();
@@ -152,6 +157,7 @@ const apiResourceMap = {
   [storageKeys.sparepart]: "sparepart",
   [storageKeys.service]: "service",
   [storageKeys.bom]: "bom",
+  [storageKeys.bomMotor]: "bom-motor",
   [storageKeys.spb]: "spb",
 };
 
@@ -171,10 +177,12 @@ let editingNegatifId = null;
 let editingSparepartId = null;
 let editingServiceId = null;
 let editingBomId = null;
+let editingBomMotorId = null;
 let editingSpbId = null;
 let activeServiceDetailItem = null;
 let carbonBrushReplacementEditMode = false;
 let carbonBrushReplacementDraft = [];
+let activeBomPane = "general";
 
 const roleLabels = {
   admin: "Admin",
@@ -927,6 +935,16 @@ function openServicePane(tabName) {
   });
 }
 
+function openBomPane(tabName) {
+  activeBomPane = tabName === "motor" ? "motor" : "general";
+  bomTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.bomTab === activeBomPane);
+  });
+  bomPanes.forEach((pane) => {
+    pane.classList.toggle("visible", pane.dataset.bomPane === activeBomPane);
+  });
+}
+
 function placeCreatePanelNearToolbar(sectionName) {
   const section = document.querySelector(`.panel-section[data-panel="${sectionName}"]`);
   const panel = document.querySelector(`[data-create-panel="${sectionName}"]`);
@@ -964,6 +982,7 @@ function getSectionNameByFormType(formType) {
   if (formType === "negatif-list") return "negatif-list";
   if (formType === "sparepart") return "sparepart";
   if (formType === "bom") return "bom";
+  if (formType === "bom-motor") return "bom";
   if (formType === "spb") return "spb";
   if (String(formType || "").startsWith("service-")) return "service";
   return "";
@@ -1004,6 +1023,8 @@ function resetCreatePanelState(sectionName) {
 
   if (sectionName === "bom") {
     editingBomId = null;
+    editingBomMotorId = null;
+    openBomPane("general");
   }
 
   if (sectionName === "spb") {
@@ -1201,12 +1222,35 @@ function buildBomPhotoPath(filename) {
   return `/bom-images/${encodeURIComponent(normalized)}`;
 }
 
+function buildBomMotorPhotoPath(filename) {
+  const normalized = normalizeBomPhotoName(filename);
+  if (!normalized) return "";
+  return `/bom-motor-images/${encodeURIComponent(normalized)}`;
+}
+
 function renderBomImageTile(label, filename, tone) {
   const normalized = normalizeBomPhotoName(filename);
   const imageUrl = buildBomPhotoPath(normalized);
   const dataKey = tone === "primary" ? "item" : tone === "secondary" ? "nameplate" : "extra";
   return `
     <div class="image-placeholder ${tone}" data-bom-photo="${dataKey}" data-filename="${escapeHtml(normalized)}">
+      <div class="bom-image-label">${escapeHtml(label)}</div>
+      ${
+        normalized
+          ? `<img src="${imageUrl}" alt="${escapeHtml(label)} ${escapeHtml(normalized)}" loading="lazy" onerror="this.closest('.image-placeholder')?.classList.add('is-missing'); this.remove();">`
+          : `<div class="bom-image-empty">Belum ada foto</div>`
+      }
+      <div class="bom-image-name">${escapeHtml(normalized || "-")}</div>
+    </div>
+  `;
+}
+
+function renderBomMotorImageTile(label, filename, tone) {
+  const normalized = normalizeBomPhotoName(filename);
+  const imageUrl = buildBomMotorPhotoPath(normalized);
+  const dataKey = tone === "primary" ? "motor" : tone === "secondary" ? "nameplate" : "connection";
+  return `
+    <div class="image-placeholder ${tone}" data-bom-motor-photo="${dataKey}" data-filename="${escapeHtml(normalized)}">
       <div class="bom-image-label">${escapeHtml(label)}</div>
       ${
         normalized
@@ -1605,6 +1649,67 @@ function openBomDetail(item) {
         ${renderBomDetailPhotoItem("Foto Barang", item.itemPhoto)}
         ${renderBomDetailPhotoItem("Foto Nameplate", item.nameplatePhoto)}
         ${renderBomDetailPhotoItem("Foto Lain", item.extraPhoto)}
+      </div>
+    </section>
+  `;
+
+  serviceDetailModal.classList.remove("hidden");
+  serviceDetailModal.setAttribute("aria-hidden", "false");
+}
+
+function renderBomMotorDetailPhotoItem(label, filename) {
+  const normalized = normalizeBomPhotoName(filename);
+  const imageUrl = buildBomMotorPhotoPath(normalized);
+  return `
+    <div class="detail-photo-item bom-detail-photo-item">
+      <strong class="bom-detail-photo-label">${escapeHtml(label)}</strong>
+      ${
+        normalized
+          ? `<img class="detail-photo bom-detail-photo" src="${imageUrl}" alt="${escapeHtml(label)} ${escapeHtml(normalized)}">`
+          : `<div class="bom-detail-photo-empty">Belum ada foto</div>`
+      }
+      <span>${escapeHtml(normalized || "-")}</span>
+    </div>
+  `;
+}
+
+function openBomMotorDetail(item) {
+  if (!serviceDetailModal || !serviceDetailContent || !serviceDetailTitle || !serviceDetailSubtitle) {
+    return;
+  }
+
+  const infoRows = [
+    ["Tanggal", item.inspectionDate || "-"],
+    ["Equipment", item.equipment || "-"],
+    ["Manufacture", item.manufacture || "-"],
+    ["Power", item.power || "-"],
+    ["Ampere", item.ampere || "-"],
+    ["Voltage", item.voltage || "-"],
+    ["Speed", item.speed || "-"],
+    ["Frame", item.frame || "-"],
+    ["Serial Nr.", item.serialNumber || "-"],
+    ["Keterangan", item.note || "-"],
+  ];
+
+  serviceDetailTitle.textContent = item.equipment || "Detail BOM Motor";
+  serviceDetailSubtitle.textContent = `${item.manufacture || "-"} • detail motor dan lampiran foto`;
+  serviceDetailContent.innerHTML = `
+    <section class="detail-card">
+      <h4>Informasi Motor</h4>
+      <div class="detail-grid">${buildDetailGridRows(infoRows)}</div>
+    </section>
+    <section class="detail-card">
+      <h4>Long Text</h4>
+      <div class="detail-analysis">
+        <div class="detail-analysis-item">${escapeHtml(item.longText || "-")}</div>
+      </div>
+    </section>
+    <section class="detail-card">
+      <h4>Foto Motor</h4>
+      <div class="detail-photo-grid bom-detail-photo-grid">
+        ${renderBomMotorDetailPhotoItem("Foto Motor", item.motorPhoto)}
+        ${renderBomMotorDetailPhotoItem("Foto Nameplate", item.nameplatePhoto)}
+        ${renderBomMotorDetailPhotoItem("Foto Koneksi", item.connectionPhoto)}
       </div>
     </section>
   `;
@@ -2752,6 +2857,7 @@ function cacheBootstrapData(data) {
     [storageKeys.sparepart, data.sparepart],
     [storageKeys.service, data.service],
     [storageKeys.bom, data.bom],
+    [storageKeys.bomMotor, data.bom_motor],
     [storageKeys.spb, data.spb],
   ];
 
@@ -2918,11 +3024,12 @@ function loginWithUser(user) {
 }
 
 async function loadAllDataFromBackend() {
-  const [negatifItems, sparepartItems, serviceItems, bomItems, spbItems] = await Promise.all([
+  const [negatifItems, sparepartItems, serviceItems, bomItems, bomMotorItems, spbItems] = await Promise.all([
     fetchItemsFromBackend("negatif-list"),
     fetchItemsFromBackend("sparepart"),
     fetchItemsFromBackend("service"),
     fetchItemsFromBackend("bom"),
+    fetchItemsFromBackend("bom-motor"),
     fetchItemsFromBackend("spb"),
   ]);
 
@@ -2930,6 +3037,7 @@ async function loadAllDataFromBackend() {
   writeStorage(storageKeys.sparepart, sparepartItems);
   writeStorage(storageKeys.service, serviceItems.map((item) => normalizeServiceItem(item)));
   writeStorage(storageKeys.bom, bomItems);
+  writeStorage(storageKeys.bomMotor, bomMotorItems);
   writeStorage(storageKeys.spb, spbItems);
   loadStoredData();
 }
@@ -2976,6 +3084,7 @@ async function initializeApplication() {
   const backendReady = await detectBackendAvailability();
   renderCarbonBrushMeasurementGrid();
   renderElectricalRoomReferenceOptions();
+  openBomPane("general");
   ["negatif-list", "sparepart", "service", "bom", "spb"].forEach(placeCreatePanelNearToolbar);
   getStoredUsers();
   if (backendReady) {
@@ -3319,6 +3428,11 @@ function persistBomList() {
   writeStorage(storageKeys.bom, items);
 }
 
+function persistBomMotorList() {
+  const items = getBomMotorItemsFromDom();
+  writeStorage(storageKeys.bomMotor, items);
+}
+
 function persistSpbList() {
   const items = getSpbItemsFromDom();
   writeStorage(storageKeys.spb, items);
@@ -3329,6 +3443,7 @@ function updateDashboardStats() {
   const sparepartItems = getSparepartItemsFromDom();
   const serviceItems = getServiceItemsFromDom();
   const bomItems = getBomItemsFromDom();
+  const bomMotorItems = getBomMotorItemsFromDom();
   const spbItems = getSpbItemsFromDom();
   const today = new Date();
   const currentYear = String(today.getFullYear());
@@ -3343,7 +3458,7 @@ function updateDashboardStats() {
   statSpbBelumAda.textContent = formatCompactCurrency(currentYearSpbTotal);
   statService.textContent = `${todayServiceItems.length} item`;
   metricSparepartTotal.textContent = `${sparepartItems.length}`;
-  metricBomTotal.textContent = `${bomItems.length} mesin`;
+  metricBomTotal.textContent = `${bomItems.length + bomMotorItems.length} mesin`;
   metricServiceElectrical.textContent = `${electricalCount} temuan`;
   metricSpbTotal.textContent = formatCompactCurrency(currentYearSpbTotal);
   renderMiniCharts(negatifItems, serviceItems, spbItems);
@@ -3615,7 +3730,8 @@ function applyServiceFilter() {
 
 function applyBomFilter() {
   const query = searchBom?.value || "";
-  [...bomList.querySelectorAll(".bom-card")].forEach((card) => {
+  const targetList = activeBomPane === "motor" ? bomMotorList : bomList;
+  [...(targetList?.querySelectorAll(".bom-card") || [])].forEach((card) => {
     const cardText = card.textContent || "";
     card.hidden = !!query && !matchesSearch(cardText, query);
   });
@@ -3898,6 +4014,55 @@ function renderBomCard(item) {
   return card;
 }
 
+function renderBomMotorCard(item) {
+  const equipment = escapeHtml(item.equipment || "-");
+  const manufacture = escapeHtml(item.manufacture || "-");
+  const specs = [
+    item.power ? `${escapeHtml(item.power)} kW` : null,
+    item.voltage ? `${escapeHtml(item.voltage)} V` : null,
+    item.speed ? `${escapeHtml(item.speed)} rpm` : null,
+  ].filter(Boolean).join(" • ") || "-";
+  const frame = escapeHtml(item.frame || "-");
+  const serialNumber = escapeHtml(item.serialNumber || "-");
+  const note = escapeHtml(item.note || "-");
+  const card = document.createElement("article");
+  card.className = "bom-card bom-motor-card";
+  card.dataset.id = item.id;
+  card.dataset.inspectionDate = item.inspectionDate || "";
+  card.dataset.equipment = item.equipment || "";
+  card.dataset.manufacture = item.manufacture || "";
+  card.dataset.power = item.power || "";
+  card.dataset.ampere = item.ampere || "";
+  card.dataset.voltage = item.voltage || "";
+  card.dataset.speed = item.speed || "";
+  card.dataset.frame = item.frame || "";
+  card.dataset.serialNumber = item.serialNumber || "";
+  card.dataset.note = item.note || "";
+  card.dataset.longText = item.longText || "";
+  card.dataset.openable = "true";
+  card.tabIndex = 0;
+  card.innerHTML = `
+    <div class="bom-visual">
+      ${renderBomMotorImageTile("Foto Motor", item.motorPhoto, "primary")}
+      ${renderBomMotorImageTile("Foto Nameplate", item.nameplatePhoto, "secondary")}
+      ${renderBomMotorImageTile("Foto Koneksi", item.connectionPhoto, "tertiary")}
+    </div>
+    <div class="bom-copy bom-motor-copy">
+      <strong>${equipment}</strong>
+      <p>${manufacture}</p>
+      <small>${specs}</small>
+      <span>Frame: ${frame}</span>
+      <span>Serial: ${serialNumber}</span>
+      <span>${note}</span>
+    </div>
+    <div class="card-actions">
+      <button class="table-action" data-action="edit-bom-motor" type="button">Edit</button>
+      <button class="table-action danger" data-action="delete-bom-motor" type="button">Hapus</button>
+    </div>
+  `;
+  return card;
+}
+
 function renderSpbRow(item) {
   const row = document.createElement("tr");
   row.dataset.id = item.id;
@@ -3940,6 +4105,7 @@ function hasAnyStoredData() {
     readStorage(storageKeys.sparepart).length > 0 ||
     readStorage(storageKeys.service).length > 0 ||
     readStorage(storageKeys.bom).length > 0 ||
+    readStorage(storageKeys.bomMotor).length > 0 ||
     readStorage(storageKeys.spb).length > 0
   );
 }
@@ -3969,6 +4135,13 @@ function appendSparepartRow(item) {
 function appendBomCard(item) {
   bomList.prepend(renderBomCard(item));
   persistBomList();
+  updateDashboardStats();
+  applyBomFilter();
+}
+
+function appendBomMotorCard(item) {
+  bomMotorList?.prepend(renderBomMotorCard(item));
+  persistBomMotorList();
   updateDashboardStats();
   applyBomFilter();
 }
@@ -4003,6 +4176,26 @@ function getBomItemsFromDom() {
     itemPhoto: card.querySelector('[data-bom-photo="item"]')?.dataset.filename || "",
     nameplatePhoto: card.querySelector('[data-bom-photo="nameplate"]')?.dataset.filename || "",
     extraPhoto: card.querySelector('[data-bom-photo="extra"]')?.dataset.filename || "",
+  }));
+}
+
+function getBomMotorItemsFromDom() {
+  return [...(bomMotorList?.querySelectorAll(".bom-motor-card") || [])].map((card) => ({
+    id: card.dataset.id,
+    inspectionDate: card.dataset.inspectionDate || "",
+    equipment: card.dataset.equipment || "",
+    manufacture: card.dataset.manufacture || "",
+    power: card.dataset.power || "",
+    ampere: card.dataset.ampere || "",
+    voltage: card.dataset.voltage || "",
+    speed: card.dataset.speed || "",
+    frame: card.dataset.frame || "",
+    serialNumber: card.dataset.serialNumber || "",
+    note: card.dataset.note || "",
+    longText: card.dataset.longText || "",
+    nameplatePhoto: card.querySelector('[data-bom-motor-photo="nameplate"]')?.dataset.filename || "",
+    connectionPhoto: card.querySelector('[data-bom-motor-photo="connection"]')?.dataset.filename || "",
+    motorPhoto: card.querySelector('[data-bom-motor-photo="motor"]')?.dataset.filename || "",
   }));
 }
 
@@ -4066,6 +4259,19 @@ function loadStoredData() {
   } else {
     bomList.innerHTML = "";
     persistBomList();
+  }
+
+  const storedBomMotor = readStorage(storageKeys.bomMotor);
+  if (storedBomMotor.length) {
+    if (bomMotorList) {
+      bomMotorList.innerHTML = "";
+      storedBomMotor.forEach((item) => {
+        bomMotorList.append(renderBomMotorCard(item));
+      });
+    }
+  } else if (bomMotorList) {
+    bomMotorList.innerHTML = "";
+    persistBomMotorList();
   }
 
   const storedSpb = readStorage(storageKeys.spb);
@@ -4250,6 +4456,26 @@ function hydrateBomForm(item) {
   form.longText.value = item.longText || "";
   editingBomId = item.id;
   setSubmitNote(form, "Mode edit aktif untuk BOM.");
+}
+
+function hydrateBomMotorForm(item) {
+  const form = document.querySelector('[data-form-type="bom-motor"]');
+  form.inspectionDate.value = item.inspectionDate || "";
+  form.equipment.value = item.equipment || "";
+  form.manufacture.value = item.manufacture || "";
+  form.power.value = item.power || "";
+  form.ampere.value = item.ampere || "";
+  form.voltage.value = item.voltage || "";
+  form.speed.value = item.speed || "";
+  form.frame.value = item.frame || "";
+  form.serialNumber.value = item.serialNumber || "";
+  form.nameplatePhoto.value = item.nameplatePhoto || "";
+  form.connectionPhoto.value = item.connectionPhoto || "";
+  form.motorPhoto.value = item.motorPhoto || "";
+  form.note.value = item.note || "";
+  form.longText.value = item.longText || "";
+  editingBomMotorId = item.id;
+  setSubmitNote(form, "Mode edit aktif untuk BOM Motor.");
 }
 
 function hydrateSpbForm(item) {
@@ -5304,6 +5530,41 @@ forms.forEach((form) => {
       }
     }
 
+    if (formType === "bom-motor") {
+      const item = {
+        id: editingBomMotorId || createId("bom-motor"),
+        inspectionDate: String(formData.get("inspectionDate") || "").trim(),
+        equipment: String(formData.get("equipment") || "-").trim() || "-",
+        manufacture: String(formData.get("manufacture") || "-").trim() || "-",
+        power: String(formData.get("power") || "").trim(),
+        ampere: String(formData.get("ampere") || "").trim(),
+        voltage: String(formData.get("voltage") || "").trim(),
+        speed: String(formData.get("speed") || "").trim(),
+        frame: String(formData.get("frame") || "").trim(),
+        serialNumber: String(formData.get("serialNumber") || "").trim(),
+        nameplatePhoto: String(formData.get("nameplatePhoto") || "").trim(),
+        connectionPhoto: String(formData.get("connectionPhoto") || "").trim(),
+        motorPhoto: String(formData.get("motorPhoto") || "").trim(),
+        note: String(formData.get("note") || "-").trim() || "-",
+        longText: String(formData.get("longText") || "").trim(),
+      };
+      const savedItem = await saveItemToBackend("bom-motor", item, Boolean(editingBomMotorId));
+      if (editingBomMotorId) {
+        const existing = bomMotorList?.querySelector(`[data-id="${editingBomMotorId}"]`);
+        if (existing) existing.replaceWith(renderBomMotorCard(savedItem));
+        setSubmitNote(form, "BOM Motor berhasil diperbarui.");
+        showToast("BOM Motor", "Data berhasil diperbarui.");
+        editingBomMotorId = null;
+        persistBomMotorList();
+        updateDashboardStats();
+        applyBomFilter();
+      } else {
+        appendBomMotorCard(savedItem);
+        setSubmitNote(form, "BOM Motor berhasil ditambahkan.");
+        showToast("BOM Motor", "Item baru berhasil ditambahkan.");
+      }
+    }
+
     if (formType === "spb") {
       const item = {
         id: editingSpbId || createId("spb"),
@@ -5623,6 +5884,73 @@ bomList.addEventListener("keydown", (event) => {
   }
 });
 
+bomMotorList?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const card = target.closest(".bom-motor-card");
+  if (!card) return;
+
+  if (!target.closest("[data-action]")) {
+    const item = getBomMotorItemsFromDom().find((entry) => entry.id === (card.dataset.id || ""));
+    if (item) {
+      openBomMotorDetail(item);
+    }
+    return;
+  }
+
+  if (target.dataset.action === "delete-bom-motor") {
+    try {
+      await deleteItemFromBackend("bom-motor", card.dataset.id || "");
+      card.remove();
+      persistBomMotorList();
+      updateDashboardStats();
+      applyBomFilter();
+      showToast("BOM Motor", "Item berhasil dihapus.");
+    } catch (error) {
+      showToast("BOM Motor", error.message || "Gagal menghapus item.");
+    }
+  }
+
+  if (target.dataset.action === "edit-bom-motor") {
+    hydrateBomMotorForm({
+      id: card.dataset.id,
+      inspectionDate: card.dataset.inspectionDate || "",
+      equipment: card.dataset.equipment || "",
+      manufacture: card.dataset.manufacture || "",
+      power: card.dataset.power || "",
+      ampere: card.dataset.ampere || "",
+      voltage: card.dataset.voltage || "",
+      speed: card.dataset.speed || "",
+      frame: card.dataset.frame || "",
+      serialNumber: card.dataset.serialNumber || "",
+      note: card.dataset.note || "",
+      longText: card.dataset.longText || "",
+      nameplatePhoto: card.querySelector('[data-bom-motor-photo="nameplate"]')?.dataset.filename || "",
+      connectionPhoto: card.querySelector('[data-bom-motor-photo="connection"]')?.dataset.filename || "",
+      motorPhoto: card.querySelector('[data-bom-motor-photo="motor"]')?.dataset.filename || "",
+    });
+    openSection("bom");
+    openBomPane("motor");
+    openCreatePanel("bom");
+  }
+});
+
+bomMotorList?.addEventListener("keydown", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !(event.key === "Enter" || event.key === " ")) {
+    return;
+  }
+  const card = target.closest(".bom-motor-card");
+  if (!card || target.closest("[data-action]")) {
+    return;
+  }
+  event.preventDefault();
+  const item = getBomMotorItemsFromDom().find((entry) => entry.id === (card.dataset.id || ""));
+  if (item) {
+    openBomMotorDetail(item);
+  }
+});
+
 spbBody.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
@@ -5672,6 +6000,12 @@ filterSparepartCondition?.addEventListener("change", applySparepartFilter);
 searchService?.addEventListener("input", applyServiceFilter);
 filterServiceType?.addEventListener("change", applyServiceFilter);
 searchBom?.addEventListener("input", applyBomFilter);
+bomTabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    openBomPane(button.dataset.bomTab || "general");
+    applyBomFilter();
+  });
+});
 searchSpb?.addEventListener("input", applySpbFilter);
 filterSpbStatus?.addEventListener("change", applySpbFilter);
 
@@ -5711,13 +6045,23 @@ exportButtons.forEach((button) => {
       }
 
     if (exportType === "bom") {
-      const items = getBomItemsFromDom();
-      downloadCsv(
-        "bom.csv",
-        ["Equipment", "Part", "Jumlah", "Keterangan", "Long Text", "Foto Barang", "Foto Nameplate", "Foto Lain"],
-        items.map((item) => [item.equipment, item.part, item.qty, item.note, item.longText, item.itemPhoto, item.nameplatePhoto, item.extraPhoto]),
-      );
-      showToast("Export", "BOM berhasil diexport ke CSV.");
+      if (activeBomPane === "motor") {
+        const items = getBomMotorItemsFromDom();
+        downloadCsv(
+          "bom-motor.csv",
+          ["Tanggal", "Equipment", "Manufacture", "Power", "Ampere", "Voltage", "Speed", "Frame", "Serial Nr.", "Keterangan", "Long Text", "Foto Nameplate", "Foto Koneksi", "Foto Motor"],
+          items.map((item) => [item.inspectionDate, item.equipment, item.manufacture, item.power, item.ampere, item.voltage, item.speed, item.frame, item.serialNumber, item.note, item.longText, item.nameplatePhoto, item.connectionPhoto, item.motorPhoto]),
+        );
+        showToast("Export", "BOM Motor berhasil diexport ke CSV.");
+      } else {
+        const items = getBomItemsFromDom();
+        downloadCsv(
+          "bom.csv",
+          ["Equipment", "Part", "Jumlah", "Keterangan", "Long Text", "Foto Barang", "Foto Nameplate", "Foto Lain"],
+          items.map((item) => [item.equipment, item.part, item.qty, item.note, item.longText, item.itemPhoto, item.nameplatePhoto, item.extraPhoto]),
+        );
+        showToast("Export", "BOM berhasil diexport ke CSV.");
+      }
     }
 
     if (exportType === "spb") {

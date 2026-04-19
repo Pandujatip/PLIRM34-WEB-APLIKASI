@@ -1170,16 +1170,17 @@
         <section class="panel-section" data-panel="bom">
           <div class="card-head">
             <p class="eyebrow">BOM</p>
-            <h3>Daftar mesin beserta foto barang, foto nameplate, dan deskripsi</h3>
+            <h3>Dokumentasi BOM unit kerja dan BOM motor</h3>
           </div>
-          <div class="module-intro">
-            Referensi equipment unit kerja berisi foto barang, nameplate, dan deskripsi singkat mesin.
+          <div class="bom-tab-bar">
+            <button class="service-subtab active" data-bom-tab="general" type="button">BOM General</button>
+            <button class="service-subtab" data-bom-tab="motor" type="button">BOM Motor</button>
           </div>
           <div class="toolbar">
             <button class="btn btn-primary" data-editable-for="admin" data-create-target="bom" type="button">Create New</button>
             <label class="search-field">
               <span>Cari</span>
-              <input type="search" id="search-bom" placeholder="Cari mesin, deskripsi, atau metadata">
+              <input type="search" id="search-bom" placeholder="Cari equipment, part, manufacture, atau metadata">
             </label>
             <button class="btn btn-secondary export-button" data-export="bom" type="button">Export CSV</button>
           </div>
@@ -1194,65 +1195,153 @@
             <div class="permission-banner" data-editable-for="admin">
               Form BOM aktif untuk role `admin`.
             </div>
-            <form class="input-form" data-editable-for="admin" data-form-type="bom">
-              <div class="form-grid form-grid-3">
-                <label>
-                  Equipment
-                  <input type="text" name="equipment" placeholder="Contoh: 864MP01" required>
-                </label>
-                <label>
-                  Part
-                  <input type="text" name="part" placeholder="Contoh: PLC CPU" required>
-                </label>
-                <label>
-                  Jumlah
-                  <input type="text" name="qty" placeholder="Contoh: 2">
-                </label>
-                <label>
-                  Foto barang
-                  <input type="text" name="itemPhoto" placeholder="Contoh: fec33a26.FOTO BARANG.034718.jpg">
-                </label>
-                <label>
-                  Foto nameplate
-                  <input type="text" name="nameplatePhoto" placeholder="Contoh: fec33a26.FOTO NAMEPLATE.034718.jpg">
-                </label>
-                <label>
-                  Foto lain
-                  <input type="text" name="extraPhoto" placeholder="Contoh: fec33a26.FOTO LAIN.034718.jpg">
-                </label>
-                <label class="full-span">
-                  Keterangan
-                  <textarea name="note" rows="3" placeholder="Catatan singkat item BOM"></textarea>
-                </label>
-                <label class="full-span">
-                  Long Text
-                  <textarea name="longText" rows="6" placeholder="Isi long text / detail nameplate / spesifikasi"></textarea>
-                </label>
-              </div>
-              <button class="btn btn-primary" type="submit">Simpan BOM</button>
-            </form>
+            <div class="bom-pane visible" data-bom-pane="general">
+              <form class="input-form" data-editable-for="admin" data-form-type="bom">
+                <div class="form-grid form-grid-3">
+                  <label>
+                    Equipment
+                    <input type="text" name="equipment" placeholder="Contoh: 864MP01" required>
+                  </label>
+                  <label>
+                    Part
+                    <input type="text" name="part" placeholder="Contoh: PLC CPU" required>
+                  </label>
+                  <label>
+                    Jumlah
+                    <input type="text" name="qty" placeholder="Contoh: 2">
+                  </label>
+                  <label>
+                    Foto barang
+                    <input type="text" name="itemPhoto" placeholder="Contoh: fec33a26.FOTO BARANG.034718.jpg">
+                  </label>
+                  <label>
+                    Foto nameplate
+                    <input type="text" name="nameplatePhoto" placeholder="Contoh: fec33a26.FOTO NAMEPLATE.034718.jpg">
+                  </label>
+                  <label>
+                    Foto lain
+                    <input type="text" name="extraPhoto" placeholder="Contoh: fec33a26.FOTO LAIN.034718.jpg">
+                  </label>
+                  <label class="full-span">
+                    Keterangan
+                    <textarea name="note" rows="3" placeholder="Catatan singkat item BOM"></textarea>
+                  </label>
+                  <label class="full-span">
+                    Long Text
+                    <textarea name="longText" rows="6" placeholder="Isi long text / detail nameplate / spesifikasi"></textarea>
+                  </label>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan BOM</button>
+              </form>
+            </div>
+            <div class="bom-pane" data-bom-pane="motor">
+              <form class="input-form" data-editable-for="admin" data-form-type="bom-motor">
+                <div class="form-grid form-grid-3">
+                  <label>
+                    Tanggal
+                    <input type="date" name="inspectionDate" required>
+                  </label>
+                  <label>
+                    Equipment
+                    <input type="text" name="equipment" placeholder="Contoh: 323BC8M01" required>
+                  </label>
+                  <label>
+                    Manufacture
+                    <input type="text" name="manufacture" placeholder="Contoh: ABB">
+                  </label>
+                  <label>
+                    Power
+                    <input type="text" name="power" placeholder="Contoh: 75">
+                  </label>
+                  <label>
+                    Ampere
+                    <input type="text" name="ampere" placeholder="Contoh: 135">
+                  </label>
+                  <label>
+                    Voltage
+                    <input type="text" name="voltage" placeholder="Contoh: 400">
+                  </label>
+                  <label>
+                    Speed
+                    <input type="text" name="speed" placeholder="Contoh: 1484">
+                  </label>
+                  <label>
+                    Frame
+                    <input type="text" name="frame" placeholder="Contoh: M3BP280 SMA 4 / IMB3 / IM 1001">
+                  </label>
+                  <label>
+                    Serial Nr.
+                    <input type="text" name="serialNumber" placeholder="Contoh: F1612280508">
+                  </label>
+                  <label>
+                    Foto nameplate
+                    <input type="text" name="nameplatePhoto" placeholder="Contoh: 5513f3b2.Foto Nameplate.033504.jpg">
+                  </label>
+                  <label>
+                    Foto koneksi
+                    <input type="text" name="connectionPhoto" placeholder="Contoh: 5513f3b2.Foto Koneksi.033503.jpg">
+                  </label>
+                  <label>
+                    Foto motor
+                    <input type="text" name="motorPhoto" placeholder="Contoh: 5513f3b2.Foto Motor.033619.jpg">
+                  </label>
+                  <label class="full-span">
+                    Keterangan
+                    <textarea name="note" rows="3" placeholder="Catatan singkat BOM motor"></textarea>
+                  </label>
+                  <label class="full-span">
+                    Long Text
+                    <textarea name="longText" rows="6" placeholder="Isi detail nameplate / spesifikasi motor"></textarea>
+                  </label>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan BOM Motor</button>
+              </form>
+            </div>
           </div>
           <div class="locked-note hidden" data-locked-for="bom">
             Role ini hanya dapat melihat data BOM tanpa mengubah isi.
           </div>
-          <div class="bom-grid" id="bom-list">
-            <article class="bom-card">
-              <div class="bom-visual">
-                <div class="image-placeholder">FOTO BARANG</div>
-                <div class="image-placeholder secondary">FOTO NAMEPLATE</div>
-                <div class="image-placeholder tertiary">FOTO LAIN</div>
-              </div>
-              <div class="bom-copy">
-                <strong>864MP01</strong>
-                <p>PLC CPU</p>
-                <small>Jumlah: 1</small>
-                <span>Catatan item BOM</span>
-              </div>
-              <div class="card-actions">
-                <button class="table-action" type="button">Edit</button>
-                <button class="table-action danger" type="button">Hapus</button>
-              </div>
-            </article>
+          <div class="bom-pane visible" data-bom-pane="general">
+            <div class="bom-grid" id="bom-list">
+              <article class="bom-card">
+                <div class="bom-visual">
+                  <div class="image-placeholder">FOTO BARANG</div>
+                  <div class="image-placeholder secondary">FOTO NAMEPLATE</div>
+                  <div class="image-placeholder tertiary">FOTO LAIN</div>
+                </div>
+                <div class="bom-copy">
+                  <strong>864MP01</strong>
+                  <p>PLC CPU</p>
+                  <small>Jumlah: 1</small>
+                  <span>Catatan item BOM</span>
+                </div>
+                <div class="card-actions">
+                  <button class="table-action" type="button">Edit</button>
+                  <button class="table-action danger" type="button">Hapus</button>
+                </div>
+              </article>
+            </div>
+          </div>
+          <div class="bom-pane" data-bom-pane="motor">
+            <div class="bom-grid bom-motor-grid" id="bom-motor-list">
+              <article class="bom-card bom-motor-card">
+                <div class="bom-visual">
+                  <div class="image-placeholder">FOTO MOTOR</div>
+                  <div class="image-placeholder secondary">FOTO NAMEPLATE</div>
+                  <div class="image-placeholder tertiary">FOTO KONEKSI</div>
+                </div>
+                <div class="bom-copy bom-motor-copy">
+                  <strong>323BC8M01</strong>
+                  <p>ABB</p>
+                  <small>75 kW • 400 V • 1484 rpm</small>
+                  <span>Frame: M3BP280 SMA 4 / IMB3 / IM 1001</span>
+                </div>
+                <div class="card-actions">
+                  <button class="table-action" type="button">Edit</button>
+                  <button class="table-action danger" type="button">Hapus</button>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 

@@ -1678,7 +1678,8 @@ th {
 }
 
 .service-tab-bar,
-.service-subtab-bar {
+.service-subtab-bar,
+.bom-tab-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -1693,12 +1694,14 @@ th {
 }
 
 .service-pane,
-.electrical-pane {
+.electrical-pane,
+.bom-pane {
   display: none;
 }
 
 .service-pane.visible,
-.electrical-pane.visible {
+.electrical-pane.visible,
+.bom-pane.visible {
   display: block;
 }
 
@@ -2104,6 +2107,18 @@ th {
 
 .bom-copy span {
   color: var(--text-secondary);
+}
+
+.bom-motor-copy {
+  gap: 8px;
+}
+
+.bom-motor-copy span {
+  color: #ffe3cf;
+}
+
+.bom-tab-bar {
+  margin-bottom: 14px;
 }
 
 .bom-long-text {

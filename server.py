@@ -27,6 +27,7 @@ STATE_KEYS = {
     "sparepart": "sparepart",
     "service": "service",
     "bom": "bom",
+    "bom-motor": "bom_motor",
     "spb": "spb",
 }
 
@@ -125,6 +126,43 @@ RESOURCE_TABLES = {
             "qty",
         ],
     },
+    "bom-motor": {
+        "table": "bom_motor_items",
+        "columns": [
+            "id",
+            "inspection_date",
+            "equipment",
+            "manufacture",
+            "power",
+            "ampere",
+            "voltage",
+            "speed",
+            "frame",
+            "serial_number",
+            "nameplate_photo",
+            "connection_photo",
+            "motor_photo",
+            "note",
+            "long_text",
+        ],
+        "payload_keys": [
+            "id",
+            "inspectionDate",
+            "equipment",
+            "manufacture",
+            "power",
+            "ampere",
+            "voltage",
+            "speed",
+            "frame",
+            "serialNumber",
+            "nameplatePhoto",
+            "connectionPhoto",
+            "motorPhoto",
+            "note",
+            "longText",
+        ],
+    },
     "spb": {
         "table": "spb_items",
         "columns": [
@@ -198,6 +236,23 @@ IMPORT_FIELD_ALIASES = {
         "nameplatePhoto": ["nameplatePhoto", "nameplate photo", "fotoNameplate", "foto nameplate", "foto nameplate "],
         "extraPhoto": ["extraPhoto", "extra photo", "fotoLain", "foto lain", "foto lain "],
     },
+    "bom-motor": {
+        "id": ["id"],
+        "inspectionDate": ["inspectionDate", "tanggal"],
+        "equipment": ["equipment"],
+        "manufacture": ["manufacture", "manufacturer", "merk", "merek"],
+        "power": ["power"],
+        "ampere": ["ampere", "arus"],
+        "voltage": ["voltage", "tegangan"],
+        "speed": ["speed", "rpm", "kecepatan"],
+        "frame": ["frame"],
+        "serialNumber": ["serialNumber", "serial nr.", "serial nr", "serial number"],
+        "nameplatePhoto": ["nameplatePhoto", "foto nameplate"],
+        "connectionPhoto": ["connectionPhoto", "foto koneksi"],
+        "motorPhoto": ["motorPhoto", "foto motor"],
+        "note": ["note", "keterangan"],
+        "longText": ["longText", "long text"],
+    },
     "spb": {
         "id": ["id"],
         "requestType": ["requestType", "jenisAjuan", "jenis ajuan"],
@@ -220,7 +275,7 @@ DEFAULT_USERS = [
 ]
 
 ROLE_EDITABLE = {
-    "admin": {"negatif-list", "sparepart", "service", "bom", "spb", "users"},
+    "admin": {"negatif-list", "sparepart", "service", "bom", "bom-motor", "spb", "users"},
     "organik": {"negatif-list"},
     "team": {"service"},
 }
@@ -553,6 +608,27 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS bom_motor_items (
+                id TEXT PRIMARY KEY,
+                inspection_date TEXT NOT NULL,
+                equipment TEXT NOT NULL,
+                manufacture TEXT NOT NULL,
+                power TEXT NOT NULL,
+                ampere TEXT NOT NULL,
+                voltage TEXT NOT NULL,
+                speed TEXT NOT NULL,
+                frame TEXT NOT NULL,
+                serial_number TEXT NOT NULL,
+                nameplate_photo TEXT NOT NULL,
+                connection_photo TEXT NOT NULL,
+                motor_photo TEXT NOT NULL,
+                note TEXT NOT NULL,
+                long_text TEXT NOT NULL,
+                created_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS spb_items (
                 id TEXT PRIMARY KEY,
                 request_type TEXT NOT NULL,
@@ -803,6 +879,7 @@ def get_state_snapshot() -> dict:
         "sparepart": load_resource_items("sparepart"),
         "service": load_resource_items("service"),
         "bom": load_resource_items("bom"),
+        "bom_motor": load_resource_items("bom-motor"),
         "spb": load_resource_items("spb"),
     }
 
@@ -1205,6 +1282,25 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("qty", "")),
         )
 
+    if resource_key == "bom-motor":
+        return (
+            str(item.get("id", "")),
+            str(item.get("inspectionDate", "")),
+            str(item.get("equipment", "")),
+            str(item.get("manufacture", "")),
+            str(item.get("power", "")),
+            str(item.get("ampere", "")),
+            str(item.get("voltage", "")),
+            str(item.get("speed", "")),
+            str(item.get("frame", "")),
+            str(item.get("serialNumber", "")),
+            str(item.get("nameplatePhoto", "")),
+            str(item.get("connectionPhoto", "")),
+            str(item.get("motorPhoto", "")),
+            str(item.get("note", "")),
+            str(item.get("longText", "")),
+        )
+
     if resource_key == "spb":
         return (
             str(item.get("id", "")),
@@ -1275,6 +1371,25 @@ def deserialize_resource_item(resource_key: str, row: sqlite3.Row) -> dict:
             "extraPhoto": row["extra_photo"],
             "longText": row["long_text"],
             "qty": row["qty"],
+        }
+
+    if resource_key == "bom-motor":
+        return {
+            "id": row["id"],
+            "inspectionDate": row["inspection_date"],
+            "equipment": row["equipment"],
+            "manufacture": row["manufacture"],
+            "power": row["power"],
+            "ampere": row["ampere"],
+            "voltage": row["voltage"],
+            "speed": row["speed"],
+            "frame": row["frame"],
+            "serialNumber": row["serial_number"],
+            "nameplatePhoto": row["nameplate_photo"],
+            "connectionPhoto": row["connection_photo"],
+            "motorPhoto": row["motor_photo"],
+            "note": row["note"],
+            "longText": row["long_text"],
         }
 
     if resource_key == "spb":
