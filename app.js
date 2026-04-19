@@ -90,6 +90,20 @@ const metricSparepartTotal = document.getElementById("metric-sparepart-total");
 const metricBomTotal = document.getElementById("metric-bom-total");
 const metricServiceElectrical = document.getElementById("metric-service-electrical");
 const metricSpbTotal = document.getElementById("metric-spb-total");
+const playerAvatar = document.getElementById("player-avatar");
+const hudLevelBadge = document.getElementById("hud-level-badge");
+const hudRankBadge = document.getElementById("hud-rank-badge");
+const hudXpFill = document.getElementById("hud-xp-fill");
+const hudXpText = document.getElementById("hud-xp-text");
+const hudPoints = document.getElementById("hud-points");
+const heroLevelTitle = document.getElementById("hero-level-title");
+const heroNextLevel = document.getElementById("hero-next-level");
+const heroProgressValue = document.getElementById("hero-progress-value");
+const heroProgressFill = document.getElementById("hero-progress-fill");
+const heroXpRing = document.getElementById("hero-xp-ring");
+const heroXpPercent = document.getElementById("hero-xp-percent");
+const heroXpCaption = document.getElementById("hero-xp-caption");
+const heroRankName = document.getElementById("hero-rank-name");
 const chartNegatif = document.getElementById("chart-negatif");
 const chartService = document.getElementById("chart-service");
 const chartSpb = document.getElementById("chart-spb");
@@ -3017,6 +3031,16 @@ function loginWithUser(user) {
   applyRoleAccess(user.role);
   currentUser.textContent = user.username;
   currentRole.textContent = roleLabels[user.role] || "Team";
+  if (playerAvatar) {
+    const initials = String(user.username || "PL")
+      .split(/[.\s_-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("")
+      .slice(0, 2) || "PL";
+    playerAvatar.textContent = initials;
+  }
   saveSession(user.username, user.role);
   loginScreen.classList.add("hidden");
   workspace.classList.remove("hidden");
@@ -3454,6 +3478,25 @@ function updateDashboardStats() {
     .filter((item) => extractSpbYear(item) === currentYear)
     .reduce((sum, item) => sum + Number(item.price || 0), 0);
   const electricalCount = serviceItems.filter((item) => item.type === "Electrical").length;
+  const xpScore = (serviceItems.length * 18) + (sparepartItems.length * 7) + ((bomItems.length + bomMotorItems.length) * 5) + (openNegatifItems.length * 11);
+  const level = Math.max(1, Math.floor(xpScore / 120) + 1);
+  const currentLevelBase = (level - 1) * 120;
+  const currentLevelXp = Math.max(0, xpScore - currentLevelBase);
+  const xpTarget = 120;
+  const xpPercent = Math.max(0, Math.min(100, Math.round((currentLevelXp / xpTarget) * 100)));
+  const nextLevelXp = Math.max(0, xpTarget - currentLevelXp);
+  const points = serviceItems.length * 15 + sparepartItems.length * 4 + (bomItems.length + bomMotorItems.length) * 3;
+  const rankName = level >= 20
+    ? "Diamond Operator"
+    : level >= 15
+      ? "Platinum Operator"
+      : level >= 10
+        ? "Gold Operator"
+        : level >= 5
+          ? "Silver Operator"
+          : "Bronze Operator";
+  const rankBadge = rankName.split(" ")[0].toUpperCase();
+  const dailyProgress = Math.max(0, Math.min(100, Math.round(((todayServiceItems.length * 35) + (Math.max(0, 6 - openNegatifItems.length) * 8)) / 2)));
 
   statNegatif.textContent = `${openNegatifItems.length} item`;
   statSpbBelumAda.textContent = formatCompactCurrency(currentYearSpbTotal);
@@ -3462,6 +3505,19 @@ function updateDashboardStats() {
   metricBomTotal.textContent = `${bomItems.length + bomMotorItems.length} mesin`;
   metricServiceElectrical.textContent = `${electricalCount} temuan`;
   metricSpbTotal.textContent = formatCompactCurrency(currentYearSpbTotal);
+  if (hudLevelBadge) hudLevelBadge.textContent = `LEVEL ${level}`;
+  if (hudRankBadge) hudRankBadge.textContent = rankBadge;
+  if (hudXpFill) hudXpFill.style.width = `${xpPercent}%`;
+  if (hudXpText) hudXpText.textContent = `${currentLevelXp} / ${xpTarget} XP`;
+  if (hudPoints) hudPoints.textContent = `${points}`;
+  if (heroLevelTitle) heroLevelTitle.textContent = `LEVEL ${level}`;
+  if (heroNextLevel) heroNextLevel.textContent = `Next level in ${nextLevelXp} XP`;
+  if (heroProgressValue) heroProgressValue.textContent = `${dailyProgress}%`;
+  if (heroProgressFill) heroProgressFill.style.width = `${dailyProgress}%`;
+  if (heroXpPercent) heroXpPercent.textContent = `${xpPercent}%`;
+  if (heroXpCaption) heroXpCaption.textContent = `${currentLevelXp} XP collected on this level`;
+  if (heroRankName) heroRankName.textContent = rankName;
+  if (heroXpRing) heroXpRing.style.setProperty("--xp-progress", `${xpPercent}%`);
   renderMiniCharts(negatifItems, serviceItems, spbItems);
   renderDashboardPreviews(negatifItems, serviceItems, spbItems);
   renderMobileCards(negatifItems, spbItems);

@@ -7,7 +7,7 @@
   <meta name="description" content="Aplikasi digitalisasi unit kerja PLIRM34 untuk inspeksi, sparepart, BOM, dan SPB.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=20260419-46">
 </head>
 <body>
@@ -86,14 +86,27 @@
 
       <main class="main-content">
         <header class="topbar">
-          <div>
-            <p class="eyebrow">Panel Operasional</p>
+          <div class="topbar-title-block">
+            <p class="eyebrow">Control Panel</p>
             <h2 id="page-title">Dashboard</h2>
           </div>
-          <div class="topbar-meta">
-            <div class="user-chip">
+          <div class="topbar-meta player-hud">
+            <div class="player-avatar" id="player-avatar">A</div>
+            <div class="user-chip hud-user-chip">
               <span id="current-role">Admin</span>
               <strong id="current-user">admin.plirm34</strong>
+              <div class="hud-level-row">
+                <span class="hud-level-badge" id="hud-level-badge">LEVEL 1</span>
+                <span class="hud-rank-badge" id="hud-rank-badge">BRONZE</span>
+              </div>
+              <div class="hud-xp-track">
+                <div class="hud-xp-fill" id="hud-xp-fill"></div>
+              </div>
+              <small id="hud-xp-text">0 / 100 XP</small>
+            </div>
+            <div class="hud-points-card">
+              <span>Points</span>
+              <strong id="hud-points">0</strong>
             </div>
             <div class="access-chip" id="access-summary">Akses penuh seluruh modul</div>
             <button class="btn btn-secondary icon-button" id="refresh-button" type="button" title="Refresh Tampilan" aria-label="Refresh Tampilan">&#8635;</button>
@@ -104,39 +117,76 @@
 
         <section class="panel-section visible" data-panel="dashboard">
           <div class="hero-banner">
+            <div class="hero-hud-grid">
+              <div class="hero-level-panel">
+                <p class="eyebrow">Player Status</p>
+                <h3 id="hero-level-title">LEVEL 1</h3>
+                <p class="hero-subtitle" id="hero-next-level">Next level in 100 XP</p>
+                <div class="hero-progress-card">
+                  <div>
+                    <span>Daily Progress</span>
+                    <strong id="hero-progress-value">0%</strong>
+                  </div>
+                  <div class="hero-progress-track">
+                    <div class="hero-progress-fill" id="hero-progress-fill"></div>
+                  </div>
+                </div>
+                <p id="sample-data-status" class="sample-data-status">Data operasional akan tampil setelah input atau sinkronisasi database.</p>
+              </div>
+              <div class="hero-ring-panel">
+                <div class="xp-ring" id="hero-xp-ring">
+                  <div class="xp-ring-core">
+                    <span>XP</span>
+                    <strong id="hero-xp-percent">0%</strong>
+                    <small id="hero-xp-caption">Progress to next level</small>
+                  </div>
+                </div>
+                <div class="hero-ring-meta">
+                  <span>Rank Status</span>
+                  <strong id="hero-rank-name">Bronze Operator</strong>
+                  <small>Mission chain aktif untuk dashboard PLIRM34</small>
+                </div>
+              </div>
+            </div>
             <div class="banner-stats">
               <article>
-                <span>Negatif list open</span>
+                <span>Quest Alert</span>
                 <strong id="stat-negatif">0 item</strong>
+                <small>Negatif list open</small>
               </article>
               <article>
-                <span>Service hari ini</span>
+                <span>Daily Mission</span>
                 <strong id="stat-service">0 item</strong>
+                <small>Service hari ini</small>
               </article>
               <article>
-                <span>SPB tahun ini</span>
+                <span>Resource Score</span>
                 <strong id="stat-spb-belum-ada">Rp0</strong>
+                <small>SPB tahun ini</small>
               </article>
             </div>
-            <p id="sample-data-status" class="sample-data-status">Data operasional akan tampil setelah input atau sinkronisasi database.</p>
           </div>
 
           <div class="metric-grid">
             <article class="metric-card">
-              <span>Sparepart</span>
+              <span>Inventory XP</span>
               <strong id="metric-sparepart-total">0</strong>
+              <small>Sparepart active</small>
             </article>
             <article class="metric-card">
-              <span>BOM</span>
+              <span>Blueprint Archive</span>
               <strong id="metric-bom-total">0 mesin</strong>
+              <small>BOM unlocked</small>
             </article>
             <article class="metric-card">
-              <span>Service Electrical</span>
+              <span>Electrical Mastery</span>
               <strong id="metric-service-electrical">0 temuan</strong>
+              <small>Service electrical</small>
             </article>
             <article class="metric-card">
-              <span>Biaya Ajuan Tahun Ini</span>
+              <span>Annual Resource</span>
               <strong id="metric-spb-total">Rp0</strong>
+              <small>Biaya ajuan</small>
             </article>
           </div>
 
