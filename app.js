@@ -83,6 +83,8 @@ const spbBody = document.getElementById("spb-body");
 const dashboardNegatifPreview = document.getElementById("dashboard-negatif-preview");
 const dashboardSpbPreview = document.getElementById("dashboard-spb-preview");
 const dashboardServicePreview = document.getElementById("dashboard-service-preview");
+const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
+const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
 const statNegatif = document.getElementById("stat-negatif");
 const statSpbBelumAda = document.getElementById("stat-spb-belum-ada");
 const statService = document.getElementById("stat-service");
@@ -211,6 +213,12 @@ let activeServiceDetailItem = null;
 let carbonBrushReplacementEditMode = false;
 let carbonBrushReplacementDraft = [];
 let activeBomPane = "general";
+let dashboardInspectionSchedule = {
+  calendarName: "PMS PLIRM34",
+  timezone: "Asia/Jakarta",
+  today: [],
+  tomorrow: [],
+};
 
 const roleLabels = {
   admin: "Admin",
@@ -3083,6 +3091,12 @@ async function loadAllDataFromBackend() {
 async function hydrateFromBackendAfterLogin() {
   const bootstrap = await apiRequest("/bootstrap");
   backendState.sessionActive = true;
+  dashboardInspectionSchedule = {
+    calendarName: bootstrap.calendar?.calendarName || "PMS PLIRM34",
+    timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
+    today: Array.isArray(bootstrap.calendar?.today) ? bootstrap.calendar.today : [],
+    tomorrow: Array.isArray(bootstrap.calendar?.tomorrow) ? bootstrap.calendar.tomorrow : [],
+  };
   if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
     cacheUsers(bootstrap.users);
   }
@@ -3101,6 +3115,12 @@ async function restoreBackendSession() {
     }
 
     backendState.sessionActive = true;
+    dashboardInspectionSchedule = {
+      calendarName: bootstrap.calendar?.calendarName || "PMS PLIRM34",
+      timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
+      today: Array.isArray(bootstrap.calendar?.today) ? bootstrap.calendar.today : [],
+      tomorrow: Array.isArray(bootstrap.calendar?.tomorrow) ? bootstrap.calendar.tomorrow : [],
+    };
     if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
       cacheUsers(bootstrap.users);
     }
@@ -3774,6 +3794,51 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
       dashboardSpbPreview.append(article);
     });
   }
+
+  renderInspectionScheduleCard(
+    dashboardInspectionToday,
+    dashboardInspectionSchedule.today,
+    "Belum ada jadwal inspeksi hari ini",
+  );
+  renderInspectionScheduleCard(
+    dashboardInspectionTomorrow,
+    dashboardInspectionSchedule.tomorrow,
+    "Belum ada jadwal inspeksi besok",
+  );
+}
+
+function renderInspectionScheduleCard(container, items, emptyTitle) {
+  if (!container) {
+    return;
+  }
+
+  const rows = Array.isArray(items) ? items.slice(0, 5) : [];
+  container.innerHTML = "";
+  if (!rows.length) {
+    container.innerHTML = `
+      <article>
+        <strong>${emptyTitle}</strong>
+        <span>Sinkron otomatis dari Google Calendar</span>
+        <small>Kalender inspeksi PLIRM34</small>
+      </article>
+    `;
+    return;
+  }
+
+  rows.forEach((item) => {
+    const article = document.createElement("article");
+    const detailParts = [item.timeLabel || (item.allDay ? "Seharian" : "-")];
+    if (item.location) {
+      detailParts.push(item.location);
+    }
+    article.className = "inspection-schedule-item";
+    article.innerHTML = `
+      <strong>${escapeHtml(item.summary || "Jadwal inspeksi")}</strong>
+      <span>${escapeHtml(detailParts.join(" • "))}</span>
+      <small>${escapeHtml(item.description || dashboardInspectionSchedule.calendarName || "Google Calendar")}</small>
+    `;
+    container.append(article);
+  });
 }
 
 function matchesSearch(text, query) {
@@ -6322,6 +6387,12 @@ if (logoutButton) {
     loginScreen.classList.remove("hidden");
     loginForm.reset();
     activeRole = "admin";
+    dashboardInspectionSchedule = {
+      calendarName: "PMS PLIRM34",
+      timezone: "Asia/Jakarta",
+      today: [],
+      tomorrow: [],
+    };
     clearSession();
   });
 }

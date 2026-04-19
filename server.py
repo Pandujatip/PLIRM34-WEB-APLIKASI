@@ -22,6 +22,9 @@ ROOT_DIR = Path(__file__).resolve().parent
 DB_PATH = ROOT_DIR / "plirm34.db"
 SESSION_COOKIE_NAME = "plirm34_session"
 SESSION_DURATION_DAYS = 7
+JAKARTA_TIMEZONE = timezone(timedelta(hours=7))
+CALENDAR_FEED_URL = "https://calendar.google.com/calendar/ical/adenairdrop%40gmail.com/public/basic.ics"
+CALENDAR_CACHE_TTL_SECONDS = 600
 STATE_KEYS = {
     "negatif-list": "negatif_list",
     "sparepart": "sparepart",
@@ -363,9 +366,246 @@ FALLBACK_EQUIPMENT_REFERENCES = {
     ],
 }
 
+CALENDAR_CACHE = {
+    "fetched_at": None,
+    "payload": {
+        "calendarName": "PMS PLIRM34",
+        "timezone": "Asia/Jakarta",
+        "today": [],
+        "tomorrow": [],
+    },
+}
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def jakarta_now() -> datetime:
+    return datetime.now(JAKARTA_TIMEZONE)
+
+
+def add_months(source: datetime, months: int) -> datetime:
+    month_index = source.month - 1 + months
+    year = source.year + month_index // 12
+    month = month_index % 12 + 1
+    month_lengths = [
+        31,
+        29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ]
+    day = min(source.day, month_lengths[month - 1])
+    return source.replace(year=year, month=month, day=day)
+
+
+def unfold_ics_lines(text: str) -> list[str]:
+    lines: list[str] = []
+    for raw_line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if not raw_line:
+            lines.append("")
+            continue
+        if raw_line.startswith((" ", "\t")) and lines:
+            lines[-1] += raw_line[1:]
+            continue
+        lines.append(raw_line)
+    return lines
+
+
+def parse_ics_content_line(line: str) -> tuple[str, dict[str, str], str]:
+    name_part, _, value = line.partition(":")
+    tokens = name_part.split(";")
+    name = tokens[0].upper()
+    params: dict[str, str] = {}
+    for token in tokens[1:]:
+        param_name, _, param_value = token.partition("=")
+        if param_name:
+            params[param_name.upper()] = param_value
+    return name, params, value
+
+
+def parse_ics_datetime(raw_value: str, params: dict[str, str]) -> tuple[datetime | None, bool]:
+    value = str(raw_value or "").strip()
+    if not value:
+        return None, False
+
+    value_type = params.get("VALUE", "").upper()
+    if value_type == "DATE" or len(value) == 8:
+        try:
+            parsed = datetime.strptime(value, "%Y%m%d")
+            return parsed.replace(tzinfo=JAKARTA_TIMEZONE), True
+        except ValueError:
+            return None, True
+
+    fmt = "%Y%m%dT%H%M%S" if len(value.rstrip("Z")) >= 15 else "%Y%m%dT%H%M"
+    try:
+        if value.endswith("Z"):
+            parsed = datetime.strptime(value, f"{fmt}Z").replace(tzinfo=timezone.utc)
+            return parsed.astimezone(JAKARTA_TIMEZONE), False
+        parsed = datetime.strptime(value, fmt)
+        return parsed.replace(tzinfo=JAKARTA_TIMEZONE), False
+    except ValueError:
+        return None, False
+
+
+def parse_ics_rrule(value: str) -> dict[str, str]:
+    rule: dict[str, str] = {}
+    for part in str(value or "").split(";"):
+        key, _, item_value = part.partition("=")
+        if key:
+            rule[key.upper()] = item_value
+    return rule
+
+
+def expand_calendar_event(raw_event: dict[str, object], target_dates: set[str]) -> list[dict[str, object]]:
+    start_at = raw_event.get("startAt")
+    if not isinstance(start_at, datetime):
+        return []
+
+    target_dates_sorted = sorted(target_dates)
+    range_start = datetime.fromisoformat(f"{target_dates_sorted[0]}T00:00:00+07:00")
+    range_end = datetime.fromisoformat(f"{target_dates_sorted[-1]}T23:59:59+07:00")
+    rrule = raw_event.get("rrule") or {}
+    if not isinstance(rrule, dict) or not rrule.get("FREQ"):
+        if range_start <= start_at <= range_end or start_at.date().isoformat() in target_dates:
+            return [raw_event]
+        return []
+
+    frequency = str(rrule.get("FREQ", "")).upper()
+    if frequency not in {"DAILY", "WEEKLY", "MONTHLY"}:
+        if start_at.date().isoformat() in target_dates:
+            return [raw_event]
+        return []
+
+    interval = max(1, int(rrule.get("INTERVAL", "1") or "1"))
+    count_limit = int(rrule.get("COUNT", "0") or "0")
+    until_value = str(rrule.get("UNTIL", "") or "").strip()
+    until_at = None
+    if until_value:
+        until_at, _ = parse_ics_datetime(until_value, {})
+
+    results: list[dict[str, object]] = []
+    occurrence = start_at
+    iterations = 0
+    emitted = 0
+    while iterations < 512 and occurrence <= range_end:
+        iterations += 1
+        if until_at and occurrence > until_at:
+            break
+        if count_limit and emitted >= count_limit:
+            break
+        if occurrence >= range_start and occurrence.date().isoformat() in target_dates:
+            event_copy = dict(raw_event)
+            event_copy["startAt"] = occurrence
+            results.append(event_copy)
+        emitted += 1
+        if frequency == "DAILY":
+            occurrence += timedelta(days=interval)
+        elif frequency == "WEEKLY":
+            occurrence += timedelta(days=7 * interval)
+        else:
+            occurrence = add_months(occurrence, interval)
+    return results
+
+
+def build_calendar_schedule() -> dict[str, object]:
+    now = jakarta_now()
+    if (
+        isinstance(CALENDAR_CACHE.get("fetched_at"), datetime)
+        and (now - CALENDAR_CACHE["fetched_at"]).total_seconds() < CALENDAR_CACHE_TTL_SECONDS
+    ):
+        return CALENDAR_CACHE["payload"]
+
+    schedule = {
+        "calendarName": "PMS PLIRM34",
+        "timezone": "Asia/Jakarta",
+        "today": [],
+        "tomorrow": [],
+    }
+
+    target_today = now.date().isoformat()
+    target_tomorrow = (now.date() + timedelta(days=1)).isoformat()
+    target_dates = {target_today, target_tomorrow}
+
+    try:
+        with urlopen(CALENDAR_FEED_URL, timeout=10) as response:
+            ics_text = response.read().decode("utf-8", errors="replace")
+    except Exception:
+        CALENDAR_CACHE["fetched_at"] = now
+        CALENDAR_CACHE["payload"] = schedule
+        return schedule
+
+    events: list[dict[str, object]] = []
+    current_event: dict[str, object] | None = None
+
+    for line in unfold_ics_lines(ics_text):
+        if line == "BEGIN:VEVENT":
+            current_event = {}
+            continue
+        if line == "END:VEVENT":
+            if current_event:
+                start_at = current_event.get("DTSTART_VALUE")
+                start_params = current_event.get("DTSTART_PARAMS", {})
+                parsed_start, is_all_day = parse_ics_datetime(
+                    str(start_at or ""),
+                    start_params if isinstance(start_params, dict) else {},
+                )
+                if parsed_start:
+                    raw_event = {
+                        "summary": str(current_event.get("SUMMARY", "") or "Jadwal inspeksi"),
+                        "location": str(current_event.get("LOCATION", "") or ""),
+                        "description": str(current_event.get("DESCRIPTION", "") or ""),
+                        "startAt": parsed_start,
+                        "allDay": is_all_day,
+                        "rrule": parse_ics_rrule(str(current_event.get("RRULE", "") or "")),
+                    }
+                    events.extend(expand_calendar_event(raw_event, target_dates))
+            current_event = None
+            continue
+
+        name, params, value = parse_ics_content_line(line)
+        if current_event is None:
+            if name == "X-WR-CALNAME" and value:
+                schedule["calendarName"] = value
+            if name == "X-WR-TIMEZONE" and value:
+                schedule["timezone"] = value
+            continue
+
+        if name == "DTSTART":
+            current_event["DTSTART_VALUE"] = value
+            current_event["DTSTART_PARAMS"] = params
+        elif name in {"SUMMARY", "LOCATION", "DESCRIPTION", "RRULE"}:
+            current_event[name] = value.replace("\\n", "\n").strip()
+
+    events.sort(key=lambda item: item["startAt"])
+    for event in events:
+        start_at = event.get("startAt")
+        if not isinstance(start_at, datetime):
+            continue
+        entry = {
+            "summary": event.get("summary") or "Jadwal inspeksi",
+            "location": event.get("location") or "",
+            "description": event.get("description") or "",
+            "date": start_at.date().isoformat(),
+            "timeLabel": "Seharian" if event.get("allDay") else start_at.strftime("%H:%M"),
+            "allDay": bool(event.get("allDay")),
+        }
+        if entry["date"] == target_today:
+            schedule["today"].append(entry)
+        elif entry["date"] == target_tomorrow:
+            schedule["tomorrow"].append(entry)
+
+    CALENDAR_CACHE["fetched_at"] = now
+    CALENDAR_CACHE["payload"] = schedule
+    return schedule
 
 
 def hash_password(password: str, salt: str | None = None) -> str:
@@ -2469,6 +2709,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 {
                     "user": user,
                     "data": get_state_snapshot(),
+                    "calendar": build_calendar_schedule(),
                     "users": list_users() if user["role"] == "admin" else [],
                 }
             )

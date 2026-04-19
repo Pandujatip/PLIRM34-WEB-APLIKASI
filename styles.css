@@ -1553,6 +1553,13 @@ th {
   margin-top: 5px;
 }
 
+.inspection-schedule-item {
+  border-color: rgba(58, 134, 255, 0.16);
+  background:
+    linear-gradient(180deg, rgba(58, 134, 255, 0.08), rgba(255, 122, 24, 0.04)),
+    rgba(255, 255, 255, 0.02);
+}
+
 .inspection-grid,
 .bom-grid {
   display: grid;
