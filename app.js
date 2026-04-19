@@ -34,6 +34,11 @@ const carbonBrushEquipmentStatus = document.getElementById("carbon-brush-equipme
 const carbonBrushEquipmentMeta = document.getElementById("carbon-brush-equipment-meta");
 const carbonBrushMeasurementGrid = document.getElementById("carbon-brush-measurement-grid");
 const carbonBrushStats = document.getElementById("carbon-brush-stats");
+const serviceElectricalCarbonBrushForm = document.querySelector('[data-form-type="service-motor-mv-carbon-brush"]');
+const serviceElectricalRoomForm = document.querySelector('[data-form-type="service-electrical-room"]');
+const electricalRoomNameInput = document.getElementById("electrical-room-name-input");
+const electricalRoomReferenceListElement = document.getElementById("electrical-room-reference-list");
+const electricalRoomReferenceHint = document.getElementById("electrical-room-reference-hint");
 const serviceDetailModal = document.getElementById("service-detail-modal");
 const serviceDetailClose = document.getElementById("service-detail-close");
 const serviceDetailTitle = document.getElementById("service-detail-title");
@@ -47,14 +52,27 @@ const adminImportResource = document.getElementById("admin-import-resource");
 const adminImportMode = document.getElementById("admin-import-mode");
 const adminImportInput = document.getElementById("admin-import-input");
 const adminImportButton = document.getElementById("admin-import-button");
+const adminCarbonBrushUrl = document.getElementById("admin-carbon-brush-url");
+const adminCarbonBrushMode = document.getElementById("admin-carbon-brush-mode");
+const adminCarbonBrushImportButton = document.getElementById("admin-carbon-brush-import-button");
 const adminRestoreInput = document.getElementById("admin-restore-input");
 const adminRestoreButton = document.getElementById("admin-restore-button");
 const adminAreaForm = document.getElementById("admin-area-form");
+const adminCarbonBrushThresholdForm = document.getElementById("admin-carbon-brush-threshold-form");
+const adminCarbonBrushThresholdHint = document.getElementById("admin-carbon-brush-threshold-hint");
+const adminElectricalRoomThresholdForm = document.getElementById("admin-electrical-room-threshold-form");
+const adminElectricalRoomThresholdHint = document.getElementById("admin-electrical-room-threshold-hint");
+const adminElectricalRoomForm = document.getElementById("admin-electrical-room-form");
 const adminEquipmentForm = document.getElementById("admin-equipment-form");
 const adminTemplateForm = document.getElementById("admin-template-form");
 const adminAreasBody = document.getElementById("admin-areas-body");
+const adminElectricalRoomBody = document.getElementById("admin-electrical-room-body");
 const adminEquipmentBody = document.getElementById("admin-equipment-body");
 const adminTemplatesBody = document.getElementById("admin-templates-body");
+const activityLogBody = document.getElementById("activity-log-body");
+const searchActivityLog = document.getElementById("search-activity-log");
+const filterActivityAction = document.getElementById("filter-activity-action");
+const refreshActivityLogButton = document.getElementById("refresh-activity-log-button");
 const negatifListBody = document.getElementById("negatif-list-body");
 const sparepartBody = document.getElementById("sparepart-body");
 const serviceCardList = document.getElementById("service-card-list");
@@ -102,6 +120,7 @@ const negatifStatusChart = document.getElementById("negatif-status-chart");
 const negatifAreaChart = document.getElementById("negatif-area-chart");
 const negatifMarkChart = document.getElementById("negatif-mark-chart");
 const EQUIPMENT_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRt_ysTFRHmKVY3-hlFDgBYex-BExU0cdFnuBaWOPqxKAo6mqavGhtZeKdTkvvFXsm-uvcOt2QVLHHC/pub?output=csv";
+const DEFAULT_ELECTRICAL_ROOM_REFERENCES = ["ER17", "ER23C", "ER24"];
 const CARBON_BRUSH_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv";
 const carbonBrushMeasurementRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
 const carbonBrushMeasurementColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -136,6 +155,7 @@ const backendState = {
     areas: [],
     inspectionTemplates: [],
     equipmentReferences: [],
+    appSettings: [],
   },
 };
 
@@ -145,6 +165,9 @@ let editingSparepartId = null;
 let editingServiceId = null;
 let editingBomId = null;
 let editingSpbId = null;
+let activeServiceDetailItem = null;
+let carbonBrushReplacementEditMode = false;
+let carbonBrushReplacementDraft = [];
 
 const roleLabels = {
   admin: "Admin",
@@ -165,7 +188,7 @@ const defaultAuthUsers = [
 ];
 
 const roleSections = {
-  admin: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "user-management"],
+  admin: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "user-management", "activity-log"],
   organik: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb"],
   team: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb"],
 };
@@ -284,20 +307,92 @@ function parseCarbonBrushEquipmentCode(equipmentName) {
   return match ? match[1] : "";
 }
 
+function getAppSetting(settingKey) {
+  return backendState.masters.appSettings.find((item) => item.settingKey === settingKey)?.value || null;
+}
+
+function getElectricalRoomReferenceConfig() {
+  const settings = getAppSetting("electrical_room_references") || {};
+  return settings && typeof settings === "object" ? settings : {};
+}
+
+function getElectricalRoomThresholdConfig() {
+  const settings = getAppSetting("electrical_room_thresholds") || {};
+  return {
+    batteryChargeLow: Number(settings.batteryChargeLow ?? 120),
+    batteryChargeHigh: Number(settings.batteryChargeHigh ?? 130),
+    batteryCellLow: Number(settings.batteryCellLow ?? 11.5),
+    batteryCellHigh: Number(settings.batteryCellHigh ?? 12.8),
+    transformerWindingLow: Number(settings.transformerWindingLow ?? 45),
+    transformerWindingHigh: Number(settings.transformerWindingHigh ?? 85),
+    transformerOilLow: Number(settings.transformerOilLow ?? 40),
+    transformerOilHigh: Number(settings.transformerOilHigh ?? 70),
+  };
+}
+
+function getElectricalRoomReferenceList() {
+  const config = getElectricalRoomReferenceConfig();
+  const sourceItems = Array.isArray(config.items) ? config.items : DEFAULT_ELECTRICAL_ROOM_REFERENCES;
+  return [...new Set(sourceItems.map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
+function renderElectricalRoomReferenceOptions() {
+  if (!electricalRoomReferenceListElement) {
+    return;
+  }
+  const items = getElectricalRoomReferenceList();
+  electricalRoomReferenceListElement.innerHTML = "";
+  items.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item;
+    electricalRoomReferenceListElement.append(option);
+  });
+  if (electricalRoomReferenceHint) {
+    electricalRoomReferenceHint.textContent = items.length
+      ? `Referensi aktif: ${items.join(", ")}.`
+      : "Belum ada referensi room / panel. Tambahkan dari menu admin.";
+  }
+}
+
+function hydrateElectricalRoomThresholdForm() {
+  if (!adminElectricalRoomThresholdForm) {
+    return;
+  }
+  const threshold = getElectricalRoomThresholdConfig();
+  adminElectricalRoomThresholdForm.elements.batteryChargeLow.value = threshold.batteryChargeLow;
+  adminElectricalRoomThresholdForm.elements.batteryChargeHigh.value = threshold.batteryChargeHigh;
+  adminElectricalRoomThresholdForm.elements.batteryCellLow.value = threshold.batteryCellLow;
+  adminElectricalRoomThresholdForm.elements.batteryCellHigh.value = threshold.batteryCellHigh;
+  adminElectricalRoomThresholdForm.elements.transformerWindingLow.value = threshold.transformerWindingLow;
+  adminElectricalRoomThresholdForm.elements.transformerWindingHigh.value = threshold.transformerWindingHigh;
+  adminElectricalRoomThresholdForm.elements.transformerOilLow.value = threshold.transformerOilLow;
+  adminElectricalRoomThresholdForm.elements.transformerOilHigh.value = threshold.transformerOilHigh;
+  if (adminElectricalRoomThresholdHint) {
+    adminElectricalRoomThresholdHint.textContent = `Battery charge ${threshold.batteryChargeLow}-${threshold.batteryChargeHigh} VDC, battery cell ${threshold.batteryCellLow}-${threshold.batteryCellHigh} V, winding ${threshold.transformerWindingLow}-${threshold.transformerWindingHigh} C, oil ${threshold.transformerOilLow}-${threshold.transformerOilHigh} C.`;
+  }
+}
+
 function getCarbonBrushThresholdConfig(equipmentName, explicitPlant = "") {
   const code = parseCarbonBrushEquipmentCode(equipmentName);
   const areaDigit = code[2] || (String(explicitPlant).match(/(\d)$/)?.[1] || "");
   const plantLabel = areaDigit === "4" ? "Tuban 4" : areaDigit === "3" ? "Tuban 3" : (explicitPlant || "-");
+  const savedThresholds = getAppSetting("carbon_brush_thresholds") || {};
+  const tuban3 = savedThresholds.tuban3 || {};
+  const tuban4 = savedThresholds.tuban4 || {};
+  const tuban3Low = Number(tuban3.low ?? 30);
+  const tuban3High = Number(tuban3.high ?? 34);
+  const tuban4Low = Number(tuban4.low ?? 35);
+  const tuban4High = Number(tuban4.high ?? 38);
 
   if (!code && !explicitPlant) {
-    return { plantLabel: "-", low: 30, high: 34, legend: "-" };
+    return { plantLabel: "-", low: tuban3Low, high: tuban3High, legend: "-" };
   }
 
   if (plantLabel === "Tuban 4") {
-    return { plantLabel, low: 35, high: 38, legend: "Merah < 35 | Kuning 35-37.99 | Hijau >= 38" };
+    return { plantLabel, low: tuban4Low, high: tuban4High, legend: `Merah < ${tuban4Low} | Kuning ${tuban4Low}-${(tuban4High - 0.01).toFixed(2)} | Hijau >= ${tuban4High}` };
   }
 
-  return { plantLabel: plantLabel === "-" ? "Tuban 3" : plantLabel, low: 30, high: 34, legend: "Merah < 30 | Kuning 30-33.99 | Hijau >= 34" };
+  return { plantLabel: plantLabel === "-" ? "Tuban 3" : plantLabel, low: tuban3Low, high: tuban3High, legend: `Merah < ${tuban3Low} | Kuning ${tuban3Low}-${(tuban3High - 0.01).toFixed(2)} | Hijau >= ${tuban3High}` };
 }
 
 function decodeCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
@@ -670,6 +765,15 @@ function computeCarbonBrushStats(measurements, equipmentName, explicitPlant = ""
   return stats;
 }
 
+function normalizeCarbonBrushReplacedPoints(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => String(item || "").trim())
+    .filter((item) => carbonBrushMeasurementKeys.includes(item));
+}
+
 function updateCarbonBrushStatsDisplay(measurements, equipmentName, explicitPlant = "") {
   if (!carbonBrushStats) {
     return;
@@ -731,6 +835,9 @@ function openSection(sectionName) {
   }
 
   window.localStorage.setItem(storageKeys.lastSection, sectionName);
+  if (sectionName === "activity-log") {
+    void refreshActivityLogs();
+  }
 }
 
 function applyRoleAccess(role) {
@@ -813,10 +920,25 @@ function openServicePane(tabName) {
   });
 }
 
+function placeCreatePanelNearToolbar(sectionName) {
+  const section = document.querySelector(`.panel-section[data-panel="${sectionName}"]`);
+  const panel = document.querySelector(`[data-create-panel="${sectionName}"]`);
+  const toolbar = section?.querySelector(".toolbar");
+  if (!section || !panel || !toolbar) {
+    return;
+  }
+  if (toolbar.nextElementSibling !== panel) {
+    toolbar.insertAdjacentElement("afterend", panel);
+  }
+}
+
 function openCreatePanel(sectionName) {
+  placeCreatePanelNearToolbar(sectionName);
   createPanels.forEach((panel) => {
     panel.classList.toggle("hidden", panel.dataset.createPanel !== sectionName);
   });
+  const panel = document.querySelector(`[data-create-panel="${sectionName}"]`);
+  panel?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function closeCreatePanel(sectionName) {
@@ -941,6 +1063,7 @@ function formatCarbonBrushPayloadLines(item) {
   const payload = item.payload || {};
   const meta = decodeCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
   const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
+  const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
   return [
     ["Plant", payload.plant || meta.plant || "-"],
     ["Lokasi", payload.location || meta.location || "-"],
@@ -952,6 +1075,7 @@ function formatCarbonBrushPayloadLines(item) {
     ["Terendah", stats.min ?? "-"],
     ["Replacement", payload.replacement || "-"],
     ["Megger", payload.megger || "-"],
+    ["Titik diganti", replacedPoints.length ? replacedPoints.join(", ") : "-"],
     ["Titik perhatian", stats.attentionPoints?.length ? stats.attentionPoints.join(", ") : "-"],
   ];
 }
@@ -978,15 +1102,93 @@ function analyzeServiceItem(item) {
   const payload = item.payload || {};
 
   if (item.formType === "service-electrical-room") {
+    const threshold = getElectricalRoomThresholdConfig();
     const notes = [];
+    const batteryCells = [
+      ["Battery 1", payload.battery1],
+      ["Battery 2", payload.battery2],
+      ["Battery 3", payload.battery3],
+      ["Battery 4", payload.battery4],
+      ["Battery 5", payload.battery5],
+      ["Battery 6", payload.battery6],
+      ["Battery 7", payload.battery7],
+      ["Battery 8", payload.battery8],
+      ["Battery 9", payload.battery9],
+      ["Battery 10", payload.battery10],
+    ];
+    const lowCells = [];
+    const highCells = [];
+
     if (payload.panelDoorCondition === "NOT OK") {
-      notes.push("Pintu panel belum tertutup sesuai standar. Prioritaskan pengamanan panel sebelum operasi berlanjut.");
+      notes.push("Pintu panel belum tertutup sesuai standar. Tutup dan amankan panel segera untuk mencegah paparan debu, sentuhan langsung, dan risiko flashover.");
     }
     if (payload.floorCleanliness === "Kotor") {
       notes.push("Kebersihan lantai room kurang baik. Housekeeping perlu dijadwalkan untuk menurunkan risiko kontaminasi dan trip.");
     }
     if (payload.roomTemperature === "Tidak dingin") {
-      notes.push("Temperature ruangan tidak ideal. Cek ventilasi, AC panel, dan beban panas di dalam room.");
+      notes.push("Ruangan tidak dingin. Periksa AC/ventilasi, sirkulasi udara, dan sumber panas di dalam room karena temperatur ruang yang tinggi mempercepat penuaan komponen panel dan battery.");
+    }
+
+    const batteryCharge = parseCarbonBrushNumericValue(payload.batteryVdc);
+    if (batteryCharge !== null) {
+      if (batteryCharge < threshold.batteryChargeLow) {
+        notes.push(`Battery charge ${batteryCharge} VDC berada di bawah batas minimum ${threshold.batteryChargeLow} VDC. Cek charger, suplai AC, setting float/equalize, dan kondisi battery bank.`);
+      } else if (batteryCharge > threshold.batteryChargeHigh) {
+        notes.push(`Battery charge ${batteryCharge} VDC berada di atas batas maksimum ${threshold.batteryChargeHigh} VDC. Evaluasi setting charger karena overcharge dapat mempercepat kerusakan battery.`);
+      }
+    }
+
+    const batteryTotal = parseCarbonBrushNumericValue(payload.batteryTotalVdc);
+    if (batteryTotal !== null) {
+      if (batteryTotal < threshold.batteryChargeLow) {
+        notes.push(`Total tegangan battery ${batteryTotal} VDC lebih rendah dari batas ${threshold.batteryChargeLow} VDC. Lakukan pengecekan battery bank secara menyeluruh.`);
+      } else if (batteryTotal > threshold.batteryChargeHigh) {
+        notes.push(`Total tegangan battery ${batteryTotal} VDC melebihi batas ${threshold.batteryChargeHigh} VDC. Pastikan sistem charging tidak terlalu tinggi.`);
+      }
+    }
+
+    batteryCells.forEach(([label, rawValue]) => {
+      const numericValue = parseCarbonBrushNumericValue(rawValue);
+      if (numericValue === null) {
+        return;
+      }
+      if (numericValue < threshold.batteryCellLow) {
+        lowCells.push(`${label} (${numericValue} V)`);
+      } else if (numericValue > threshold.batteryCellHigh) {
+        highCells.push(`${label} (${numericValue} V)`);
+      }
+    });
+
+    if (lowCells.length) {
+      notes.push(`Ada cell battery di bawah batas ${threshold.batteryCellLow} V: ${lowCells.join(", ")}. Lakukan equalizing/tes battery dan siapkan penggantian jika tren drop berulang.`);
+    }
+    if (highCells.length) {
+      notes.push(`Ada cell battery di atas batas ${threshold.batteryCellHigh} V: ${highCells.join(", ")}. Kondisi ini mengarah ke overcharge atau ketidakseimbangan cell dan perlu evaluasi setting charger.`);
+    }
+
+    const windingTemperature = parseCarbonBrushNumericValue(payload.transformerWindingTemperature);
+    if (windingTemperature !== null) {
+      if (windingTemperature < threshold.transformerWindingLow) {
+        notes.push(`Temperature winding ${windingTemperature} C berada di bawah batas normal ${threshold.transformerWindingLow} C. Verifikasi kembali sensor/indikator suhu dan kondisi beban trafo.`);
+      } else if (windingTemperature > threshold.transformerWindingHigh) {
+        notes.push(`Temperature winding ${windingTemperature} C melebihi batas ${threshold.transformerWindingHigh} C. Cek beban trafo, pendinginan, ventilasi room, dan kondisi sirip/radiator.`);
+      }
+    }
+
+    const oilTemperature = parseCarbonBrushNumericValue(payload.transformerOilTemperature);
+    if (oilTemperature !== null) {
+      if (oilTemperature < threshold.transformerOilLow) {
+        notes.push(`Temperature oil ${oilTemperature} C berada di bawah batas normal ${threshold.transformerOilLow} C. Pastikan pembacaan instrumen valid dan sesuaikan dengan kondisi operasi trafo.`);
+      } else if (oilTemperature > threshold.transformerOilHigh) {
+        notes.push(`Temperature oil ${oilTemperature} C melebihi batas ${threshold.transformerOilHigh} C. Evaluasi beban, sistem pendingin, level oil, dan kebersihan radiator trafo.`);
+      }
+    }
+
+    if ((payload.transformerOilLevel || "").trim() && !/normal|ok/i.test(payload.transformerOilLevel || "")) {
+      notes.push(`Level oil trafo dilaporkan "${payload.transformerOilLevel}". Verifikasi level aktual pada sight glass karena level oil yang tidak normal mempengaruhi pendinginan dan isolasi.`);
+    }
+    if ((payload.transformerSilicaGel || "").trim() === "NOT OK") {
+      notes.push("Silica gel trafo tidak dalam kondisi baik. Ganti atau regenerasi silica gel untuk menjaga kelembaban tidak masuk ke tangki trafo.");
     }
     return notes.length ? notes : ["Kondisi umum electrical room relatif aman berdasarkan isian inspeksi terakhir."];
   }
@@ -1011,7 +1213,11 @@ function analyzeServiceItem(item) {
   if (item.formType === "service-motor-mv-carbon-brush") {
     const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
     const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", payload.plant || "");
+    const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
     const notes = [];
+    if (replacedPoints.length) {
+      notes.push(`Penggantian terkonfirmasi pada titik: ${replacedPoints.join(", ")}.`);
+    }
     if (stats.low > 0) {
       notes.push(`Ada ${stats.low} titik di zona merah. Titik ini sebaiknya diprioritaskan untuk penggantian/pemeriksaan carbon brush.`);
     }
@@ -1059,7 +1265,7 @@ function analyzeServiceItem(item) {
   return ["Analisa otomatis belum tersedia untuk form ini."];
 }
 
-function buildCarbonBrushMatrixHtml(measurements, equipmentName, explicitPlant = "") {
+function buildCarbonBrushMatrixHtml(measurements, equipmentName, explicitPlant = "", replacedPoints = []) {
   const head = `
     <thead>
       <tr>
@@ -1077,7 +1283,8 @@ function buildCarbonBrushMatrixHtml(measurements, equipmentName, explicitPlant =
         const value = measurements[key] || "-";
         const bucket = classifyCarbonBrushValue(value, equipmentName, explicitPlant);
         const className = bucket ? `is-${bucket}` : "";
-        return `<td><div class="carbon-brush-input ${className}">${escapeHtml(value)}</div></td>`;
+        const replacedClass = replacedPoints.includes(key) ? "is-replaced" : "";
+        return `<td><button class="carbon-brush-input carbon-brush-point ${className} ${replacedClass}" type="button" data-action="open-carbon-brush-point" data-point-key="${key}">${escapeHtml(value)}</button></td>`;
       }).join("")}
     </tr>
   `).join("");
@@ -1099,12 +1306,20 @@ function openServiceDetail(item) {
   ];
   const rawRows = formatServicePayloadLines(item);
   const analysisRows = analyzeServiceItem(item);
+  activeServiceDetailItem = item;
+  carbonBrushReplacementEditMode = false;
+  carbonBrushReplacementDraft = normalizeCarbonBrushReplacedPoints(item.payload?.replacedPoints);
 
   let rawHtml = `<div class="detail-grid">${buildDetailGridRows(rawRows)}</div>`;
   if (item.formType === "service-motor-mv-carbon-brush") {
     rawHtml = `
+      <div class="detail-toolbar">
+        <button class="table-action" type="button" data-action="toggle-carbon-brush-replacement-mode">Tandai Titik Diganti</button>
+        <button class="table-action" type="button" data-action="save-carbon-brush-replacements">Simpan Titik Diganti</button>
+      </div>
       <div class="detail-grid">${buildDetailGridRows(formatCarbonBrushPayloadLines(item))}</div>
-      ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "")}
+      ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "", carbonBrushReplacementDraft)}
+      <div id="carbon-brush-point-trend-slot"></div>
     `;
   }
 
@@ -1147,12 +1362,78 @@ function openServiceDetail(item) {
   serviceDetailModal.setAttribute("aria-hidden", "false");
 }
 
+function openServiceGroupDetail(serviceType) {
+  if (!serviceDetailModal || !serviceDetailContent || !serviceDetailTitle || !serviceDetailSubtitle) {
+    return;
+  }
+
+  const items = getServiceItemsFromDom()
+    .filter((item) => item.type === serviceType);
+
+  serviceDetailTitle.textContent = `Detail ${serviceType}`;
+  serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${serviceType}. Klik item untuk membuka detail inspeksi.`;
+
+  if (!items.length) {
+    serviceDetailContent.innerHTML = `
+      <section class="detail-card">
+        <div class="detail-analysis">
+          <div class="detail-analysis-item">Belum ada hasil inspeksi pada kolom ${escapeHtml(serviceType)}.</div>
+        </div>
+      </section>
+    `;
+  } else {
+    serviceDetailContent.innerHTML = `
+      <section class="detail-card">
+        <h4>Daftar Hasil Inspeksi</h4>
+        <div class="service-group-detail-list">
+          ${items.map((item) => `
+            <button class="service-group-detail-item" type="button" data-action="open-service-item-detail" data-id="${escapeHtml(item.id || "")}">
+              <div>
+                <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+                <span>${escapeHtml(item.subtype || item.type || "-")}</span>
+              </div>
+              <small>${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</small>
+            </button>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  serviceDetailModal.classList.remove("hidden");
+  serviceDetailModal.setAttribute("aria-hidden", "false");
+}
+
 function closeServiceDetail() {
   if (!serviceDetailModal) {
     return;
   }
+  activeServiceDetailItem = null;
+  carbonBrushReplacementEditMode = false;
+  carbonBrushReplacementDraft = [];
   serviceDetailModal.classList.add("hidden");
   serviceDetailModal.setAttribute("aria-hidden", "true");
+}
+
+async function saveCarbonBrushReplacementSelection() {
+  if (!activeServiceDetailItem || activeServiceDetailItem.formType !== "service-motor-mv-carbon-brush") {
+    return;
+  }
+
+  const updatedItem = {
+    ...activeServiceDetailItem,
+    payload: {
+      ...(activeServiceDetailItem.payload || {}),
+      replacedPoints: [...carbonBrushReplacementDraft],
+    },
+  };
+  const savedItem = await saveItemToBackend("service", updatedItem, true);
+  const nextItems = getServiceItemsFromDom().map((entry) => (entry.id === savedItem.id ? savedItem : entry));
+  renderServiceBoard(nextItems);
+  persistServiceList();
+  updateDashboardStats();
+  applyServiceFilter();
+  openServiceDetail(savedItem);
 }
 
 function setSubmitNote(form, message) {
@@ -1286,6 +1567,202 @@ function formatInspectionDate(value) {
   }
 
   return parsed.toLocaleDateString("id-ID");
+}
+
+function parseInspectionDateValue(value) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getDaysBetweenDates(startDate, endDate) {
+  if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
+    return null;
+  }
+  const diffMs = endDate.getTime() - startDate.getTime();
+  return Math.round(diffMs / 86400000);
+}
+
+function getCarbonBrushPointHistory(item, pointKey) {
+  return getServiceItemsFromDom()
+    .filter((entry) =>
+      entry.formType === "service-motor-mv-carbon-brush"
+      && entry.equipmentName === item.equipmentName)
+    .map((entry) => {
+      const payload = entry.payload || {};
+      const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
+      const rawValue = String(payload.measurements?.[pointKey] || "").trim();
+      const numericValue = parseCarbonBrushNumericValue(rawValue);
+      const bucket = classifyCarbonBrushValue(rawValue, entry.equipmentName || "", payload.plant || "");
+      const replacementValue = parseCarbonBrushNumericValue(payload.replacement);
+      const replacedConfirmed = normalizeCarbonBrushReplacedPoints(payload.replacedPoints).includes(pointKey);
+      return {
+        id: entry.id,
+        inspectionDate,
+        inspectionDateLabel: formatInspectionDate(payload.inspectionDate),
+        rawValue,
+        numericValue,
+        bucket,
+        replacementValue,
+        replacedConfirmed,
+        pic: payload.pic || "-",
+      };
+    })
+    .filter((entry) => entry.inspectionDate)
+    .sort((left, right) => left.inspectionDate - right.inspectionDate);
+}
+
+function detectCarbonBrushReplacementEvents(history, thresholdHigh) {
+  const events = [];
+  history.forEach((entry, index) => {
+    if (!entry.replacedConfirmed) {
+      return;
+    }
+    const previous = index > 0 ? history[index - 1] : null;
+    events.push({
+      date: entry.inspectionDate,
+      dateLabel: entry.inspectionDateLabel,
+      daysSincePrevious: previous ? getDaysBetweenDates(previous.inspectionDate, entry.inspectionDate) : null,
+      reason: "Penggantian dikonfirmasi user",
+      confirmed: true,
+    });
+  });
+
+  for (let index = 1; index < history.length; index += 1) {
+    const previous = history[index - 1];
+    const current = history[index];
+    const replacementIncreased = (
+      previous.replacementValue !== null
+      && current.replacementValue !== null
+      && current.replacementValue > previous.replacementValue
+    );
+    const recoveredFromRed = (
+      previous.bucket === "low"
+      && current.numericValue !== null
+      && current.numericValue >= thresholdHigh
+    );
+    const largePositiveJump = (
+      previous.numericValue !== null
+      && current.numericValue !== null
+      && current.numericValue - previous.numericValue >= 5
+      && previous.bucket !== "high"
+    );
+
+    if (replacementIncreased || recoveredFromRed || largePositiveJump) {
+      const duplicateConfirmed = events.some((event) => event.dateLabel === current.inspectionDateLabel);
+      events.push({
+        date: current.inspectionDate,
+        dateLabel: current.inspectionDateLabel,
+        daysSincePrevious: getDaysBetweenDates(previous.inspectionDate, current.inspectionDate),
+        confirmed: duplicateConfirmed,
+        reason: replacementIncreased
+          ? "Counter replacement naik"
+          : recoveredFromRed
+            ? "Nilai pulih dari merah ke aman"
+            : "Lonjakan nilai setelah titik perhatian",
+      });
+    }
+  }
+  return events
+    .sort((left, right) => {
+      if (!(left.date instanceof Date) || !(right.date instanceof Date)) {
+        return 0;
+      }
+      return left.date - right.date;
+    })
+    .filter((event, index, array) => index === array.findIndex((candidate) =>
+      candidate.dateLabel === event.dateLabel && candidate.reason === event.reason));
+}
+
+function buildCarbonBrushTrendSvg(history, threshold) {
+  const width = 860;
+  const height = 260;
+  const padding = { top: 24, right: 24, bottom: 40, left: 44 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const numericPoints = history.filter((entry) => entry.numericValue !== null);
+  if (!numericPoints.length) {
+    return '<div class="trend-empty">Belum ada titik ukur numerik untuk ditampilkan.</div>';
+  }
+
+  const values = numericPoints.map((entry) => entry.numericValue);
+  const minValue = Math.min(...values, threshold.low) - 2;
+  const maxValue = Math.max(...values, threshold.high) + 2;
+  const xStep = numericPoints.length > 1 ? chartWidth / (numericPoints.length - 1) : chartWidth / 2;
+  const valueToY = (value) => padding.top + ((maxValue - value) / (maxValue - minValue || 1)) * chartHeight;
+  const points = numericPoints.map((entry, index) => ({
+    x: padding.left + (numericPoints.length > 1 ? index * xStep : chartWidth / 2),
+    y: valueToY(entry.numericValue),
+    value: entry.numericValue,
+    label: entry.inspectionDateLabel,
+    bucket: entry.bucket,
+  }));
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const thresholdLowY = valueToY(threshold.low);
+  const thresholdHighY = valueToY(threshold.high);
+
+  return `
+    <svg class="trend-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafik tren titik carbon brush">
+      <rect x="${padding.left}" y="${padding.top}" width="${chartWidth}" height="${chartHeight}" rx="14" fill="rgba(255,255,255,0.02)"></rect>
+      <line x1="${padding.left}" y1="${thresholdLowY}" x2="${width - padding.right}" y2="${thresholdLowY}" stroke="rgba(255,107,120,0.7)" stroke-dasharray="6 6"></line>
+      <line x1="${padding.left}" y1="${thresholdHighY}" x2="${width - padding.right}" y2="${thresholdHighY}" stroke="rgba(115,224,169,0.7)" stroke-dasharray="6 6"></line>
+      <polyline fill="none" stroke="rgba(124,199,255,0.95)" stroke-width="3" points="${polyline}"></polyline>
+      ${points.map((point) => `
+        <g>
+          <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point ${point.bucket ? `is-${point.bucket}` : ""}"></circle>
+          <text x="${point.x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.label)}</text>
+        </g>
+      `).join("")}
+      <text x="${padding.left}" y="${thresholdLowY - 8}" class="trend-threshold low">Batas merah ${threshold.low}</text>
+      <text x="${padding.left}" y="${thresholdHighY - 8}" class="trend-threshold high">Batas hijau ${threshold.high}</text>
+    </svg>
+  `;
+}
+
+function buildCarbonBrushTrendHtml(item, pointKey) {
+  const payload = item.payload || {};
+  const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", payload.plant || "");
+  const history = getCarbonBrushPointHistory(item, pointKey);
+  const redDates = history.filter((entry) => entry.bucket === "low");
+  const events = detectCarbonBrushReplacementEvents(history, threshold.high);
+  const confirmedReplacementDates = history
+    .filter((entry) => entry.replacedConfirmed)
+    .map((entry) => entry.inspectionDateLabel);
+  const lastEvent = events.length ? events[events.length - 1] : null;
+
+  return `
+    <section class="detail-card carbon-brush-trend-card">
+      <div class="detail-modal-head compact-trend-head">
+        <div>
+          <h4>Tren Titik ${escapeHtml(pointKey)} - ${escapeHtml(item.equipmentName || "-")}</h4>
+          <p>Riwayat nilai titik ${escapeHtml(pointKey)} untuk melihat saat turun ke merah dan indikasi penggantian.</p>
+        </div>
+      </div>
+      ${buildCarbonBrushTrendSvg(history, threshold)}
+      <div class="detail-grid trend-summary-grid">
+        ${buildDetailGridRows([
+          ["Total histori", `${history.length} inspeksi`],
+          ["Masuk merah", `${redDates.length} kali`],
+          ["Tanggal merah", redDates.length ? redDates.map((entry) => entry.inspectionDateLabel).join(", ") : "-"],
+          ["Ganti terkonfirmasi", confirmedReplacementDates.length ? `${confirmedReplacementDates.length} kali` : "0 kali"],
+          ["Tanggal ganti", confirmedReplacementDates.length ? confirmedReplacementDates.join(", ") : "-"],
+          ["Event penggantian", `${events.length} event`],
+          ["Event terakhir", lastEvent ? lastEvent.dateLabel : "-"],
+          ["Jarak event terakhir", lastEvent?.daysSincePrevious !== null ? `${lastEvent.daysSincePrevious} hari` : "-"],
+        ])}
+      </div>
+      <div class="detail-analysis trend-event-list">
+        ${(events.length ? events : [{ dateLabel: "-", daysSincePrevious: null, reason: "Belum ada indikasi penggantian dari histori yang tersimpan." }]).map((event) => `
+          <div class="detail-analysis-item">
+            <strong>${escapeHtml(event.dateLabel)}</strong>
+            <span>${escapeHtml(event.reason)}${event.confirmed ? " | terkonfirmasi" : ""}${event.daysSincePrevious !== null ? ` | interval ${event.daysSincePrevious} hari` : ""}</span>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
 }
 
 async function createServiceInspectionImage(item) {
@@ -1909,12 +2386,19 @@ async function loadMastersFromBackend(sourceGroup = "") {
     areas: Array.isArray(result.areas) ? result.areas : [],
     inspectionTemplates: Array.isArray(result.inspectionTemplates) ? result.inspectionTemplates : [],
     equipmentReferences: Array.isArray(result.equipmentReferences) ? result.equipmentReferences : [],
+    appSettings: Array.isArray(result.appSettings) ? result.appSettings : [],
   };
+  renderElectricalRoomReferenceOptions();
   return result;
 }
 
 async function fetchAdminMaster(resourceName) {
   const result = await apiRequest(`/admin/masters/${resourceName}`);
+  return Array.isArray(result.items) ? result.items : [];
+}
+
+async function fetchActivityLogs(limit = 300) {
+  const result = await apiRequest(`/admin/activity-logs?limit=${encodeURIComponent(limit)}`);
   return Array.isArray(result.items) ? result.items : [];
 }
 
@@ -1980,6 +2464,16 @@ async function importAdminCsv(resourceName, mode, file) {
   });
 }
 
+async function importCarbonBrushFromSource(sourceUrl, mode) {
+  return apiRequest("/admin/import-carbon-brush", {
+    method: "POST",
+    body: {
+      sourceUrl,
+      mode,
+    },
+  });
+}
+
 function getStoredUsers() {
   const storedUsers = readStorage(storageKeys.users);
   if (Array.isArray(storedUsers) && storedUsers.length > 0) {
@@ -2031,6 +2525,7 @@ async function hydrateFromBackendAfterLogin() {
   await loadMastersFromBackend();
   renderUserManagementTable();
   await refreshAdminMasters();
+  await refreshActivityLogs();
 }
 
 async function restoreBackendSession() {
@@ -2048,6 +2543,7 @@ async function restoreBackendSession() {
     await loadMastersFromBackend();
     loginWithUser(bootstrap.user);
     await refreshAdminMasters();
+    await refreshActivityLogs();
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
     return true;
@@ -2060,6 +2556,8 @@ async function restoreBackendSession() {
 async function initializeApplication() {
   const backendReady = await detectBackendAvailability();
   renderCarbonBrushMeasurementGrid();
+  renderElectricalRoomReferenceOptions();
+  ["negatif-list", "sparepart", "service", "bom", "spb"].forEach(placeCreatePanelNearToolbar);
   getStoredUsers();
   if (backendReady) {
     const restored = await restoreBackendSession();
@@ -2133,6 +2631,25 @@ function renderAdminAreasTable(items) {
   });
 }
 
+function renderAdminElectricalRoomTable() {
+  if (!adminElectricalRoomBody) {
+    return;
+  }
+  const items = getElectricalRoomReferenceList();
+  adminElectricalRoomBody.innerHTML = "";
+  items.forEach((item) => {
+    const row = document.createElement("tr");
+    row.dataset.identifier = item;
+    row.innerHTML = `
+      <td>${item}</td>
+      <td class="action-cell">
+        <button class="table-action danger" data-action="delete-electrical-room-reference" type="button">Hapus</button>
+      </td>
+    `;
+    adminElectricalRoomBody.append(row);
+  });
+}
+
 function renderAdminEquipmentTable(items) {
   if (!adminEquipmentBody) {
     return;
@@ -2176,6 +2693,98 @@ function renderAdminTemplatesTable(items) {
   });
 }
 
+function formatActivityLogDate(value) {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString("id-ID", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function renderActivityLogTable(items) {
+  if (!activityLogBody) {
+    return;
+  }
+  activityLogBody.innerHTML = "";
+  if (!items.length) {
+    activityLogBody.innerHTML = `
+      <tr>
+        <td colspan="7">Belum ada log aktivitas.</td>
+      </tr>
+    `;
+    return;
+  }
+  items.forEach((item) => {
+    const row = document.createElement("tr");
+    const detailText = item.detail && Object.keys(item.detail).length
+      ? Object.entries(item.detail).map(([key, value]) => `${key}: ${value}`).join(" | ")
+      : "-";
+    row.innerHTML = `
+      <td>${formatActivityLogDate(item.createdAt)}</td>
+      <td>${item.actorUsername || "-"}</td>
+      <td>${item.actorRole || "-"}</td>
+      <td>${item.action || "-"}</td>
+      <td>${item.resource || "-"}</td>
+      <td>${item.targetLabel || item.targetId || "-"}</td>
+      <td>${detailText}</td>
+    `;
+    activityLogBody.append(row);
+  });
+}
+
+function applyActivityLogFilter() {
+  if (!activityLogBody) {
+    return;
+  }
+  const query = (searchActivityLog?.value || "").trim().toLowerCase();
+  const action = filterActivityAction?.value || "semua";
+  [...activityLogBody.querySelectorAll("tr")].forEach((row) => {
+    const rowText = (row.textContent || "").toLowerCase();
+    const rowAction = row.children[3]?.textContent.trim() || "";
+    const matchesQuery = !query || rowText.includes(query);
+    const matchesAction = action === "semua" || rowAction === action;
+    row.hidden = !(matchesQuery && matchesAction);
+  });
+}
+
+async function refreshActivityLogs() {
+  if (!backendState.available || !backendState.sessionActive || activeRole !== "admin") {
+    return;
+  }
+  try {
+    const items = await fetchActivityLogs(300);
+    renderActivityLogTable(items);
+    applyActivityLogFilter();
+  } catch (error) {
+    console.error("Gagal memuat activity logs:", error);
+  }
+}
+
+function hydrateCarbonBrushThresholdForm() {
+  if (!adminCarbonBrushThresholdForm) {
+    return;
+  }
+  const settings = getAppSetting("carbon_brush_thresholds") || {};
+  const tuban3 = settings.tuban3 || {};
+  const tuban4 = settings.tuban4 || {};
+  adminCarbonBrushThresholdForm.elements.tuban3Low.value = tuban3.low ?? 30;
+  adminCarbonBrushThresholdForm.elements.tuban3High.value = tuban3.high ?? 34;
+  adminCarbonBrushThresholdForm.elements.tuban4Low.value = tuban4.low ?? 35;
+  adminCarbonBrushThresholdForm.elements.tuban4High.value = tuban4.high ?? 38;
+  if (adminCarbonBrushThresholdHint) {
+    adminCarbonBrushThresholdHint.textContent = `Tuban 3: merah < ${adminCarbonBrushThresholdForm.elements.tuban3Low.value}, hijau >= ${adminCarbonBrushThresholdForm.elements.tuban3High.value}. Tuban 4: merah < ${adminCarbonBrushThresholdForm.elements.tuban4Low.value}, hijau >= ${adminCarbonBrushThresholdForm.elements.tuban4High.value}.`;
+  }
+}
+
 async function refreshAdminMasters() {
   if (!backendState.available || !backendState.sessionActive || activeRole !== "admin") {
     return;
@@ -2187,8 +2796,12 @@ async function refreshAdminMasters() {
       fetchAdminMaster("inspection-templates"),
     ]);
     renderAdminAreasTable(areas);
+    renderAdminElectricalRoomTable();
     renderAdminEquipmentTable(equipmentReferences);
     renderAdminTemplatesTable(templates);
+    hydrateCarbonBrushThresholdForm();
+    hydrateElectricalRoomThresholdForm();
+    renderElectricalRoomReferenceOptions();
   } catch (error) {
     console.error("Gagal memuat master admin:", error);
   }
@@ -2209,15 +2822,15 @@ function getNegatifItemsFromDom() {
 }
 
 function getServiceItemsFromDom() {
-  return [...serviceCardList.querySelectorAll(".inspection-card")].map((card) => ({
-    id: card.dataset.id,
-    type: card.dataset.type,
-    subtype: card.dataset.subtype || card.dataset.type,
-    formType: card.dataset.formType || "",
-    equipmentName: card.querySelector(".inspection-head strong").textContent,
-    description: card.querySelector("p").textContent,
-    detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
-    payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
+  return [...serviceCardList.querySelectorAll(".service-list-item")].map((row) => ({
+    id: row.dataset.id,
+    type: row.dataset.type,
+    subtype: row.dataset.subtype || row.dataset.type,
+    formType: row.dataset.formType || "",
+    equipmentName: row.dataset.equipmentName || "",
+    description: row.dataset.description || "",
+    detail: row.dataset.detail || "",
+    payload: row.dataset.payload ? JSON.parse(row.dataset.payload) : {},
   }));
 }
 
@@ -2482,7 +3095,7 @@ function applySparepartFilter() {
 function applyServiceFilter() {
   const query = searchService?.value || "";
   const type = filterServiceType?.value || "semua";
-  [...serviceCardList.querySelectorAll(".inspection-card")].forEach((card) => {
+  [...serviceCardList.querySelectorAll(".service-list-item")].forEach((card) => {
     const cardText = card.textContent || "";
     const cardType = card.dataset.type || "";
     const matchesQuery = !query || matchesSearch(cardText, query);
@@ -2608,51 +3221,118 @@ function renderNegatifRow(item) {
 
 function renderServiceCard(item) {
   const card = document.createElement("article");
-  card.className = "inspection-card";
+  card.className = "service-list-item";
   card.dataset.openable = "true";
   card.tabIndex = 0;
   card.dataset.id = item.id;
   card.dataset.type = item.type;
   card.dataset.subtype = item.subtype || item.type;
   card.dataset.formType = item.formType || "";
+  card.dataset.equipmentName = item.equipmentName || "";
+  card.dataset.description = item.description || "";
+  card.dataset.detail = item.detail || "";
   card.dataset.payload = JSON.stringify(item.payload || {});
+
   const carbonBrushStatsPayload = item.formType === "service-motor-mv-carbon-brush"
     ? (item.payload?.stats || computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || ""))
     : null;
-  const carbonBrushMeta = item.formType === "service-motor-mv-carbon-brush"
-    ? decodeCarbonBrushEquipmentMeta(item.equipmentName || "", item.payload?.plant || "")
-    : null;
-  const carbonBrushSummary = item.formType === "service-motor-mv-carbon-brush"
-    ? `
-      <div class="carbon-brush-card-summary">
-        <span class="summary-pill">${carbonBrushMeta?.plant || "-"}</span>
-        <span class="summary-pill">${carbonBrushMeta?.location || "-"}</span>
-        <span class="summary-pill low">Merah: ${carbonBrushStatsPayload?.low || 0}</span>
-        <span class="summary-pill medium">Kuning: ${carbonBrushStatsPayload?.medium || 0}</span>
-        <span class="summary-pill high">Hijau: ${carbonBrushStatsPayload?.high || 0}</span>
-        <span class="summary-pill">Terendah: ${carbonBrushStatsPayload?.min ?? "-"}</span>
-      </div>
-    `
-    : "";
+  const inspectionDate = formatInspectionDate(item.payload?.inspectionDate);
+  const summaryText = item.formType === "service-motor-mv-carbon-brush"
+    ? `Merah ${carbonBrushStatsPayload?.low || 0} | Kuning ${carbonBrushStatsPayload?.medium || 0} | Hijau ${carbonBrushStatsPayload?.high || 0}`
+    : (item.detail || "-");
+
   card.innerHTML = `
-    <div class="card-actions card-actions-icon service-card-actions">
-      <button class="table-action icon-action send" data-action="send-service" type="button" title="Kirim" aria-label="Kirim">↗</button>
-      <button class="table-action icon-action" data-action="edit-service" type="button" title="Edit" aria-label="Edit">✎</button>
-      <button class="table-action icon-action danger" data-action="delete-service" type="button" title="Hapus" aria-label="Hapus">✕</button>
-    </div>
-    <div class="inspection-head">
-      <span class="tag ${getServiceTag(item.type)}">${item.type}</span>
+    <div class="service-list-main">
+      <div class="service-list-top">
+        <span class="tag ${getServiceTag(item.type)}">${item.subtype || item.type}</span>
+        <small>${inspectionDate}</small>
+      </div>
       <strong>${item.equipmentName}</strong>
+      <div class="service-list-meta">
+        <span>${summaryText}</span>
+      </div>
     </div>
-    <p>${item.description}</p>
-    ${carbonBrushSummary}
-    <div class="inspection-meta">
-      <span>Sub menu: ${item.subtype || item.type}</span>
-      <span>${item.detail}</span>
-      <span>Status: Draft frontend</span>
+    <div class="service-list-actions">
+      <button class="table-action compact" data-action="send-service" type="button">Kirim</button>
+      <button class="table-action compact" data-action="edit-service" type="button">Edit</button>
+      <button class="table-action compact danger" data-action="delete-service" type="button">Hapus</button>
     </div>
   `;
   return card;
+}
+
+function renderServiceBoard(items) {
+  if (!serviceCardList) {
+    return;
+  }
+
+  const groups = [
+    {
+      key: "Electrical",
+      title: "Electrical",
+      sections: [
+        { key: "service-electrical-room", title: "Electrical Room" },
+        { key: "service-motor-mv", title: "Service Motor MV" },
+        { key: "service-motor-mv-carbon-brush", title: "Motor MV (Carbon Brush)" },
+        { key: "service-ehca", title: "EH/CA" },
+      ],
+    },
+    { key: "Instrument", title: "Instrument" },
+    { key: "DCS", title: "DCS" },
+  ];
+
+  serviceCardList.innerHTML = "";
+
+  groups.forEach((group) => {
+    const column = document.createElement("section");
+    column.className = "service-column";
+    const groupItems = items.filter((item) => item.type === group.key);
+    column.innerHTML = `
+      <div class="service-column-head">
+        <div class="service-column-title">
+          <strong>${group.title}</strong>
+          <span>${groupItems.length} item</span>
+        </div>
+        <button class="table-action compact" data-action="detail-service-group" data-service-group="${group.key}" type="button">Detail</button>
+      </div>
+      <div class="service-list-body" data-service-type="${group.key}"></div>
+    `;
+    const body = column.querySelector(".service-list-body");
+
+    if (group.key === "Electrical") {
+      group.sections.forEach((section) => {
+        const sectionItems = groupItems.filter((item) => (item.formType || "") === section.key);
+        const wrapper = document.createElement("section");
+        wrapper.className = "service-subgroup";
+        wrapper.innerHTML = `
+          <div class="service-subgroup-head">
+            <strong>${section.title}</strong>
+            <span>${sectionItems.length} item</span>
+          </div>
+        `;
+        const sectionBody = document.createElement("div");
+        sectionBody.className = "service-subgroup-body";
+        if (sectionItems.length) {
+          sectionItems.forEach((entry) => sectionBody.append(renderServiceCard(entry)));
+        } else {
+          const empty = document.createElement("div");
+          empty.className = "service-list-empty";
+          empty.textContent = "Belum ada hasil inspeksi.";
+          sectionBody.append(empty);
+        }
+        wrapper.append(sectionBody);
+        body.append(wrapper);
+      });
+    } else if (groupItems.length) {
+      groupItems.forEach((entry) => body.append(renderServiceCard(entry)));
+    } else {
+      const empty = document.createElement("div");
+      empty.className = "service-list-empty";
+      empty.textContent = "Belum ada hasil inspeksi.";
+      body.append(empty);
+    }
+    serviceCardList.append(column);
+  });
 }
 
 function renderSparepartRow(item) {
@@ -2749,7 +3429,8 @@ function appendNegatifListRow(item) {
 }
 
 function appendServiceCard(item) {
-  serviceCardList.prepend(renderServiceCard(item));
+  const items = [item, ...getServiceItemsFromDom()];
+  renderServiceBoard(items);
   persistServiceList();
   updateDashboardStats();
   applyServiceFilter();
@@ -2842,14 +3523,11 @@ function loadStoredData() {
 
   const storedService = readStorage(storageKeys.service);
   if (storedService.length) {
-    serviceCardList.innerHTML = "";
     const normalizedService = storedService.map((item) => normalizeServiceItem(item));
-    normalizedService.forEach((item) => {
-      serviceCardList.append(renderServiceCard(item));
-    });
+    renderServiceBoard(normalizedService);
     writeStorage(storageKeys.service, normalizedService);
   } else {
-    serviceCardList.innerHTML = "";
+    renderServiceBoard([]);
     persistServiceList();
   }
 
@@ -3256,6 +3934,23 @@ adminImportButton?.addEventListener("click", async () => {
   }
 });
 
+adminCarbonBrushImportButton?.addEventListener("click", async () => {
+  const sourceUrl = String(adminCarbonBrushUrl?.value || "").trim();
+  const mode = adminCarbonBrushMode?.value || "append";
+  if (!sourceUrl) {
+    showToast("Admin Tools", "Link Carbon Brush wajib diisi.");
+    return;
+  }
+  try {
+    const result = await importCarbonBrushFromSource(sourceUrl, mode);
+    await hydrateFromBackendAfterLogin();
+    updateDashboardMetrics();
+    showToast("Admin Tools", `Import Carbon Brush selesai: ${result.imported || 0} item (${mode}).`);
+  } catch (error) {
+    showToast("Admin Tools", error.message || "Gagal import Carbon Brush dari link.");
+  }
+});
+
 adminRestoreButton?.addEventListener("click", async () => {
   const file = adminRestoreInput?.files?.[0];
   if (!file) {
@@ -3288,6 +3983,90 @@ adminAreaForm?.addEventListener("submit", async (event) => {
     showToast("Master Area", "Area berhasil disimpan.");
   } catch (error) {
     showToast("Master Area", error.message || "Gagal menyimpan area.");
+  }
+});
+
+adminCarbonBrushThresholdForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(adminCarbonBrushThresholdForm);
+  const value = {
+    tuban3: {
+      low: Number(formData.get("tuban3Low") || 30),
+      high: Number(formData.get("tuban3High") || 34),
+    },
+    tuban4: {
+      low: Number(formData.get("tuban4Low") || 35),
+      high: Number(formData.get("tuban4High") || 38),
+    },
+  };
+  try {
+    await saveAdminMaster("app-settings", {
+      settingKey: "carbon_brush_thresholds",
+      value,
+    });
+    await loadMastersFromBackend();
+    hydrateCarbonBrushThresholdForm();
+    updateCarbonBrushEquipmentMeta(carbonBrushEquipmentInput?.value || selectedCarbonBrushEquipmentReference || "");
+    if (serviceElectricalCarbonBrushForm) {
+      updateCarbonBrushStatsDisplay(
+        collectCarbonBrushMeasurements(serviceElectricalCarbonBrushForm),
+        carbonBrushEquipmentInput?.value || selectedCarbonBrushEquipmentReference || "",
+      );
+    }
+    showToast("Admin Tools", "Threshold Carbon Brush berhasil diperbarui.");
+  } catch (error) {
+    showToast("Admin Tools", error.message || "Gagal menyimpan threshold Carbon Brush.");
+  }
+});
+
+adminElectricalRoomThresholdForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(adminElectricalRoomThresholdForm);
+  const value = {
+    batteryChargeLow: Number(formData.get("batteryChargeLow") || 120),
+    batteryChargeHigh: Number(formData.get("batteryChargeHigh") || 130),
+    batteryCellLow: Number(formData.get("batteryCellLow") || 11.5),
+    batteryCellHigh: Number(formData.get("batteryCellHigh") || 12.8),
+    transformerWindingLow: Number(formData.get("transformerWindingLow") || 45),
+    transformerWindingHigh: Number(formData.get("transformerWindingHigh") || 85),
+    transformerOilLow: Number(formData.get("transformerOilLow") || 40),
+    transformerOilHigh: Number(formData.get("transformerOilHigh") || 70),
+  };
+  try {
+    await saveAdminMaster("app-settings", {
+      settingKey: "electrical_room_thresholds",
+      value,
+    });
+    await loadMastersFromBackend();
+    hydrateElectricalRoomThresholdForm();
+    showToast("Admin Tools", "Threshold Electrical Room berhasil diperbarui.");
+  } catch (error) {
+    showToast("Admin Tools", error.message || "Gagal menyimpan threshold Electrical Room.");
+  }
+});
+
+adminElectricalRoomForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(adminElectricalRoomForm);
+  const roomName = String(formData.get("roomName") || "").trim().toUpperCase();
+  if (!roomName) {
+    showToast("Master Electrical Room", "Nama room / panel wajib diisi.");
+    return;
+  }
+
+  const nextItems = [...new Set([...getElectricalRoomReferenceList(), roomName])];
+  try {
+    await saveAdminMaster("app-settings", {
+      settingKey: "electrical_room_references",
+      value: { items: nextItems },
+    });
+    adminElectricalRoomForm.reset();
+    await loadMastersFromBackend();
+    renderElectricalRoomReferenceOptions();
+    renderAdminElectricalRoomTable();
+    showToast("Master Electrical Room", "Referensi room / panel berhasil disimpan.");
+  } catch (error) {
+    showToast("Master Electrical Room", error.message || "Gagal menyimpan referensi room / panel.");
   }
 });
 
@@ -3387,6 +4166,38 @@ adminTemplatesBody?.addEventListener("click", async (event) => {
   }
 });
 
+adminElectricalRoomBody?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-electrical-room-reference") {
+    return;
+  }
+  const row = target.closest("tr");
+  const identifier = String(row?.dataset.identifier || "").trim();
+  if (!identifier) {
+    return;
+  }
+  const nextItems = getElectricalRoomReferenceList().filter((item) => item !== identifier);
+  try {
+    await saveAdminMaster("app-settings", {
+      settingKey: "electrical_room_references",
+      value: { items: nextItems },
+    });
+    await loadMastersFromBackend();
+    renderElectricalRoomReferenceOptions();
+    renderAdminElectricalRoomTable();
+    showToast("Master Electrical Room", "Referensi room / panel berhasil dihapus.");
+  } catch (error) {
+    showToast("Master Electrical Room", error.message || "Gagal menghapus referensi room / panel.");
+  }
+});
+
+searchActivityLog?.addEventListener("input", applyActivityLogFilter);
+filterActivityAction?.addEventListener("change", applyActivityLogFilter);
+refreshActivityLogButton?.addEventListener("click", async () => {
+  await refreshActivityLogs();
+  showToast("Log Aktivitas", "Log aktivitas berhasil diperbarui.");
+});
+
 void initializeApplication();
 
 equipmentReferenceInput?.addEventListener("input", () => {
@@ -3471,6 +4282,10 @@ carbonBrushEquipmentInput?.addEventListener("blur", () => {
     }
     hideCarbonBrushEquipmentResults();
   }, 140);
+});
+
+electricalRoomNameInput?.addEventListener("blur", () => {
+  electricalRoomNameInput.value = String(electricalRoomNameInput.value || "").trim().toUpperCase();
 });
 
 document.addEventListener("input", (event) => {
@@ -3575,6 +4390,13 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-electrical-room") {
+      const selectedRoomName = String(formData.get("equipmentName") || "").trim().toUpperCase();
+      const roomReferences = getElectricalRoomReferenceList();
+      if (!selectedRoomName || !roomReferences.includes(selectedRoomName)) {
+        setSubmitNote(form, "Nama room / panel wajib dipilih dari referensi master admin.");
+        showToast("Electrical Room", "Pilih nama room / panel dari referensi yang tersedia.");
+        return;
+      }
       const existingPayload = editingServiceId
         ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
         : {};
@@ -3584,7 +4406,7 @@ forms.forEach((form) => {
         type: "Electrical",
         subtype: "Electrical Room",
         formType: "service-electrical-room",
-        equipmentName: String(formData.get("equipmentName") || "-"),
+        equipmentName: selectedRoomName,
         description: String(formData.get("description") || "-"),
         detail: `Pintu panel: ${String(formData.get("panelDoorCondition") || "-")} | Lantai: ${String(formData.get("floorCleanliness") || "-")} | Temperature: ${String(formData.get("roomTemperature") || "-")}`,
           payload: {
@@ -4031,29 +4853,36 @@ serviceCardList.addEventListener("click", async (event) => {
   if (!(target instanceof HTMLElement)) {
     return;
   }
-  const card = target.closest(".inspection-card");
+  const groupButton = target.closest('[data-action="detail-service-group"]');
+  if (groupButton instanceof HTMLElement) {
+    openServiceGroupDetail(groupButton.dataset.serviceGroup || "Service");
+    return;
+  }
+  const card = target.closest(".service-list-item");
   if (!card) {
     return;
   }
 
+  const item = {
+    id: card.dataset.id,
+    type: card.dataset.type,
+    subtype: card.dataset.subtype || card.dataset.type,
+    formType: card.dataset.formType || "",
+    equipmentName: card.dataset.equipmentName || "",
+    description: card.dataset.description || "",
+    detail: card.dataset.detail || "",
+    payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
+  };
+
   if (!target.closest("[data-action]")) {
-    openServiceDetail({
-      id: card.dataset.id,
-      type: card.dataset.type,
-      subtype: card.dataset.subtype || card.dataset.type,
-      formType: card.dataset.formType || "",
-      equipmentName: card.querySelector(".inspection-head strong").textContent,
-      description: card.querySelector("p").textContent,
-      detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
-      payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
-    });
+    openServiceDetail(item);
     return;
   }
 
   if (target.dataset.action === "delete-service") {
     try {
       await deleteItemFromBackend("service", card.dataset.id || "");
-      card.remove();
+      renderServiceBoard(getServiceItemsFromDom().filter((entry) => entry.id !== card.dataset.id));
       persistServiceList();
       updateDashboardStats();
       applyServiceFilter();
@@ -4064,17 +4893,6 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "send-service") {
-    const item = {
-      id: card.dataset.id,
-      type: card.dataset.type,
-      subtype: card.dataset.subtype || card.dataset.type,
-      formType: card.dataset.formType || "",
-      equipmentName: card.querySelector(".inspection-head strong").textContent,
-      description: card.querySelector("p").textContent,
-      detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
-      payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
-    };
-
     showToast("Service", "Menyiapkan image inspeksi untuk dikirim...");
     sendServiceToWhatsApp(item)
       .then((result) => {
@@ -4090,16 +4908,7 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "edit-service") {
-    hydrateServiceForm({
-      id: card.dataset.id,
-      type: card.dataset.type,
-      subtype: card.dataset.subtype || card.dataset.type,
-      formType: card.dataset.formType || "",
-      equipmentName: card.querySelector(".inspection-head strong").textContent,
-      description: card.querySelector("p").textContent,
-      detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
-      payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
-    });
+    hydrateServiceForm(item);
     openSection("service");
     openCreatePanel("service");
   }
@@ -4111,7 +4920,7 @@ serviceCardList.addEventListener("keydown", (event) => {
     return;
   }
 
-  const card = target.closest(".inspection-card");
+  const card = target.closest(".service-list-item");
   if (!card || target.closest("[data-action]")) {
     return;
   }
@@ -4122,11 +4931,66 @@ serviceCardList.addEventListener("keydown", (event) => {
     type: card.dataset.type,
     subtype: card.dataset.subtype || card.dataset.type,
     formType: card.dataset.formType || "",
-    equipmentName: card.querySelector(".inspection-head strong").textContent,
-    description: card.querySelector("p").textContent,
-    detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
+    equipmentName: card.dataset.equipmentName || "",
+    description: card.dataset.description || "",
+    detail: card.dataset.detail || "",
     payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
   });
+});
+
+serviceDetailContent?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const toggleReplacementButton = target.closest('[data-action="toggle-carbon-brush-replacement-mode"]');
+  if (toggleReplacementButton instanceof HTMLElement && activeServiceDetailItem?.formType === "service-motor-mv-carbon-brush") {
+    carbonBrushReplacementEditMode = !carbonBrushReplacementEditMode;
+    showToast("Carbon Brush", carbonBrushReplacementEditMode ? "Mode tandai titik diganti aktif." : "Mode tandai titik diganti dimatikan.");
+    return;
+  }
+  const saveReplacementButton = target.closest('[data-action="save-carbon-brush-replacements"]');
+  if (saveReplacementButton instanceof HTMLElement && activeServiceDetailItem?.formType === "service-motor-mv-carbon-brush") {
+    saveCarbonBrushReplacementSelection()
+      .then(() => {
+        showToast("Carbon Brush", "Titik penggantian berhasil disimpan.");
+      })
+      .catch((error) => {
+        showToast("Carbon Brush", error.message || "Gagal menyimpan titik penggantian.");
+      });
+    return;
+  }
+  const pointButton = target.closest('[data-action="open-carbon-brush-point"]');
+  if (pointButton instanceof HTMLElement && activeServiceDetailItem?.formType === "service-motor-mv-carbon-brush") {
+    if (carbonBrushReplacementEditMode) {
+      const pointKey = pointButton.dataset.pointKey || "";
+      if (!pointKey) {
+        return;
+      }
+      if (carbonBrushReplacementDraft.includes(pointKey)) {
+        carbonBrushReplacementDraft = carbonBrushReplacementDraft.filter((item) => item !== pointKey);
+        pointButton.classList.remove("is-replaced");
+      } else {
+        carbonBrushReplacementDraft = [...carbonBrushReplacementDraft, pointKey];
+        pointButton.classList.add("is-replaced");
+      }
+      return;
+    }
+    const slot = serviceDetailContent.querySelector("#carbon-brush-point-trend-slot");
+    if (slot) {
+      slot.innerHTML = buildCarbonBrushTrendHtml(activeServiceDetailItem, pointButton.dataset.pointKey || "");
+      slot.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    return;
+  }
+  const button = target.closest('[data-action="open-service-item-detail"]');
+  if (!(button instanceof HTMLElement)) {
+    return;
+  }
+  const item = getServiceItemsFromDom().find((entry) => entry.id === button.dataset.id);
+  if (item) {
+    openServiceDetail(item);
+  }
 });
 
 bomList.addEventListener("click", async (event) => {

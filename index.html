@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260419-35">
+  <link rel="stylesheet" href="styles.css?v=20260419-44">
 </head>
 <body>
   <div class="app-shell">
@@ -80,6 +80,7 @@
           <button class="menu-item" data-section="bom" type="button">BOM</button>
           <button class="menu-item" data-section="spb" type="button">SPB</button>
           <button class="menu-item hidden" data-section="user-management" type="button">Manajemen User</button>
+          <button class="menu-item hidden" data-section="activity-log" type="button">Log Aktivitas</button>
         </nav>
       </aside>
 
@@ -595,53 +596,7 @@
             </label>
             <button class="btn btn-secondary export-button" data-export="service" type="button">Export CSV</button>
           </div>
-          <div class="inspection-grid" id="service-card-list">
-            <article class="inspection-card">
-              <div class="inspection-head">
-                <span class="tag tag-blue">Electrical</span>
-                <strong>Panel MCC Line 2</strong>
-              </div>
-              <p>Ditemukan panas berlebih pada breaker feeder dan perlu thermoscan ulang.</p>
-              <div class="inspection-meta">
-                <span>Inspector: Team A</span>
-                <span>Status: Open</span>
-              </div>
-              <div class="card-actions">
-                <button class="table-action" type="button">Edit</button>
-                <button class="table-action danger" type="button">Hapus</button>
-              </div>
-            </article>
-            <article class="inspection-card">
-              <div class="inspection-head">
-                <span class="tag tag-green">Instrument</span>
-                <strong>Flow Transmitter Tank 5</strong>
-              </div>
-              <p>Kalibrasi deviasi 1.8%. Direkomendasikan penyesuaian dan verifikasi loop.</p>
-              <div class="inspection-meta">
-                <span>Inspector: Team B</span>
-                <span>Status: Monitoring</span>
-              </div>
-              <div class="card-actions">
-                <button class="table-action" type="button">Edit</button>
-                <button class="table-action danger" type="button">Hapus</button>
-              </div>
-            </article>
-            <article class="inspection-card">
-              <div class="inspection-head">
-                <span class="tag tag-purple">DCS</span>
-                <strong>Server Historian</strong>
-              </div>
-              <p>Backup berjalan normal, namun storage tersisa 12% dan perlu cleanup.</p>
-              <div class="inspection-meta">
-                <span>Inspector: Team C</span>
-                <span>Status: Planned</span>
-              </div>
-              <div class="card-actions">
-                <button class="table-action" type="button">Edit</button>
-                <button class="table-action danger" type="button">Hapus</button>
-              </div>
-            </article>
-          </div>
+          <div class="service-board" id="service-card-list"></div>
           <div class="create-panel hidden" data-create-panel="service">
             <div class="create-panel-head">
               <div>
@@ -679,9 +634,11 @@
                   <div class="form-grid">
                     <label>
                       Nama room / panel
-                      <input type="text" name="equipmentName" placeholder="Contoh: Electrical Room Raw Mill" required>
+                      <input type="text" name="equipmentName" id="electrical-room-name-input" list="electrical-room-reference-list" placeholder="Pilih referensi room / panel" autocomplete="off" required>
                     </label>
                   </div>
+                  <datalist id="electrical-room-reference-list"></datalist>
+                  <p class="form-hint" id="electrical-room-reference-hint">Referensi room / panel dimuat dari master admin.</p>
                 </div>
 
                 <div class="inspection-section">
@@ -1385,6 +1342,20 @@
                 <input id="admin-import-input" type="file" accept=".csv,text/csv" hidden>
                 <button class="btn btn-primary" id="admin-import-button" type="button">Import CSV</button>
               </div>
+              <div class="admin-tools import-tools">
+                <label class="search-field compact admin-source-field">
+                  <span>Link Carbon Brush</span>
+                  <input id="admin-carbon-brush-url" type="url" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv">
+                </label>
+                <label class="search-field compact">
+                  <span>Mode carbon brush</span>
+                  <select id="admin-carbon-brush-mode">
+                    <option value="append">Append / update by ID</option>
+                    <option value="replace">Replace data carbon brush di service</option>
+                  </select>
+                </label>
+                <button class="btn btn-primary" id="admin-carbon-brush-import-button" type="button">Import Carbon Brush dari Link</button>
+              </div>
               <p class="form-hint">Header CSV disarankan memakai nama field aplikasi. Contoh `negatif-list`: `equipment`, `damageDescription`, `followUpPlan`, `foundDate`, `pendingMark`, `workStatus`, `category`, `area`.</p>
             </section>
 
@@ -1426,6 +1397,111 @@
                     </tr>
                   </thead>
                   <tbody id="admin-areas-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Threshold Carbon Brush</p>
+                <h4>Atur batas merah, kuning, hijau</h4>
+              </div>
+              <form class="input-form compact-form" id="admin-carbon-brush-threshold-form">
+                <div class="form-grid form-grid-4">
+                  <label>
+                    Tuban 3 merah di bawah
+                    <input type="number" step="0.01" name="tuban3Low" required>
+                  </label>
+                  <label>
+                    Tuban 3 hijau mulai
+                    <input type="number" step="0.01" name="tuban3High" required>
+                  </label>
+                  <label>
+                    Tuban 4 merah di bawah
+                    <input type="number" step="0.01" name="tuban4Low" required>
+                  </label>
+                  <label>
+                    Tuban 4 hijau mulai
+                    <input type="number" step="0.01" name="tuban4High" required>
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-primary" type="submit">Simpan Threshold</button>
+                </div>
+              </form>
+              <p class="form-hint" id="admin-carbon-brush-threshold-hint">Kuning otomatis berada di antara batas merah dan hijau.</p>
+            </section>
+
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Threshold Electrical Room</p>
+                <h4>Atur batas battery charge dan transformator</h4>
+              </div>
+              <form class="input-form compact-form" id="admin-electrical-room-threshold-form">
+                <div class="form-grid form-grid-4">
+                  <label>
+                    Battery charge min
+                    <input type="number" step="0.01" name="batteryChargeLow" required>
+                  </label>
+                  <label>
+                    Battery charge max
+                    <input type="number" step="0.01" name="batteryChargeHigh" required>
+                  </label>
+                  <label>
+                    Battery per cell min
+                    <input type="number" step="0.01" name="batteryCellLow" required>
+                  </label>
+                  <label>
+                    Battery per cell max
+                    <input type="number" step="0.01" name="batteryCellHigh" required>
+                  </label>
+                  <label>
+                    Trafo winding min
+                    <input type="number" step="0.01" name="transformerWindingLow" required>
+                  </label>
+                  <label>
+                    Trafo winding max
+                    <input type="number" step="0.01" name="transformerWindingHigh" required>
+                  </label>
+                  <label>
+                    Oil temp min
+                    <input type="number" step="0.01" name="transformerOilLow" required>
+                  </label>
+                  <label>
+                    Oil temp max
+                    <input type="number" step="0.01" name="transformerOilHigh" required>
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-primary" type="submit">Simpan Threshold Electrical Room</button>
+                </div>
+              </form>
+              <p class="form-hint" id="admin-electrical-room-threshold-hint">Analisa Electrical Room akan mengikuti batas min dan max ini.</p>
+            </section>
+
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Master Electrical Room</p>
+                <h4>Kelola referensi nama room / panel</h4>
+              </div>
+              <form class="input-form compact-form" id="admin-electrical-room-form">
+                <div class="form-grid form-grid-4">
+                  <label class="full-span">
+                    Nama room / panel
+                    <input name="roomName" type="text" placeholder="Contoh: ER17" required>
+                  </label>
+                </div>
+                <button class="btn btn-primary" type="submit">Tambah Referensi ER</button>
+              </form>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nama Room / Panel</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-electrical-room-body"></tbody>
                 </table>
               </div>
             </section>
@@ -1545,6 +1621,59 @@
             </table>
           </div>
         </section>
+
+        <section class="panel-section" data-panel="activity-log">
+          <div class="card-head">
+            <p class="eyebrow">Audit Trail</p>
+            <h3>Log aktivitas user</h3>
+          </div>
+          <div class="module-intro">
+            Pantau aktivitas login, input, edit, hapus, import, restore, dan perubahan master data.
+          </div>
+          <div class="toolbar">
+            <label class="search-field">
+              <span>Cari</span>
+              <input type="search" id="search-activity-log" placeholder="Cari user, aksi, resource, atau target">
+            </label>
+            <label class="search-field compact">
+              <span>Filter aksi</span>
+              <select id="filter-activity-action">
+                <option value="semua">Semua</option>
+                <option value="login">Login</option>
+                <option value="logout">Logout</option>
+                <option value="signup">Sign Up</option>
+                <option value="create">Create</option>
+                <option value="update">Update</option>
+                <option value="delete">Delete</option>
+                <option value="save">Save Master</option>
+                <option value="import">Import</option>
+                <option value="restore">Restore</option>
+                <option value="change-role">Change Role</option>
+              </select>
+            </label>
+            <button class="btn btn-secondary" id="refresh-activity-log-button" type="button">Refresh Log</button>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Aksi</th>
+                  <th>Resource</th>
+                  <th>Target</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody id="activity-log-body">
+                <tr>
+                  <td colspan="7">Belum ada log aktivitas.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </main>
     </section>
   </div>
@@ -1566,6 +1695,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260419-35"></script>
+  <script src="app.js?v=20260419-48"></script>
 </body>
 </html>

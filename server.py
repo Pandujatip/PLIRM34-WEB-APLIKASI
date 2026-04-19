@@ -219,7 +219,14 @@ ROLE_EDITABLE = {
 MASTER_REFERENCE_URLS = {
     "negatif-list": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRt_ysTFRHmKVY3-hlFDgBYex-BExU0cdFnuBaWOPqxKAo6mqavGhtZeKdTkvvFXsm-uvcOt2QVLHHC/pub?output=csv",
     "carbon-brush": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv",
+    "negatif-list-import": "https://docs.google.com/spreadsheets/d/e/2PACX-1vR6Qcrp5kjtkeRJ1IFRhHA9XLSkBmeSyo4kf8VJKyokBWJefXJmCQdBXHBTkN0DZlpvNDAbKFqzOw70/pub?output=csv",
 }
+
+CARBON_BRUSH_MEASUREMENT_ROWS = list("ABCDEFGHI")
+CARBON_BRUSH_MEASUREMENT_COLUMNS = [str(index) for index in range(1, 10)]
+CARBON_BRUSH_MEASUREMENT_KEYS = [
+    f"{row}{column}" for row in CARBON_BRUSH_MEASUREMENT_ROWS for column in CARBON_BRUSH_MEASUREMENT_COLUMNS
+]
 
 DEFAULT_AREAS = [
     ("tuban-3", "Tuban 3", "Tuban 3", 1),
@@ -250,6 +257,32 @@ DEFAULT_INSPECTION_TEMPLATES = [
         "fields": ["equipment", "damageDescription", "followUpPlan", "foundDate", "pendingMark", "workStatus", "category", "area"]
     }, ensure_ascii=False)),
 ]
+
+DEFAULT_APP_SETTINGS = {
+    "carbon_brush_thresholds": {
+        "tuban3": {
+            "low": 30,
+            "high": 34,
+        },
+        "tuban4": {
+            "low": 35,
+            "high": 38,
+        },
+    },
+    "electrical_room_references": {
+        "items": ["ER17", "ER23C", "ER24"],
+    },
+    "electrical_room_thresholds": {
+        "batteryChargeLow": 120,
+        "batteryChargeHigh": 130,
+        "batteryCellLow": 11.5,
+        "batteryCellHigh": 12.8,
+        "transformerWindingLow": 45,
+        "transformerWindingHigh": 85,
+        "transformerOilLow": 40,
+        "transformerOilHigh": 70,
+    },
+}
 
 FALLBACK_EQUIPMENT_REFERENCES = {
     "negatif-list": [
@@ -298,6 +331,13 @@ def get_connection() -> sqlite3.Connection:
     return connection
 
 
+def checkpoint_connection(connection: sqlite3.Connection) -> None:
+    try:
+        connection.execute("PRAGMA wal_checkpoint(FULL)")
+    except sqlite3.DatabaseError:
+        pass
+
+
 def init_db() -> None:
     with get_connection() as connection:
         connection.executescript(
@@ -318,6 +358,20 @@ def init_db() -> None:
                 expires_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                actor_user_id INTEGER,
+                actor_username TEXT NOT NULL,
+                actor_role TEXT NOT NULL,
+                action TEXT NOT NULL,
+                resource TEXT NOT NULL,
+                target_id TEXT NOT NULL DEFAULT '',
+                target_label TEXT NOT NULL DEFAULT '',
+                detail_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS app_state (
@@ -344,6 +398,12 @@ def init_db() -> None:
                 definition_json TEXT NOT NULL,
                 is_active INTEGER NOT NULL DEFAULT 1,
                 UNIQUE(module_name, inspection_type, inspection_subtype)
+            );
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key TEXT PRIMARY KEY,
+                value_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS equipment_reference (
@@ -570,6 +630,83 @@ def list_users_for_backup() -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def truncate_log_label(value: str, max_length: int = 140) -> str:
+    text = str(value or "").strip()
+    if len(text) <= max_length:
+        return text
+    return f"{text[:max_length - 3]}..."
+
+
+def log_activity(
+    *,
+    actor_user_id: int | None,
+    actor_username: str,
+    actor_role: str,
+    action: str,
+    resource: str,
+    target_id: str = "",
+    target_label: str = "",
+    detail: dict | None = None,
+) -> None:
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO activity_logs (
+                actor_user_id, actor_username, actor_role, action, resource,
+                target_id, target_label, detail_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                actor_user_id,
+                actor_username or "-",
+                actor_role or "-",
+                action,
+                resource,
+                str(target_id or ""),
+                truncate_log_label(target_label),
+                json.dumps(detail if isinstance(detail, dict) else {}, ensure_ascii=False),
+                utc_now().isoformat(),
+            ),
+        )
+        checkpoint_connection(connection)
+
+
+def list_activity_logs(limit: int = 300) -> list[dict]:
+    safe_limit = max(1, min(int(limit or 300), 1000))
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, actor_user_id, actor_username, actor_role, action, resource,
+                   target_id, target_label, detail_json, created_at
+            FROM activity_logs
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (safe_limit,),
+        ).fetchall()
+    items = []
+    for row in rows:
+        try:
+            detail = json.loads(row["detail_json"])
+        except json.JSONDecodeError:
+            detail = {}
+        items.append(
+            {
+                "id": row["id"],
+                "actorUserId": row["actor_user_id"],
+                "actorUsername": row["actor_username"],
+                "actorRole": row["actor_role"],
+                "action": row["action"],
+                "resource": row["resource"],
+                "targetId": row["target_id"],
+                "targetLabel": row["target_label"],
+                "detail": detail if isinstance(detail, dict) else {},
+                "createdAt": row["created_at"],
+            }
+        )
+    return items
+
+
 def count_admin_users() -> int:
     with get_connection() as connection:
         row = connection.execute(
@@ -674,6 +811,7 @@ def save_state(resource_key: str, payload: list, user_id: int | None = None) -> 
                 utc_now().isoformat(),
             ),
         )
+        checkpoint_connection(connection)
 
 
 def get_item_by_id(resource_key: str, item_id: str) -> dict | None:
@@ -721,6 +859,7 @@ def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
         if resource_key == "service":
             sync_service_detail_tables(connection, item)
         refresh_snapshot(connection, resource_key)
+        checkpoint_connection(connection)
 
     saved_item = get_item_by_id(resource_key, str(item["id"]))
     if not saved_item:
@@ -804,6 +943,31 @@ def import_resource_csv(resource_key: str, csv_text: str, mode: str, user_id: in
     return {"imported": imported, "mode": mode}
 
 
+def import_carbon_brush_from_url(source_url: str, mode: str, user_id: int) -> dict:
+    csv_text = fetch_remote_text(source_url)
+    items = build_carbon_brush_import_items(csv_text)
+    if not items:
+        raise ValueError("CSV carbon brush tidak berisi data yang bisa diimport")
+
+    if mode not in {"replace", "append"}:
+        raise ValueError("Mode import harus replace atau append")
+
+    if mode == "replace":
+        existing_items = [
+            item for item in load_resource_items("service")
+            if item.get("formType") != "service-motor-mv-carbon-brush"
+        ]
+        existing_items.extend(items)
+        save_state("service", existing_items, user_id=user_id)
+        return {"imported": len(items), "mode": mode}
+
+    imported = 0
+    for item in items:
+        create_or_update_item("service", item, user_id)
+        imported += 1
+    return {"imported": imported, "mode": mode}
+
+
 def delete_item(resource_key: str, item_id: str) -> bool:
     resource_config = RESOURCE_TABLES[resource_key]
     with get_connection() as connection:
@@ -814,6 +978,7 @@ def delete_item(resource_key: str, item_id: str) -> bool:
         deleted = cursor.rowcount > 0
         if deleted:
             refresh_snapshot(connection, resource_key)
+            checkpoint_connection(connection)
     return deleted
 
 
@@ -1217,6 +1382,18 @@ def seed_master_data(connection: sqlite3.Connection) -> None:
             continue
         import_equipment_reference_group(connection, source_group)
 
+    for setting_key, value in DEFAULT_APP_SETTINGS.items():
+        connection.execute(
+            """
+            INSERT INTO app_settings (setting_key, value_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(setting_key) DO UPDATE SET
+                value_json = COALESCE(app_settings.value_json, excluded.value_json),
+                updated_at = excluded.updated_at
+            """,
+            (setting_key, json.dumps(value, ensure_ascii=False), utc_now().isoformat()),
+        )
+
 
 def import_equipment_reference_group(connection: sqlite3.Connection, source_group: str) -> None:
     imported_rows = fetch_remote_equipment_references(source_group)
@@ -1307,6 +1484,291 @@ def fetch_remote_equipment_references(source_group: str) -> list[dict]:
     return imported_rows
 
 
+def fetch_remote_text(url: str) -> str:
+    with urlopen(url, timeout=12) as response:
+        return response.read().decode("utf-8", errors="ignore")
+
+
+def parse_carbon_brush_numeric_value(value: str) -> float | None:
+    text = str(value or "").strip().replace(",", ".")
+    match = None
+    for token in text.replace("(", " ").replace(")", " ").split():
+        if any(char.isdigit() for char in token):
+            match = token
+            break
+    if match is None:
+        return None
+    cleaned = "".join(char for char in match if char.isdigit() or char in ".-")
+    if not cleaned or cleaned in {"-", ".", "-."}:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def normalize_carbon_brush_date(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return utc_now().date().isoformat()
+    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return text
+
+
+def normalize_negatif_list_date(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    for fmt in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(text, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return text
+
+
+def infer_negatif_list_pending_mark(remark: str, action_plan: str, description: str) -> str:
+    basis = " ".join([str(remark or ""), str(action_plan or ""), str(description or "")]).upper()
+    if any(token in basis for token in ["OVH", "IDLE"]):
+        return "Menunggu OVH"
+    if any(token in basis for token in ["RAWMILL", "RM OFF", "RM SERVICE", "SERVICE BENGKEL", "BENGKEL", "KILN OFF"]):
+        return "Menunggu Rawmill service"
+    return "Menunggu material"
+
+
+def infer_negatif_list_category(area_text: str, equipment: str, description: str, action_plan: str = "", remark: str = "") -> str:
+    basis = " ".join([
+        str(area_text or ""),
+        str(equipment or ""),
+        str(description or ""),
+        str(action_plan or ""),
+        str(remark or ""),
+    ]).upper()
+    if "DCS" in basis or "PLC" in basis or "HMI" in basis or "SERVER" in basis or "NETWORK" in basis:
+        return "DCS"
+    if any(token in basis for token in ["CEMS", "KALIBRASI", "TT ", "TRANSMITTER", "SENSOR", "GAS", "QCX", "X-RAY", "XRAY"]):
+        return "Instrument"
+    return "Electrical"
+
+
+def infer_negatif_list_area(area_text: str) -> str:
+    basis = str(area_text or "").upper()
+    if "TUBAN 3" in basis:
+        return "Tuban 3"
+    if "TUBAN 4" in basis:
+        return "Tuban 4"
+    return "Tuban 34"
+
+
+def normalize_negatif_list_status(value: str) -> str:
+    text = str(value or "").strip().upper()
+    if text == "CLOSE" or text == "CLOSED":
+        return "Close"
+    return "Open"
+
+
+def build_negatif_list_import_id(source_id: str, equipment: str, found_date: str, description: str) -> str:
+    raw_key = "|".join([
+        str(source_id or "").strip(),
+        str(equipment or "").strip(),
+        str(found_date or "").strip(),
+        str(description or "").strip(),
+    ])
+    digest = hashlib.sha1(raw_key.encode("utf-8", errors="ignore")).hexdigest()[:12]
+    return f"negatif-import-{digest}"
+
+
+def build_negatif_list_import_items(csv_text: str) -> list[dict]:
+    reader = csv.DictReader(io.StringIO(csv_text))
+    header_map = normalize_import_headers(reader.fieldnames)
+    items: list[dict] = []
+
+    for row in reader:
+        if not any(str(value or "").strip() for value in row.values()):
+            continue
+
+        source_id = resolve_import_value(row, header_map, ["id"])
+        equipment = resolve_import_value(row, header_map, ["equipment"])
+        description = resolve_import_value(row, header_map, ["deskripsi negatif list", "deskripsiNegatifList", "damageDescription"])
+        action_plan = resolve_import_value(row, header_map, ["action plan", "actionPlan", "followUpPlan"])
+        found_date = normalize_negatif_list_date(resolve_import_value(row, header_map, ["tgl temuan", "tanggal temuan", "foundDate"]))
+        work_status = normalize_negatif_list_status(resolve_import_value(row, header_map, ["status", "workStatus"]))
+        remark = resolve_import_value(row, header_map, ["remark", "remarks"])
+        area_text = resolve_import_value(row, header_map, ["area"])
+
+        if not equipment or not description:
+            continue
+
+        items.append({
+            "id": build_negatif_list_import_id(source_id, equipment, found_date, description),
+            "equipment": equipment,
+            "damageDescription": description,
+            "followUpPlan": action_plan or "-",
+            "foundDate": found_date or utc_now().date().isoformat(),
+            "pendingMark": infer_negatif_list_pending_mark(remark, action_plan, description),
+            "workStatus": work_status,
+            "category": infer_negatif_list_category(area_text, equipment, description, action_plan, remark),
+            "area": infer_negatif_list_area(area_text),
+        })
+
+    return items
+
+
+def import_negatif_list_from_url(source_url: str, mode: str, user_id: int) -> dict:
+    csv_text = fetch_remote_text(source_url)
+    items = build_negatif_list_import_items(csv_text)
+    if not items:
+        raise ValueError("CSV negatif list tidak berisi data yang bisa diimport")
+
+    if mode not in {"replace", "append"}:
+        raise ValueError("Mode import harus replace atau append")
+
+    if mode == "replace":
+        save_state("negatif-list", items, user_id=user_id)
+        return {"imported": len(items), "mode": mode}
+
+    imported = 0
+    for item in items:
+        create_or_update_item("negatif-list", item, user_id)
+        imported += 1
+    return {"imported": imported, "mode": mode}
+
+
+def parse_carbon_brush_equipment_code(equipment_name: str) -> str:
+    text = str(equipment_name or "").strip()
+    code = ""
+    for char in text:
+        if not code and not char.isdigit():
+            continue
+        if char.isalnum() or char == "-":
+            code += char
+            continue
+        break
+    return code[:32]
+
+
+def get_carbon_brush_thresholds(equipment_name: str, explicit_plant: str = "") -> dict:
+    code = parse_carbon_brush_equipment_code(equipment_name)
+    area_digit = code[2] if len(code) >= 3 else ""
+    if not area_digit and explicit_plant:
+        for char in reversed(str(explicit_plant)):
+            if char.isdigit():
+                area_digit = char
+                break
+    plant_label = "Tuban 4" if area_digit == "4" else "Tuban 3"
+    if explicit_plant and "4" in str(explicit_plant):
+        plant_label = "Tuban 4"
+    elif explicit_plant and "3" in str(explicit_plant):
+        plant_label = "Tuban 3"
+    settings = get_app_setting_value("carbon_brush_thresholds", DEFAULT_APP_SETTINGS["carbon_brush_thresholds"])
+    tuban3 = settings.get("tuban3", {}) if isinstance(settings, dict) else {}
+    tuban4 = settings.get("tuban4", {}) if isinstance(settings, dict) else {}
+    if plant_label == "Tuban 4":
+        return {
+            "plant": plant_label,
+            "low": float(tuban4.get("low", 35)),
+            "high": float(tuban4.get("high", 38)),
+        }
+    return {
+        "plant": plant_label,
+        "low": float(tuban3.get("low", 30)),
+        "high": float(tuban3.get("high", 34)),
+    }
+
+
+def decode_carbon_brush_meta(equipment_name: str, explicit_plant: str = "") -> dict:
+    code = parse_carbon_brush_equipment_code(equipment_name)
+    thresholds = get_carbon_brush_thresholds(equipment_name, explicit_plant)
+    location_map = {"3": "Rawmill"}
+    category_map = {"4": "Equipment utama produksi"}
+    return {
+        "code": code,
+        "location": location_map.get(code[0], "-") if code else "-",
+        "category": category_map.get(code[1], "-") if len(code) > 1 else "-",
+        "plant": thresholds["plant"],
+    }
+
+
+def compute_carbon_brush_stats(measurements: dict, equipment_name: str, explicit_plant: str = "") -> dict:
+    thresholds = get_carbon_brush_thresholds(equipment_name, explicit_plant)
+    stats = {
+        "low": 0,
+        "medium": 0,
+        "high": 0,
+        "empty": 0,
+        "min": None,
+        "attentionPoints": [],
+    }
+    for key in CARBON_BRUSH_MEASUREMENT_KEYS:
+        raw_value = str(measurements.get(key, "") or "").strip()
+        numeric_value = parse_carbon_brush_numeric_value(raw_value)
+        if numeric_value is None:
+            stats["empty"] += 1
+            continue
+        if numeric_value < thresholds["low"]:
+            bucket = "low"
+        elif numeric_value < thresholds["high"]:
+            bucket = "medium"
+        else:
+            bucket = "high"
+        stats[bucket] += 1
+        if stats["min"] is None or numeric_value < stats["min"]:
+            stats["min"] = numeric_value
+        if bucket != "high":
+            stats["attentionPoints"].append(key)
+    stats["attentionPoints"] = stats["attentionPoints"][:8]
+    return stats
+
+
+def build_carbon_brush_import_items(csv_text: str) -> list[dict]:
+    reader = csv.DictReader(io.StringIO(csv_text))
+    items: list[dict] = []
+    for row in reader:
+        equipment_name = str(row.get("EQUIPMENT", "") or "").strip()
+        if not equipment_name:
+            continue
+        source_id = str(row.get("ID", "") or "").strip()
+        plant_value = str(row.get("PLANT", "") or "").strip()
+        measurements = {
+            key: str(row.get(key, "") or "").strip()
+            for key in CARBON_BRUSH_MEASUREMENT_KEYS
+        }
+        meta = decode_carbon_brush_meta(equipment_name, plant_value)
+        stats = compute_carbon_brush_stats(measurements, equipment_name, meta["plant"])
+        replacement = str(row.get("REPLACEMENT", "") or "").strip()
+        megger = str(row.get("MEGGER", "") or "").strip()
+        pic = str(row.get("PIC", "") or "").strip()
+        inspection_date = normalize_carbon_brush_date(str(row.get("TANGGAL", "") or ""))
+        detail = f"Merah: {stats['low']} | Kuning: {stats['medium']} | Hijau: {stats['high']} | Terendah: {stats['min'] if stats['min'] is not None else '-'}"
+        items.append(
+            {
+                "id": f"cb-{source_id}" if source_id else generate_import_id("service"),
+                "type": "Electrical",
+                "subtype": "Motor MV (Carbon Brush)",
+                "formType": "service-motor-mv-carbon-brush",
+                "equipmentName": equipment_name,
+                "description": f"Import carbon brush {inspection_date}",
+                "detail": detail,
+                "payload": {
+                    "inspectionDate": inspection_date,
+                    "plant": meta["plant"],
+                    "location": meta["location"],
+                    "category": meta["category"],
+                    "replacement": replacement,
+                    "megger": megger,
+                    "pic": pic,
+                    "measurements": measurements,
+                    "stats": stats,
+                },
+            }
+        )
+    return items
+
+
 def detect_reference_column(headers: list[str], candidates: list[str]) -> int:
     for index, header in enumerate(headers):
         if header in candidates:
@@ -1386,6 +1848,42 @@ def list_equipment_references(source_group: str | None = None) -> list[dict]:
     return references
 
 
+def list_app_settings() -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT setting_key, value_json, updated_at FROM app_settings ORDER BY setting_key"
+        ).fetchall()
+    items = []
+    for row in rows:
+        try:
+            value = json.loads(row["value_json"])
+        except json.JSONDecodeError:
+            value = {}
+        items.append(
+            {
+                "settingKey": row["setting_key"],
+                "value": value,
+                "updatedAt": row["updated_at"],
+            }
+        )
+    return items
+
+
+def get_app_setting_value(setting_key: str, default: dict | None = None) -> dict:
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT value_json FROM app_settings WHERE setting_key = ?",
+            (setting_key,),
+        ).fetchone()
+    if not row:
+        return default.copy() if isinstance(default, dict) else {}
+    try:
+        value = json.loads(row["value_json"])
+    except json.JSONDecodeError:
+        value = {}
+    return value if isinstance(value, dict) else (default.copy() if isinstance(default, dict) else {})
+
+
 def list_master_records(resource_name: str) -> list[dict]:
     if resource_name == "areas":
         return list_areas()
@@ -1393,6 +1891,8 @@ def list_master_records(resource_name: str) -> list[dict]:
         return list_inspection_templates()
     if resource_name == "equipment-references":
         return list_equipment_references()
+    if resource_name == "app-settings":
+        return list_app_settings()
     raise ValueError("Master resource tidak dikenal")
 
 
@@ -1501,6 +2001,23 @@ def save_master_record(resource_name: str, record: dict) -> dict:
                 {},
             )
 
+        if resource_name == "app-settings":
+            setting_key = str(record.get("settingKey", "")).strip()
+            if not setting_key:
+                raise ValueError("Setting key wajib diisi")
+            value = record.get("value", {})
+            connection.execute(
+                """
+                INSERT INTO app_settings (setting_key, value_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(setting_key) DO UPDATE SET
+                    value_json = excluded.value_json,
+                    updated_at = excluded.updated_at
+                """,
+                (setting_key, json.dumps(value if isinstance(value, dict) else {}, ensure_ascii=False), utc_now().isoformat()),
+            )
+            return next((item for item in list_app_settings() if item["settingKey"] == setting_key), {})
+
     raise ValueError("Master resource tidak dikenal")
 
 
@@ -1527,6 +2044,9 @@ def delete_master_record(resource_name: str, identifier: str) -> bool:
                 (identifier, identifier),
             )
             return cursor.rowcount > 0
+        if resource_name == "app-settings":
+            cursor = connection.execute("DELETE FROM app_settings WHERE setting_key = ?", (identifier,))
+            return cursor.rowcount > 0
     return False
 
 
@@ -1541,6 +2061,7 @@ def build_backup_payload() -> dict:
         "areas": list_areas(),
         "inspectionTemplates": list_inspection_templates(),
         "equipmentReferences": list_equipment_references(),
+        "appSettings": list_app_settings(),
         "data": get_state_snapshot(),
     }
 
@@ -1621,6 +2142,22 @@ def restore_backup_payload(payload: dict) -> None:
                         str(reference.get("sourceUrl", "")),
                         json.dumps(reference.get("metadata", {}), ensure_ascii=False),
                         utc_now().isoformat(),
+                    ),
+                )
+
+        app_settings = payload.get("appSettings", [])
+        if isinstance(app_settings, list):
+            connection.execute("DELETE FROM app_settings")
+            for setting in app_settings:
+                connection.execute(
+                    """
+                    INSERT INTO app_settings (setting_key, value_json, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (
+                        str(setting.get("settingKey", "")),
+                        json.dumps(setting.get("value", {}), ensure_ascii=False),
+                        str(setting.get("updatedAt", utc_now().isoformat())),
                     ),
                 )
 
@@ -1760,6 +2297,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_backup_get()
             return
 
+        if parsed.path == "/api/admin/activity-logs":
+            self._handle_activity_logs_get(parsed.query)
+            return
+
         if parsed.path.startswith("/api/admin/masters/"):
             self._handle_admin_masters_get(parsed.path)
             return
@@ -1802,6 +2343,14 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/admin/restore":
             self._handle_restore_post()
+            return
+
+        if parsed.path == "/api/admin/import-negatif-list":
+            self._handle_admin_negatif_list_import_post()
+            return
+
+        if parsed.path == "/api/admin/import-carbon-brush":
+            self._handle_admin_carbon_brush_import_post()
             return
 
         if parsed.path.startswith("/api/admin/import/"):
@@ -1955,6 +2504,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 "areas": list_areas(),
                 "inspectionTemplates": list_inspection_templates(),
                 "equipmentReferences": list_equipment_references(source_group),
+                "appSettings": list_app_settings(),
             }
         )
 
@@ -1988,6 +2538,21 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         self._send_json(build_backup_payload())
 
+    def _handle_activity_logs_get(self, query: str):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        params = parse_qs(query or "")
+        try:
+            limit = int(params.get("limit", ["300"])[0])
+        except ValueError:
+            self._send_json({"error": "Parameter limit tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self._send_json({"items": list_activity_logs(limit)})
+
     def _handle_restore_post(self):
         user = self._require_user()
         if not user:
@@ -2004,6 +2569,14 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Payload backup harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
             return
         restore_backup_payload(backup)
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="restore",
+            resource="backup",
+            target_label="Restore backup aplikasi",
+        )
         self._send_json({"ok": True})
 
     def _handle_admin_masters_get(self, path: str):
@@ -2037,6 +2610,17 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         try:
             saved_item = save_master_record(resource_name, item)
+            label = saved_item.get("title") or saved_item.get("equipmentName") or saved_item.get("name") or saved_item.get("code") or saved_item.get("settingKey") or item.get("settingKey") or resource_name
+            identifier = saved_item.get("settingKey") or saved_item.get("equipmentName") or saved_item.get("code") or label
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="save",
+                resource=f"master:{resource_name}",
+                target_id=str(identifier or ""),
+                target_label=str(label or ""),
+            )
             self._send_json({"ok": True, "item": saved_item})
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
@@ -2065,9 +2649,80 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         try:
             result = import_resource_csv(resource_name, csv_text, mode, int(user["id"]))
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="import",
+                resource=resource_name,
+                target_label=f"Import CSV {resource_name}",
+                detail={"mode": mode, "imported": result.get("imported", 0)},
+            )
             self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_admin_carbon_brush_import_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+
+        source_url = str(payload.get("sourceUrl") or MASTER_REFERENCE_URLS["carbon-brush"]).strip()
+        mode = str(payload.get("mode", "append") or "append")
+        try:
+            result = import_carbon_brush_from_url(source_url, mode, int(user["id"]))
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="import",
+                resource="service",
+                target_label="Import carbon brush",
+                detail={"mode": mode, "imported": result.get("imported", 0), "sourceUrl": source_url},
+            )
+            self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception:
+            self._send_json({"error": "Gagal mengambil data carbon brush dari link sumber"}, status=HTTPStatus.BAD_GATEWAY)
+
+    def _handle_admin_negatif_list_import_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+
+        source_url = str(payload.get("sourceUrl") or MASTER_REFERENCE_URLS["negatif-list-import"]).strip()
+        mode = str(payload.get("mode", "replace") or "replace")
+        try:
+            result = import_negatif_list_from_url(source_url, mode, int(user["id"]))
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="import",
+                resource="negatif-list",
+                target_label="Import negatif list",
+                detail={"mode": mode, "imported": result.get("imported", 0), "sourceUrl": source_url},
+            )
+            self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception:
+            self._send_json({"error": "Gagal mengambil data negatif list dari link sumber"}, status=HTTPStatus.BAD_GATEWAY)
 
     def _handle_admin_masters_delete(self, path: str):
         user = self._require_user()
@@ -2090,6 +2745,15 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         if not deleted:
             self._send_json({"error": "Master data tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
             return
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="delete",
+            resource=f"master:{resource_name}",
+            target_id=str(identifier),
+            target_label=str(identifier),
+        )
         self._send_json({"ok": True})
 
     def _handle_items_get(self, path: str):
@@ -2130,11 +2794,22 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Payload item harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
             return
 
+        existing_item = get_item_by_id(resource_key, str(item.get("id", ""))) if item.get("id") else None
         try:
             saved_item = create_or_update_item(resource_key, item, user["id"])
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             return
+        label = saved_item.get("equipment") or saved_item.get("equipmentName") or saved_item.get("name") or saved_item.get("materialDescription") or saved_item.get("code") or saved_item.get("id")
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="update" if existing_item else "create",
+            resource=resource_key,
+            target_id=str(saved_item.get("id", "")),
+            target_label=str(label or ""),
+        )
         self._send_json({"ok": True, "item": saved_item}, status=HTTPStatus.CREATED)
 
     def _handle_items_put(self, path: str):
@@ -2157,6 +2832,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         if not isinstance(item, dict):
             self._send_json({"error": "Payload item harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
             return
+        existing_item = get_item_by_id(resource_key, item_id)
         item["id"] = item_id
 
         try:
@@ -2164,6 +2840,16 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             return
+        label = saved_item.get("equipment") or saved_item.get("equipmentName") or saved_item.get("name") or saved_item.get("materialDescription") or saved_item.get("code") or saved_item.get("id")
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="update" if existing_item else "create",
+            resource=resource_key,
+            target_id=str(saved_item.get("id", "")),
+            target_label=str(label or ""),
+        )
         self._send_json({"ok": True, "item": saved_item})
 
     def _handle_items_delete(self, path: str):
@@ -2176,10 +2862,23 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         if not self._require_edit_access(user, resource_key):
             return
+        existing_item = get_item_by_id(resource_key, item_id)
         deleted = delete_item(resource_key, item_id)
         if not deleted:
             self._send_json({"error": "Item tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
             return
+        label = ""
+        if existing_item:
+            label = existing_item.get("equipment") or existing_item.get("equipmentName") or existing_item.get("name") or existing_item.get("materialDescription") or existing_item.get("code") or item_id
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="delete",
+            resource=resource_key,
+            target_id=str(item_id),
+            target_label=str(label or item_id),
+        )
         self._send_json({"ok": True, "id": item_id})
 
     def _handle_login(self):
@@ -2200,6 +2899,15 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
 
         token, _expires_at = create_session(user["id"])
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="login",
+            resource="auth",
+            target_id=str(user["id"]),
+            target_label=str(user["username"]),
+        )
         self._send_json(
             {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}},
             extra_headers={"Set-Cookie": self._build_session_cookie(token)},
@@ -2223,6 +2931,15 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         user = create_user(username, password, "team")
         token, _expires_at = create_session(user["id"])
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="signup",
+            resource="auth",
+            target_id=str(user["id"]),
+            target_label=str(user["username"]),
+        )
         self._send_json(
             {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}},
             status=HTTPStatus.CREATED,
@@ -2231,8 +2948,19 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_logout(self):
         token = self._read_session_cookie()
+        user = get_user_from_session(token)
         if token:
             delete_session(token)
+        if user:
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="logout",
+                resource="auth",
+                target_id=str(user["id"]),
+                target_label=str(user["username"]),
+            )
         self._send_json({"ok": True}, extra_headers={"Set-Cookie": self._clear_session_cookie()})
 
     def _handle_sync(self, resource_key: str):
@@ -2294,6 +3022,16 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
 
         updated_user = update_user_role(username, next_role)
+        if updated_user:
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="change-role",
+                resource="users",
+                target_id=str(updated_user["id"]),
+                target_label=f"{updated_user['username']} -> {updated_user['role']}",
+            )
         self._send_json({"ok": True, "user": updated_user, "users": list_users()})
 
 
