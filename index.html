@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260419-45">
+  <link rel="stylesheet" href="styles.css?v=20260419-46">
 </head>
 <body>
   <div class="app-shell">
@@ -993,23 +993,159 @@
                   <h3>Input inspeksi DCS</h3>
                 </div>
                 <div class="form-grid">
-                  <label>
-                    Nama equipment
-                    <input type="text" name="equipmentName" placeholder="Contoh: Historian Server" required>
-                  </label>
-                  <label>
-                    Fungsi peralatan
-                    <input type="text" name="equipmentFunction" placeholder="Contoh: penyimpanan histori proses" required>
-                  </label>
-                  <label>
-                    Kebersihan lingkungan
-                    <input type="text" name="environmentCleanliness" placeholder="Contoh: bersih / cukup / perlu cleaning" required>
-                  </label>
                   <label class="full-span">
-                    Keterangan
-                    <textarea name="description" rows="4" placeholder="Catatan kondisi DCS dan tindakan lanjutan" required></textarea>
+                    EQUIPMENT
+                    <input type="text" name="equipmentName" placeholder="Contoh: PLC Kiln Line 3 / Historian Server" required>
                   </label>
                 </div>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>PLC MODULE</strong>
+                    <span>Isi tiap modul secara terpisah sesuai hasil inspeksi aktual.</span>
+                  </div>
+                  <div class="form-grid dcs-form-grid">
+                    <label>
+                      Power Supply Module
+                      <input type="text" name="plcPowerSupplyModule" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label>
+                      Communication Module
+                      <input type="text" name="plcCommunicationModule" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label>
+                      Processor Module
+                      <input type="text" name="plcProcessorModule" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label>
+                      Digital Input Module
+                      <input type="text" name="plcDigitalInputModule" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label>
+                      Digital Output Module
+                      <input type="text" name="plcDigitalOutputModule" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label>
+                      Analog Input Module
+                      <input type="text" name="plcAnalogInputModule" placeholder="Contoh: normal" required>
+                    </label>
+                    <label>
+                      Analog Output Module
+                      <input type="text" name="plcAnalogOutputModule" placeholder="Contoh: normal" required>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Fiber optic &amp; Ethernet communication</strong>
+                    <span>Header mengikuti template referensi. Isi kondisi komunikasi saat inspeksi.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Fiber optic &amp; Ethernet communication
+                      <input type="text" name="fiberOpticEthernetCommunication" placeholder="Contoh: hijau / scanning normal" required>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Grounding System</strong>
+                    <span>Standar resistansi mengacu ke referensi: di bawah 2 Ohm.</span>
+                  </div>
+                  <div class="form-grid dcs-form-grid">
+                    <label>
+                      EE-EA
+                      <input type="text" name="groundingEeEa" placeholder="Contoh: 1.2 Ohm" required>
+                    </label>
+                    <label>
+                      EE-PE
+                      <input type="text" name="groundingEePe" placeholder="Contoh: 0.9 Ohm" required>
+                    </label>
+                    <label>
+                      EA-PE
+                      <input type="text" name="groundingEaPe" placeholder="Contoh: 1.1 Ohm" required>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cable Termination</strong>
+                    <span>Isi kondisi kekencangan terminasi kabel.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Cable Termination
+                      <input type="text" name="cableTermination" placeholder="Contoh: tidak kendor" required>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>UPS</strong>
+                    <span>Masukkan hasil output untuk UPS dan PDB secara terpisah.</span>
+                  </div>
+                  <div class="form-grid dcs-form-grid">
+                    <label>
+                      UPS
+                      <input type="text" name="upsOutput" placeholder="Contoh: 220 VAC" required>
+                    </label>
+                    <label>
+                      PDB
+                      <input type="text" name="pdbOutput" placeholder="Contoh: 218 VAC" required>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Room &amp; Panel</strong>
+                    <span>Isi kondisi AC dan kebersihan ruangan/panel secara terpisah.</span>
+                  </div>
+                  <div class="form-grid dcs-form-grid">
+                    <label>
+                      AC
+                      <input type="text" name="roomAcCondition" placeholder="Contoh: dingin 23 C" required>
+                    </label>
+                    <label>
+                      Kebersihan
+                      <input type="text" name="roomCleanliness" placeholder="Contoh: bersih" required>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Kondisi Rusak - Penggantian Part</strong>
+                    <span>Isi part yang rusak atau tulis tidak ada bila tidak ditemukan.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Kondisi Rusak - Penggantian Part
+                      <textarea name="damagedPartReplacement" rows="3" placeholder="Contoh: tidak ada / fuse module diganti" required></textarea>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Terjadi Penyimpangan - Adjustment / Repair</strong>
+                    <span>Isi tindakan adjustment atau repair bila ada penyimpangan.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Terjadi Penyimpangan - Adjustment / Repair
+                      <textarea name="adjustmentRepair" rows="3" placeholder="Contoh: tidak ada / setting ulang komunikasi FO" required></textarea>
+                    </label>
+                    <label class="full-span">
+                      Keterangan
+                      <textarea name="description" rows="4" placeholder="Catatan tambahan inspeksi DCS dan tindak lanjut" required></textarea>
+                    </label>
+                  </div>
+                </section>
                 <button class="btn btn-primary" type="submit">Simpan Service DCS</button>
               </form>
             </div>

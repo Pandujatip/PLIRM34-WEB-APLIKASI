@@ -1798,6 +1798,44 @@ th {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.dcs-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-form-type="service-dcs"] .inspection-section {
+  padding: 14px;
+  border-color: rgba(255, 122, 24, 0.18);
+  background:
+    linear-gradient(180deg, rgba(31, 31, 31, 0.98), rgba(20, 20, 20, 0.96)),
+    linear-gradient(135deg, rgba(255, 122, 24, 0.05), transparent 44%);
+}
+
+[data-form-type="service-dcs"] .inspection-section + .inspection-section {
+  margin-top: 12px;
+}
+
+[data-form-type="service-dcs"] .inspection-section-head {
+  margin-bottom: 12px;
+}
+
+[data-form-type="service-dcs"] .inspection-section-head strong {
+  letter-spacing: 0.02em;
+}
+
+[data-form-type="service-dcs"] .inspection-section-head span {
+  line-height: 1.5;
+}
+
+[data-form-type="service-dcs"] label {
+  display: grid;
+  gap: 8px;
+}
+
+[data-form-type="service-dcs"] input,
+[data-form-type="service-dcs"] textarea {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .service-inline-summary {
   display: flex;
   flex-wrap: wrap;
@@ -2077,6 +2115,7 @@ th {
   .module-summary-grid,
   .bom-visual,
   .form-grid,
+  .dcs-form-grid,
   .form-grid-4,
   .form-grid-3,
   .form-grid-5 {
@@ -2159,6 +2198,7 @@ th {
   .executive-grid,
   .chart-grid,
   .module-summary-grid,
+  .dcs-form-grid,
   .dashboard-grid,
   .bom-grid,
   .bom-card,

@@ -1047,16 +1047,101 @@ function normalizeServiceItem(item) {
     };
   }
 
-  const dcsMatch = item.detail.match(/Fungsi: (.*) \| Kebersihan: (.*)/);
+  const legacyDcsMatch = String(item.detail || "").match(/Fungsi: (.*) \| Kebersihan: (.*)/);
   return {
     ...item,
     subtype: "DCS",
     formType: "service-dcs",
-    payload: {
-      equipmentFunction: dcsMatch?.[1] || "",
-      environmentCleanliness: dcsMatch?.[2] || "",
-    },
+    payload: normalizeDcsPayload(item.payload || {}, legacyDcsMatch),
   };
+}
+
+function normalizeDcsPayload(payload = {}, legacyDcsMatch = null) {
+  return {
+    inspectionDate: payload.inspectionDate || new Date().toISOString(),
+    plcPowerSupplyModule: payload.plcPowerSupplyModule || "",
+    plcCommunicationModule: payload.plcCommunicationModule || "",
+    plcProcessorModule: payload.plcProcessorModule || "",
+    plcDigitalInputModule: payload.plcDigitalInputModule || "",
+    plcDigitalOutputModule: payload.plcDigitalOutputModule || "",
+    plcAnalogInputModule: payload.plcAnalogInputModule || "",
+    plcAnalogOutputModule: payload.plcAnalogOutputModule || "",
+    fiberOpticEthernetCommunication: payload.fiberOpticEthernetCommunication || "",
+    groundingEeEa: payload.groundingEeEa || "",
+    groundingEePe: payload.groundingEePe || "",
+    groundingEaPe: payload.groundingEaPe || "",
+    cableTermination: payload.cableTermination || "",
+    upsOutput: payload.upsOutput || "",
+    pdbOutput: payload.pdbOutput || "",
+    roomAcCondition: payload.roomAcCondition || payload.equipmentFunction || legacyDcsMatch?.[1] || "",
+    roomCleanliness: payload.roomCleanliness || payload.environmentCleanliness || legacyDcsMatch?.[2] || "",
+    damagedPartReplacement: payload.damagedPartReplacement || "",
+    adjustmentRepair: payload.adjustmentRepair || "",
+  };
+}
+
+function buildDcsSummary(payload = {}) {
+  const abnormalCount = [
+    payload.plcPowerSupplyModule,
+    payload.plcCommunicationModule,
+    payload.plcProcessorModule,
+    payload.plcDigitalInputModule,
+    payload.plcDigitalOutputModule,
+    payload.plcAnalogInputModule,
+    payload.plcAnalogOutputModule,
+    payload.fiberOpticEthernetCommunication,
+    payload.cableTermination,
+    payload.roomAcCondition,
+    payload.roomCleanliness,
+  ].filter((value) => isDcsTextAbnormal(value)).length;
+
+  const groundingAlert = [
+    payload.groundingEeEa,
+    payload.groundingEePe,
+    payload.groundingEaPe,
+  ].filter((value) => isGroundingOutsideLimit(value)).length;
+
+  const voltageAlert = [payload.upsOutput, payload.pdbOutput].filter((value) => isVoltageOutsideLimit(value, 195, 225)).length;
+  return `Anomali ${abnormalCount + groundingAlert + voltageAlert} | Grounding ${groundingAlert} | UPS/PDB ${voltageAlert}`;
+}
+
+function parseNumericValue(value) {
+  const match = String(value || "").replace(",", ".").match(/-?\d+(\.\d+)?/);
+  return match ? Number.parseFloat(match[0]) : null;
+}
+
+function isVoltageOutsideLimit(value, lower, upper) {
+  const numeric = parseNumericValue(value);
+  if (numeric == null) {
+    return false;
+  }
+  return numeric < lower || numeric > upper;
+}
+
+function isGroundingOutsideLimit(value) {
+  const numeric = parseNumericValue(value);
+  if (numeric == null) {
+    return /abnormal|fault|tinggi|jelek|buruk|di atas/i.test(String(value || ""));
+  }
+  return numeric >= 2;
+}
+
+function hasMeaningfulDcsText(value) {
+  return !/^(-|tidak ada|nihil|none|normal|ok)$/i.test(String(value || "").trim());
+}
+
+function isDcsTextAbnormal(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (/^(ok|normal|hijau normal|hijau|scaning normal|scanning normal|tidak kendor|bersih|dingin)$/i.test(normalized)) {
+    return false;
+  }
+  if (normalized.includes("tidak kendor") || normalized.includes("tidak ada")) {
+    return false;
+  }
+  return /rusak|abnormal|alarm|fault|trip|loss|putus|merah|kuning|panas|high|tinggi|low|rendah|dirty|kotor|longgar|kendor|gangguan|tidak dingin|tidak bersih|down/i.test(normalized);
 }
 
 function formatCarbonBrushPayloadLines(item) {
@@ -1252,13 +1337,65 @@ function analyzeServiceItem(item) {
   }
 
   if (item.formType === "service-dcs") {
+    const payload = normalizeDcsPayload(item.payload || {});
     const notes = [];
-    if (!/bersih/i.test(payload.environmentCleanliness || "")) {
-      notes.push("Kebersihan lingkungan belum ideal. Housekeeping area DCS perlu dijaga untuk mencegah gangguan perangkat.");
+
+    const plcChecks = [
+      ["Power Supply Module", payload.plcPowerSupplyModule],
+      ["Communication Module", payload.plcCommunicationModule],
+      ["Processor Module", payload.plcProcessorModule],
+      ["Digital Input Module", payload.plcDigitalInputModule],
+      ["Digital Output Module", payload.plcDigitalOutputModule],
+      ["Analog Input Module", payload.plcAnalogInputModule],
+      ["Analog Output Module", payload.plcAnalogOutputModule],
+    ].filter(([, value]) => isDcsTextAbnormal(value));
+
+    if (plcChecks.length > 0) {
+      notes.push(`PLC module perlu perhatian pada ${plcChecks.map(([label]) => label).join(", ")}. Lanjutkan pengecekan power, komunikasi, dan health module terkait.`);
     }
-    if ((payload.equipmentFunction || "").length > 0) {
-      notes.push("Pastikan fungsi peralatan tervalidasi kembali setelah inspeksi, terutama bila perangkat masuk kategori kritikal kontrol.");
+
+    if (isDcsTextAbnormal(payload.fiberOpticEthernetCommunication)) {
+      notes.push("Komunikasi fiber optic atau ethernet terindikasi tidak normal. Cek link status, konektor, patch cord, dan kualitas komunikasi antar node.");
     }
+
+    const groundingIssues = [
+      ["EE-EA", payload.groundingEeEa],
+      ["EE-PE", payload.groundingEePe],
+      ["EA-PE", payload.groundingEaPe],
+    ].filter(([, value]) => isGroundingOutsideLimit(value));
+
+    if (groundingIssues.length > 0) {
+      notes.push(`Nilai grounding melebihi batas pada ${groundingIssues.map(([label]) => label).join(", ")}. Periksa bonding, koneksi grounding, dan resistansi jalur pembumian.`);
+    }
+
+    if (/kendor|longgar|lepas|tidak kencang/i.test(payload.cableTermination || "") && !/tidak kendor/i.test(payload.cableTermination || "")) {
+      notes.push("Cable termination terindikasi kurang kencang. Lakukan pengencangan ulang dan inspeksi hot spot pada terminal terkait.");
+    }
+
+    if (isVoltageOutsideLimit(payload.upsOutput, 195, 225)) {
+      notes.push("Output UPS berada di luar standar 195-225 VAC. Validasi input, baterai, dan kesehatan modul UPS.");
+    }
+
+    if (isVoltageOutsideLimit(payload.pdbOutput, 195, 225)) {
+      notes.push("Output PDB berada di luar standar 195-225 VAC. Periksa distribusi suplai dan kestabilan tegangan panel.");
+    }
+
+    if (/panas|tidak dingin|> ?25|2[6-9]\s*c|[3-9][0-9]\s*c/i.test(payload.roomAcCondition || "") && !/dingin|< ?25/i.test(payload.roomAcCondition || "")) {
+      notes.push("Kondisi AC atau temperatur room belum ideal. Pastikan suhu ruang panel tetap dingin untuk menjaga keandalan perangkat DCS.");
+    }
+
+    if (!/bersih/i.test(payload.roomCleanliness || "")) {
+      notes.push("Kebersihan room atau panel belum ideal. Housekeeping perlu ditingkatkan untuk mencegah debu dan gangguan perangkat.");
+    }
+
+    if (hasMeaningfulDcsText(payload.damagedPartReplacement)) {
+      notes.push("Terdapat catatan part rusak atau penggantian part. Pastikan histori penggantian dan validasi fungsi setelah penggantian tercatat.");
+    }
+
+    if (hasMeaningfulDcsText(payload.adjustmentRepair)) {
+      notes.push("Ada tindakan adjustment atau repair pada inspeksi ini. Pastikan hasil perbaikan diverifikasi kembali pada operasi normal.");
+    }
+
     return notes.length ? notes : ["Kondisi DCS dari isian ini belum menunjukkan temuan kritis."];
   }
 
@@ -1523,9 +1660,26 @@ function formatServicePayloadLines(item) {
   }
 
   if (item.formType === "service-dcs") {
+    const payload = normalizeDcsPayload(item.payload || {});
     return [
-      ["Fungsi peralatan", payload.equipmentFunction || "-"],
-      ["Kebersihan lingkungan", payload.environmentCleanliness || "-"],
+      ["PLC MODULE - Power Supply Module", payload.plcPowerSupplyModule || "-"],
+      ["PLC MODULE - Communication Module", payload.plcCommunicationModule || "-"],
+      ["PLC MODULE - Processor Module", payload.plcProcessorModule || "-"],
+      ["PLC MODULE - Digital Input Module", payload.plcDigitalInputModule || "-"],
+      ["PLC MODULE - Digital Output Module", payload.plcDigitalOutputModule || "-"],
+      ["PLC MODULE - Analog Input Module", payload.plcAnalogInputModule || "-"],
+      ["PLC MODULE - Analog Output Module", payload.plcAnalogOutputModule || "-"],
+      ["Fiber optic & Ethernet communication", payload.fiberOpticEthernetCommunication || "-"],
+      ["Grounding System - EE-EA", payload.groundingEeEa || "-"],
+      ["Grounding System - EE-PE", payload.groundingEePe || "-"],
+      ["Grounding System - EA-PE", payload.groundingEaPe || "-"],
+      ["Cable Termination", payload.cableTermination || "-"],
+      ["UPS", payload.upsOutput || "-"],
+      ["PDB", payload.pdbOutput || "-"],
+      ["Room & Panel - AC", payload.roomAcCondition || "-"],
+      ["Room & Panel - Kebersihan", payload.roomCleanliness || "-"],
+      ["Kondisi Rusak - Penggantian Part", payload.damagedPartReplacement || "-"],
+      ["Terjadi Penyimpangan - Adjustment / Repair", payload.adjustmentRepair || "-"],
     ];
   }
 
@@ -3675,8 +3829,25 @@ function hydrateServiceForm(item) {
   }
 
   if (item.formType === "service-dcs") {
-    form.equipmentFunction.value = payload.equipmentFunction || "";
-    form.environmentCleanliness.value = payload.environmentCleanliness || "";
+    const dcsPayload = normalizeDcsPayload(payload);
+    form.plcPowerSupplyModule.value = dcsPayload.plcPowerSupplyModule || "";
+    form.plcCommunicationModule.value = dcsPayload.plcCommunicationModule || "";
+    form.plcProcessorModule.value = dcsPayload.plcProcessorModule || "";
+    form.plcDigitalInputModule.value = dcsPayload.plcDigitalInputModule || "";
+    form.plcDigitalOutputModule.value = dcsPayload.plcDigitalOutputModule || "";
+    form.plcAnalogInputModule.value = dcsPayload.plcAnalogInputModule || "";
+    form.plcAnalogOutputModule.value = dcsPayload.plcAnalogOutputModule || "";
+    form.fiberOpticEthernetCommunication.value = dcsPayload.fiberOpticEthernetCommunication || "";
+    form.groundingEeEa.value = dcsPayload.groundingEeEa || "";
+    form.groundingEePe.value = dcsPayload.groundingEePe || "";
+    form.groundingEaPe.value = dcsPayload.groundingEaPe || "";
+    form.cableTermination.value = dcsPayload.cableTermination || "";
+    form.upsOutput.value = dcsPayload.upsOutput || "";
+    form.pdbOutput.value = dcsPayload.pdbOutput || "";
+    form.roomAcCondition.value = dcsPayload.roomAcCondition || "";
+    form.roomCleanliness.value = dcsPayload.roomCleanliness || "";
+    form.damagedPartReplacement.value = dcsPayload.damagedPartReplacement || "";
+    form.adjustmentRepair.value = dcsPayload.adjustmentRepair || "";
   }
 
   editingServiceId = item.id;
@@ -4634,21 +4805,39 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-dcs") {
+        const payload = normalizeDcsPayload({
+          inspectionDate: editingServiceId
+            ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload?.inspectionDate || new Date().toISOString()
+            : new Date().toISOString(),
+          plcPowerSupplyModule: String(formData.get("plcPowerSupplyModule") || ""),
+          plcCommunicationModule: String(formData.get("plcCommunicationModule") || ""),
+          plcProcessorModule: String(formData.get("plcProcessorModule") || ""),
+          plcDigitalInputModule: String(formData.get("plcDigitalInputModule") || ""),
+          plcDigitalOutputModule: String(formData.get("plcDigitalOutputModule") || ""),
+          plcAnalogInputModule: String(formData.get("plcAnalogInputModule") || ""),
+          plcAnalogOutputModule: String(formData.get("plcAnalogOutputModule") || ""),
+          fiberOpticEthernetCommunication: String(formData.get("fiberOpticEthernetCommunication") || ""),
+          groundingEeEa: String(formData.get("groundingEeEa") || ""),
+          groundingEePe: String(formData.get("groundingEePe") || ""),
+          groundingEaPe: String(formData.get("groundingEaPe") || ""),
+          cableTermination: String(formData.get("cableTermination") || ""),
+          upsOutput: String(formData.get("upsOutput") || ""),
+          pdbOutput: String(formData.get("pdbOutput") || ""),
+          roomAcCondition: String(formData.get("roomAcCondition") || ""),
+          roomCleanliness: String(formData.get("roomCleanliness") || ""),
+          damagedPartReplacement: String(formData.get("damagedPartReplacement") || ""),
+          adjustmentRepair: String(formData.get("adjustmentRepair") || ""),
+        });
+
         const item = {
           id: editingServiceId || createId("service"),
           type: "DCS",
           subtype: "DCS",
           formType: "service-dcs",
-        equipmentName: String(formData.get("equipmentName") || "-"),
-        description: String(formData.get("description") || "-"),
-          detail: `Fungsi: ${String(formData.get("equipmentFunction") || "-")} | Kebersihan: ${String(formData.get("environmentCleanliness") || "-")}`,
-          payload: {
-            inspectionDate: editingServiceId
-              ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload?.inspectionDate || new Date().toISOString()
-              : new Date().toISOString(),
-            equipmentFunction: String(formData.get("equipmentFunction") || ""),
-            environmentCleanliness: String(formData.get("environmentCleanliness") || ""),
-          },
+          equipmentName: String(formData.get("equipmentName") || "-"),
+          description: String(formData.get("description") || "-"),
+          detail: buildDcsSummary(payload),
+          payload,
         };
       const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
       if (editingServiceId) {
