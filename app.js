@@ -117,9 +117,12 @@ const apiResourceMap = {
 const backendState = {
   available: false,
   sessionActive: false,
+  masters: {
+    areas: [],
+    inspectionTemplates: [],
+    equipmentReferences: [],
+  },
 };
-
-const pendingSyncTimers = new Map();
 
 let activeRole = "admin";
 let editingNegatifId = null;
@@ -447,9 +450,32 @@ async function loadEquipmentReference() {
   }
 
   equipmentReferenceInput.disabled = true;
-  updateEquipmentReferenceStatus("Memuat referensi equipment dari spreadsheet...");
+  updateEquipmentReferenceStatus("Memuat referensi equipment...");
 
   try {
+    if (backendState.available && backendState.sessionActive) {
+      const result = await loadMastersFromBackend("negatif-list");
+      const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
+      equipmentReferenceList = [...new Set(
+        references
+          .map((item) => String(item.equipmentName || "").trim())
+          .filter(Boolean),
+      )].sort((left, right) => left.localeCompare(right, "id"));
+      if (!equipmentReferenceList.length) {
+        throw new Error("Referensi backend kosong");
+      }
+      equipmentReferenceInput.disabled = false;
+      equipmentReferenceInput.placeholder = "Ketik minimal 1 huruf untuk mencari equipment";
+      if (selectedEquipmentReference && equipmentReferenceList.includes(selectedEquipmentReference)) {
+        equipmentReferenceInput.value = selectedEquipmentReference;
+      } else {
+        equipmentReferenceInput.value = "";
+        selectedEquipmentReference = "";
+      }
+      updateEquipmentReferenceStatus(`Referensi equipment aktif: ${equipmentReferenceList.length} item dari master backend.`);
+      return;
+    }
+
     const response = await fetch(EQUIPMENT_REFERENCE_URL, { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -505,9 +531,32 @@ async function loadCarbonBrushEquipmentReference() {
   }
 
   carbonBrushEquipmentInput.disabled = true;
-  updateCarbonBrushEquipmentStatus("Memuat referensi equipment carbon brush dari spreadsheet...");
+  updateCarbonBrushEquipmentStatus("Memuat referensi equipment carbon brush...");
 
   try {
+    if (backendState.available && backendState.sessionActive) {
+      const result = await loadMastersFromBackend("carbon-brush");
+      const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
+      carbonBrushEquipmentReferenceList = [...new Set(
+        references
+          .map((item) => String(item.equipmentName || "").trim())
+          .filter(Boolean),
+      )].sort((left, right) => left.localeCompare(right, "id"));
+      if (!carbonBrushEquipmentReferenceList.length) {
+        throw new Error("Referensi carbon brush backend kosong");
+      }
+      carbonBrushEquipmentInput.disabled = false;
+      carbonBrushEquipmentInput.placeholder = "Ketik kode equipment, misal 343RM1";
+      if (selectedCarbonBrushEquipmentReference && carbonBrushEquipmentReferenceList.includes(selectedCarbonBrushEquipmentReference)) {
+        carbonBrushEquipmentInput.value = selectedCarbonBrushEquipmentReference;
+      } else {
+        carbonBrushEquipmentInput.value = "";
+        selectedCarbonBrushEquipmentReference = "";
+      }
+      updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari master backend.`);
+      return;
+    }
+
     const response = await fetch(CARBON_BRUSH_REFERENCE_URL, { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -779,7 +828,7 @@ function bootstrapDebugMode() {
   }
 
   if (debugSample === "1") {
-    applySampleDataState();
+    void applySampleDataState();
   }
 
   if (debugDemo === "1") {
@@ -1867,32 +1916,6 @@ function cacheBootstrapData(data) {
   });
 }
 
-async function syncResourceToBackend(resourceKey, items) {
-  if (!backendState.available || !backendState.sessionActive) {
-    return;
-  }
-
-  if (pendingSyncTimers.has(resourceKey)) {
-    window.clearTimeout(pendingSyncTimers.get(resourceKey));
-  }
-
-  const snapshot = JSON.parse(JSON.stringify(Array.isArray(items) ? items : []));
-  const timerId = window.setTimeout(async () => {
-    try {
-      await apiRequest(`/sync/${resourceKey}`, {
-        method: "PUT",
-        body: { items: snapshot },
-      });
-    } catch (error) {
-      console.error(`Sync gagal untuk ${resourceKey}:`, error);
-    } finally {
-      pendingSyncTimers.delete(resourceKey);
-    }
-  }, 200);
-
-  pendingSyncTimers.set(resourceKey, timerId);
-}
-
 async function saveItemToBackend(resourceKey, item, isEditing = false) {
   if (!backendState.available || !backendState.sessionActive) {
     return item;
@@ -1920,6 +1943,28 @@ async function deleteItemFromBackend(resourceKey, itemId) {
   return true;
 }
 
+async function fetchItemsFromBackend(resourceKey) {
+  if (!backendState.available || !backendState.sessionActive) {
+    return [];
+  }
+  const result = await apiRequest(`/items/${resourceKey}`);
+  return Array.isArray(result.items) ? result.items : [];
+}
+
+async function loadMastersFromBackend(sourceGroup = "") {
+  if (!backendState.available || !backendState.sessionActive) {
+    return null;
+  }
+  const suffix = sourceGroup ? `?source_group=${encodeURIComponent(sourceGroup)}` : "";
+  const result = await apiRequest(`/masters${suffix}`);
+  backendState.masters = {
+    areas: Array.isArray(result.areas) ? result.areas : [],
+    inspectionTemplates: Array.isArray(result.inspectionTemplates) ? result.inspectionTemplates : [],
+    equipmentReferences: Array.isArray(result.equipmentReferences) ? result.equipmentReferences : [],
+  };
+  return result;
+}
+
 function getStoredUsers() {
   const storedUsers = readStorage(storageKeys.users);
   if (Array.isArray(storedUsers) && storedUsers.length > 0) {
@@ -1944,18 +1989,35 @@ function loginWithUser(user) {
   openSection("dashboard");
 }
 
+async function loadAllDataFromBackend() {
+  const [negatifItems, sparepartItems, serviceItems, bomItems, spbItems] = await Promise.all([
+    fetchItemsFromBackend("negatif-list"),
+    fetchItemsFromBackend("sparepart"),
+    fetchItemsFromBackend("service"),
+    fetchItemsFromBackend("bom"),
+    fetchItemsFromBackend("spb"),
+  ]);
+
+  writeStorage(storageKeys.negatifList, negatifItems.map((item) => normalizeNegatifItem(item)));
+  writeStorage(storageKeys.sparepart, sparepartItems);
+  writeStorage(storageKeys.service, serviceItems.map((item) => normalizeServiceItem(item)));
+  writeStorage(storageKeys.bom, bomItems);
+  writeStorage(storageKeys.spb, spbItems);
+  loadStoredData();
+}
+
 async function hydrateFromBackendAfterLogin() {
   const bootstrap = await apiRequest("/bootstrap");
   backendState.sessionActive = true;
-  cacheBootstrapData(bootstrap.data);
   if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
     cacheUsers(bootstrap.users);
   }
-  loadStoredData();
+  await loadAllDataFromBackend();
+  await loadMastersFromBackend();
   renderUserManagementTable();
 
   if (!hasAnyStoredData()) {
-    applySampleDataState();
+    await applySampleDataState();
     if (sampleDataStatus) {
       sampleDataStatus.textContent = "Sample data aktif otomatis karena database masih kosong.";
     }
@@ -1970,11 +2032,11 @@ async function restoreBackendSession() {
     }
 
     backendState.sessionActive = true;
-    cacheBootstrapData(bootstrap.data);
     if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
       cacheUsers(bootstrap.users);
     }
-    loadStoredData();
+    await loadAllDataFromBackend();
+    await loadMastersFromBackend();
     loginWithUser(bootstrap.user);
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
@@ -1986,14 +2048,9 @@ async function restoreBackendSession() {
 }
 
 async function initializeApplication() {
-  await Promise.allSettled([
-    loadEquipmentReference(),
-    loadCarbonBrushEquipmentReference(),
-  ]);
+  const backendReady = await detectBackendAvailability();
   renderCarbonBrushMeasurementGrid();
   getStoredUsers();
-
-  const backendReady = await detectBackendAvailability();
   if (backendReady) {
     const restored = await restoreBackendSession();
     if (!restored) {
@@ -2004,8 +2061,13 @@ async function initializeApplication() {
     restoreSession();
   }
 
+  await Promise.allSettled([
+    loadEquipmentReference(),
+    loadCarbonBrushEquipmentReference(),
+  ]);
+
   if (!hasAnyStoredData()) {
-    applySampleDataState();
+    await applySampleDataState();
     if (sampleDataStatus) {
       sampleDataStatus.textContent = backendReady
         ? "Sample data aktif otomatis karena database masih kosong."
@@ -2075,31 +2137,26 @@ function getServiceItemsFromDom() {
 function persistNegatifList() {
   const items = getNegatifItemsFromDom();
   writeStorage(storageKeys.negatifList, items);
-  void syncResourceToBackend(apiResourceMap[storageKeys.negatifList], items);
 }
 
 function persistServiceList() {
   const items = getServiceItemsFromDom();
   writeStorage(storageKeys.service, items);
-  void syncResourceToBackend(apiResourceMap[storageKeys.service], items);
 }
 
 function persistSparepartList() {
   const items = getSparepartItemsFromDom();
   writeStorage(storageKeys.sparepart, items);
-  void syncResourceToBackend(apiResourceMap[storageKeys.sparepart], items);
 }
 
 function persistBomList() {
   const items = getBomItemsFromDom();
   writeStorage(storageKeys.bom, items);
-  void syncResourceToBackend(apiResourceMap[storageKeys.bom], items);
 }
 
 function persistSpbList() {
   const items = getSpbItemsFromDom();
   writeStorage(storageKeys.spb, items);
-  void syncResourceToBackend(apiResourceMap[storageKeys.spb], items);
 }
 
 function updateDashboardStats() {
@@ -2587,7 +2644,7 @@ function replaceCardList(target, items, renderer) {
   });
 }
 
-function applySampleDataState() {
+async function applySampleDataState() {
   [
     storageKeys.negatifList,
     storageKeys.sparepart,
@@ -2603,6 +2660,16 @@ function applySampleDataState() {
   replaceCardList(serviceCardList, sampleData.service, renderServiceCard);
   replaceCardList(bomList, sampleData.bom, renderBomCard);
   replaceBodyRows(spbBody, sampleData.spb, renderSpbRow);
+
+  if (backendState.available && backendState.sessionActive) {
+    await Promise.all([
+      ...sampleData.negatifList.map((item) => saveItemToBackend("negatif-list", item)),
+      ...sampleData.sparepart.map((item) => saveItemToBackend("sparepart", item)),
+      ...sampleData.service.map((item) => saveItemToBackend("service", item)),
+      ...sampleData.bom.map((item) => saveItemToBackend("bom", item)),
+      ...sampleData.spb.map((item) => saveItemToBackend("spb", item)),
+    ]);
+  }
 
   persistNegatifList();
   persistSparepartList();

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import hmac
+import io
 import json
 import os
 import secrets
@@ -12,7 +14,8 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
+from urllib.request import urlopen
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -159,6 +162,56 @@ ROLE_EDITABLE = {
     "team": {"service"},
 }
 
+MASTER_REFERENCE_URLS = {
+    "negatif-list": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRt_ysTFRHmKVY3-hlFDgBYex-BExU0cdFnuBaWOPqxKAo6mqavGhtZeKdTkvvFXsm-uvcOt2QVLHHC/pub?output=csv",
+    "carbon-brush": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv",
+}
+
+DEFAULT_AREAS = [
+    ("tuban-3", "Tuban 3", "Tuban 3", 1),
+    ("tuban-4", "Tuban 4", "Tuban 4", 2),
+    ("tuban-34", "Tuban 34", "Tuban 34", 3),
+]
+
+DEFAULT_INSPECTION_TEMPLATES = [
+    ("service", "Electrical", "Electrical Room", "Inspeksi Electrical Room", json.dumps({
+        "fields": ["panelDoorCondition", "floorCleanliness", "roomTemperature", "battery", "transformer"]
+    }, ensure_ascii=False)),
+    ("service", "Electrical", "Motor MV", "Inspeksi Motor MV", json.dumps({
+        "fields": ["vibrationDe", "vibrationNde", "windingTemperature", "bearingCondition", "motorCurrent"]
+    }, ensure_ascii=False)),
+    ("service", "Electrical", "Motor MV (Carbon Brush)", "Inspeksi Carbon Brush", json.dumps({
+        "fields": ["measurements", "replacement", "megger", "pic"]
+    }, ensure_ascii=False)),
+    ("service", "Electrical", "EH/CA", "Inspeksi EH/CA", json.dumps({
+        "fields": ["systemPressure", "fluidLevel", "filterCondition", "leakCondition", "unitCondition"]
+    }, ensure_ascii=False)),
+    ("service", "Instrument", "Instrument", "Inspeksi Instrument", json.dumps({
+        "fields": ["sensorCondition", "findingPhoto"]
+    }, ensure_ascii=False)),
+    ("service", "DCS", "DCS", "Inspeksi DCS", json.dumps({
+        "fields": ["equipmentFunction", "environmentCleanliness"]
+    }, ensure_ascii=False)),
+    ("negatif-list", "Negatif List", "Pending Work", "Monitoring Negatif List", json.dumps({
+        "fields": ["equipment", "damageDescription", "followUpPlan", "foundDate", "pendingMark", "workStatus", "category", "area"]
+    }, ensure_ascii=False)),
+]
+
+FALLBACK_EQUIPMENT_REFERENCES = {
+    "negatif-list": [
+        "Motor Raw Mill 1A",
+        "Coal Feeder FT-02",
+        "Operator Station CCR-03",
+        "Temperature Scanner Kiln",
+        "Panel MCC Finish Mill",
+        "Server Historian HS-01",
+    ],
+    "carbon-brush": [
+        "343RM1 - ABB",
+        "344RM1 - ABB",
+    ],
+}
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -217,6 +270,41 @@ def init_db() -> None:
                 resource TEXT PRIMARY KEY,
                 payload TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS areas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                plant TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                is_active INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE TABLE IF NOT EXISTS inspection_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module_name TEXT NOT NULL,
+                inspection_type TEXT NOT NULL,
+                inspection_subtype TEXT NOT NULL,
+                title TEXT NOT NULL,
+                definition_json TEXT NOT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                UNIQUE(module_name, inspection_type, inspection_subtype)
+            );
+
+            CREATE TABLE IF NOT EXISTS equipment_reference (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_group TEXT NOT NULL,
+                equipment_code TEXT NOT NULL,
+                equipment_name TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT '',
+                area TEXT NOT NULL DEFAULT '',
+                plant TEXT NOT NULL DEFAULT '',
+                source_url TEXT NOT NULL DEFAULT '',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                is_active INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL,
+                UNIQUE(source_group, equipment_code, equipment_name)
             );
 
             CREATE TABLE IF NOT EXISTS negatif_list_items (
@@ -316,6 +404,7 @@ def init_db() -> None:
                 (resource, "[]", utc_now().isoformat()),
             )
 
+        seed_master_data(connection)
         migrate_snapshot_state(connection)
         ensure_audit_columns(connection)
 
@@ -349,6 +438,14 @@ def list_users() -> list[dict]:
     with get_connection() as connection:
         rows = connection.execute(
             "SELECT id, username, role, created_at FROM users ORDER BY lower(username)"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def list_users_for_backup() -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT username, password_hash, role, created_at FROM users ORDER BY lower(username)"
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -748,6 +845,350 @@ def can_edit_resource(role: str, resource_key: str) -> bool:
     return resource_key in ROLE_EDITABLE.get(role, set())
 
 
+def seed_master_data(connection: sqlite3.Connection) -> None:
+    for code, name, plant, sort_order in DEFAULT_AREAS:
+        connection.execute(
+            """
+            INSERT INTO areas (code, name, plant, sort_order, is_active)
+            VALUES (?, ?, ?, ?, 1)
+            ON CONFLICT(code) DO UPDATE SET
+                name = excluded.name,
+                plant = excluded.plant,
+                sort_order = excluded.sort_order,
+                is_active = 1
+            """,
+            (code, name, plant, sort_order),
+        )
+
+    for module_name, inspection_type, inspection_subtype, title, definition_json in DEFAULT_INSPECTION_TEMPLATES:
+        connection.execute(
+            """
+            INSERT INTO inspection_templates (module_name, inspection_type, inspection_subtype, title, definition_json, is_active)
+            VALUES (?, ?, ?, ?, ?, 1)
+            ON CONFLICT(module_name, inspection_type, inspection_subtype) DO UPDATE SET
+                title = excluded.title,
+                definition_json = excluded.definition_json,
+                is_active = 1
+            """,
+            (module_name, inspection_type, inspection_subtype, title, definition_json),
+        )
+
+    for source_group in MASTER_REFERENCE_URLS:
+        existing = connection.execute(
+            "SELECT COUNT(*) AS total FROM equipment_reference WHERE source_group = ?",
+            (source_group,),
+        ).fetchone()
+        if existing and int(existing["total"]) > 0:
+            continue
+        import_equipment_reference_group(connection, source_group)
+
+
+def import_equipment_reference_group(connection: sqlite3.Connection, source_group: str) -> None:
+    imported_rows = fetch_remote_equipment_references(source_group)
+    if not imported_rows:
+        imported_rows = [
+            {
+                "equipment_code": name.split(" ")[0],
+                "equipment_name": name,
+                "category": "",
+                "area": "",
+                "plant": "",
+                "metadata_json": "{}",
+            }
+            for name in FALLBACK_EQUIPMENT_REFERENCES.get(source_group, [])
+        ]
+
+    for row in imported_rows:
+        connection.execute(
+            """
+            INSERT INTO equipment_reference (
+                source_group, equipment_code, equipment_name, category, area, plant, source_url, metadata_json, is_active, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(source_group, equipment_code, equipment_name) DO UPDATE SET
+                category = excluded.category,
+                area = excluded.area,
+                plant = excluded.plant,
+                source_url = excluded.source_url,
+                metadata_json = excluded.metadata_json,
+                is_active = 1,
+                updated_at = excluded.updated_at
+            """,
+            (
+                source_group,
+                row["equipment_code"],
+                row["equipment_name"],
+                row["category"],
+                row["area"],
+                row["plant"],
+                MASTER_REFERENCE_URLS.get(source_group, ""),
+                row["metadata_json"],
+                utc_now().isoformat(),
+            ),
+        )
+
+
+def fetch_remote_equipment_references(source_group: str) -> list[dict]:
+    url = MASTER_REFERENCE_URLS.get(source_group)
+    if not url:
+        return []
+
+    try:
+        with urlopen(url, timeout=8) as response:
+            csv_text = response.read().decode("utf-8", errors="ignore")
+    except Exception:
+        return []
+
+    reader = csv.reader(io.StringIO(csv_text))
+    rows = list(reader)
+    if len(rows) < 2:
+        return []
+
+    headers = [header.strip().lower() for header in rows[0]]
+    equipment_index = detect_reference_column(headers, ["equipment", "nama equipment", "equipment name", "tag"])
+    if equipment_index < 0:
+        equipment_index = 0
+    area_index = detect_reference_column(headers, ["area"])
+    plant_index = detect_reference_column(headers, ["plant"])
+    category_index = detect_reference_column(headers, ["category", "kategori"])
+
+    imported_rows: list[dict] = []
+    for raw_row in rows[1:]:
+        if equipment_index >= len(raw_row):
+            continue
+        equipment_name = raw_row[equipment_index].strip()
+        if not equipment_name:
+            continue
+        imported_rows.append(
+            {
+                "equipment_code": equipment_name.split(" ")[0],
+                "equipment_name": equipment_name,
+                "category": raw_row[category_index].strip() if category_index >= 0 and category_index < len(raw_row) else "",
+                "area": raw_row[area_index].strip() if area_index >= 0 and area_index < len(raw_row) else "",
+                "plant": raw_row[plant_index].strip() if plant_index >= 0 and plant_index < len(raw_row) else "",
+                "metadata_json": "{}",
+            }
+        )
+    return imported_rows
+
+
+def detect_reference_column(headers: list[str], candidates: list[str]) -> int:
+    for index, header in enumerate(headers):
+        if header in candidates:
+            return index
+    return -1
+
+
+def list_areas() -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT code, name, plant, sort_order FROM areas WHERE is_active = 1 ORDER BY sort_order, name"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def list_inspection_templates() -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT module_name, inspection_type, inspection_subtype, title, definition_json
+            FROM inspection_templates
+            WHERE is_active = 1
+            ORDER BY module_name, inspection_type, inspection_subtype
+            """
+        ).fetchall()
+    templates = []
+    for row in rows:
+        try:
+            definition = json.loads(row["definition_json"])
+        except json.JSONDecodeError:
+            definition = {}
+        templates.append(
+            {
+                "moduleName": row["module_name"],
+                "inspectionType": row["inspection_type"],
+                "inspectionSubtype": row["inspection_subtype"],
+                "title": row["title"],
+                "definition": definition,
+            }
+        )
+    return templates
+
+
+def list_equipment_references(source_group: str | None = None) -> list[dict]:
+    query = """
+        SELECT source_group, equipment_code, equipment_name, category, area, plant, source_url, metadata_json
+        FROM equipment_reference
+        WHERE is_active = 1
+    """
+    params: tuple = ()
+    if source_group:
+        query += " AND source_group = ?"
+        params = (source_group,)
+    query += " ORDER BY source_group, equipment_name"
+
+    with get_connection() as connection:
+        rows = connection.execute(query, params).fetchall()
+
+    references = []
+    for row in rows:
+        try:
+            metadata = json.loads(row["metadata_json"])
+        except json.JSONDecodeError:
+            metadata = {}
+        references.append(
+            {
+                "sourceGroup": row["source_group"],
+                "equipmentCode": row["equipment_code"],
+                "equipmentName": row["equipment_name"],
+                "category": row["category"],
+                "area": row["area"],
+                "plant": row["plant"],
+                "sourceUrl": row["source_url"],
+                "metadata": metadata,
+            }
+        )
+    return references
+
+
+def build_backup_payload() -> dict:
+    return {
+        "meta": {
+            "generatedAt": utc_now().isoformat(),
+            "app": "PLIRM34",
+            "version": 1,
+        },
+        "users": list_users_for_backup(),
+        "areas": list_areas(),
+        "inspectionTemplates": list_inspection_templates(),
+        "equipmentReferences": list_equipment_references(),
+        "data": get_state_snapshot(),
+    }
+
+
+def restore_backup_payload(payload: dict) -> None:
+    with get_connection() as connection:
+        connection.execute("DELETE FROM sessions")
+        users = payload.get("users", [])
+        if isinstance(users, list):
+            connection.execute("DELETE FROM users")
+            for user in users:
+                connection.execute(
+                    """
+                    INSERT INTO users (username, password_hash, role, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        str(user.get("username", "")),
+                        str(user.get("password_hash", "")),
+                        str(user.get("role", "team")),
+                        str(user.get("created_at", utc_now().isoformat())),
+                    ),
+                )
+
+        areas = payload.get("areas", [])
+        if isinstance(areas, list):
+            connection.execute("DELETE FROM areas")
+            for index, area in enumerate(areas, start=1):
+                connection.execute(
+                    """
+                    INSERT INTO areas (code, name, plant, sort_order, is_active)
+                    VALUES (?, ?, ?, ?, 1)
+                    """,
+                    (
+                        str(area.get("code", f"area-{index}")),
+                        str(area.get("name", "")),
+                        str(area.get("plant", "")),
+                        int(area.get("sort_order", area.get("sortOrder", index))),
+                    ),
+                )
+
+        templates = payload.get("inspectionTemplates", [])
+        if isinstance(templates, list):
+            connection.execute("DELETE FROM inspection_templates")
+            for template in templates:
+                connection.execute(
+                    """
+                    INSERT INTO inspection_templates (module_name, inspection_type, inspection_subtype, title, definition_json, is_active)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                    """,
+                    (
+                        str(template.get("moduleName", "")),
+                        str(template.get("inspectionType", "")),
+                        str(template.get("inspectionSubtype", "")),
+                        str(template.get("title", "")),
+                        json.dumps(template.get("definition", {}), ensure_ascii=False),
+                    ),
+                )
+
+        equipment_references = payload.get("equipmentReferences", [])
+        if isinstance(equipment_references, list):
+            connection.execute("DELETE FROM equipment_reference")
+            for reference in equipment_references:
+                connection.execute(
+                    """
+                    INSERT INTO equipment_reference (
+                        source_group, equipment_code, equipment_name, category, area, plant, source_url, metadata_json, is_active, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    """,
+                    (
+                        str(reference.get("sourceGroup", "")),
+                        str(reference.get("equipmentCode", "")),
+                        str(reference.get("equipmentName", "")),
+                        str(reference.get("category", "")),
+                        str(reference.get("area", "")),
+                        str(reference.get("plant", "")),
+                        str(reference.get("sourceUrl", "")),
+                        json.dumps(reference.get("metadata", {}), ensure_ascii=False),
+                        utc_now().isoformat(),
+                    ),
+                )
+
+        data = payload.get("data", {})
+        for resource_key in STATE_KEYS:
+            items = data.get(STATE_KEYS[resource_key], data.get(resource_key.replace("-", "_"), []))
+            if isinstance(items, list):
+                replace_resource_items(connection, resource_key, items)
+                refresh_snapshot(connection, resource_key)
+
+
+def export_resource_csv(resource_key: str) -> str:
+    items = list_items(resource_key)
+    buffer = io.StringIO()
+    if resource_key == "negatif-list":
+        writer = csv.writer(buffer)
+        writer.writerow(["Equipment", "Deskripsi Kerusakan", "Rencana Tindak Lanjut", "Tanggal Temuan", "Mark", "Status", "Kategori", "Area"])
+        for item in items:
+            writer.writerow([item["equipment"], item["damageDescription"], item["followUpPlan"], item["foundDate"], item["pendingMark"], item["workStatus"], item["category"], item["area"]])
+        return buffer.getvalue()
+    if resource_key == "sparepart":
+        writer = csv.writer(buffer)
+        writer.writerow(["Kode", "Nama", "Kategori", "Lokasi", "Qty", "Kondisi"])
+        for item in items:
+            writer.writerow([item["code"], item["name"], item["category"], item["location"], item["qty"], item["condition"]])
+        return buffer.getvalue()
+    if resource_key == "service":
+        writer = csv.writer(buffer)
+        writer.writerow(["Tipe", "Sub Menu", "Form", "Equipment", "Deskripsi", "Detail"])
+        for item in items:
+            writer.writerow([item["type"], item["subtype"], item["formType"], item["equipmentName"], item["description"], item["detail"]])
+        return buffer.getvalue()
+    if resource_key == "bom":
+        writer = csv.writer(buffer)
+        writer.writerow(["Nama", "Deskripsi", "Meta", "Foto Barang", "Foto Nameplate"])
+        for item in items:
+            writer.writerow([item["name"], item["description"], item["meta"], item["itemPhoto"], item["nameplatePhoto"]])
+        return buffer.getvalue()
+    if resource_key == "spb":
+        writer = csv.writer(buffer)
+        writer.writerow(["Jenis Ajuan", "Type Ajuan", "No Notifikasi", "No Order", "No Reservasi", "No Material", "Deskripsi", "Qty", "Harga", "Status"])
+        for item in items:
+            writer.writerow([item["requestType"], item["requestSubtype"], item["notificationNo"], item["orderNo"], item["reservationNo"], item["materialNo"], item["materialDescription"], item["qty"], item["price"], item["status"]])
+        return buffer.getvalue()
+    raise ValueError("Resource export tidak dikenal")
+
+
 class PLIRMRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT_DIR), **kwargs)
@@ -761,6 +1202,18 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             self._send_json({"ok": True, "timestamp": utc_now().isoformat()})
+            return
+
+        if parsed.path == "/api/masters":
+            self._handle_masters_get(parsed.query)
+            return
+
+        if parsed.path.startswith("/api/reports/export/"):
+            self._handle_export_report(parsed.path)
+            return
+
+        if parsed.path == "/api/admin/backup":
+            self._handle_backup_get()
             return
 
         if parsed.path.startswith("/api/items/"):
@@ -799,6 +1252,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/admin/restore":
+            self._handle_restore_post()
+            return
+
         if parsed.path.startswith("/api/items/"):
             self._handle_items_post(parsed.path)
             return
@@ -876,6 +1333,18 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_text(self, body_text: str, *, status: HTTPStatus = HTTPStatus.OK, content_type: str = "text/plain; charset=utf-8", extra_headers: dict | None = None):
+        body = body_text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        if extra_headers:
+            for key, value in extra_headers.items():
+                self.send_header(key, value)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _read_session_cookie(self) -> str | None:
         cookie_header = self.headers.get("Cookie", "")
         if not cookie_header:
@@ -915,6 +1384,62 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return True
         self._send_json({"error": "Akses edit tidak diizinkan untuk modul ini"}, status=HTTPStatus.FORBIDDEN)
         return False
+
+    def _handle_masters_get(self, query: str):
+        user = self._require_user()
+        if not user:
+            return
+        params = parse_qs(query or "")
+        source_group = params.get("source_group", [None])[0]
+        self._send_json(
+            {
+                "areas": list_areas(),
+                "inspectionTemplates": list_inspection_templates(),
+                "equipmentReferences": list_equipment_references(source_group),
+            }
+        )
+
+    def _handle_export_report(self, path: str):
+        user = self._require_user()
+        if not user:
+            return
+        resource_key = path.rsplit("/", 1)[-1]
+        if resource_key not in RESOURCE_TABLES:
+            self._send_json({"error": "Resource export tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
+            return
+        csv_text = export_resource_csv(resource_key)
+        self._send_text(
+            csv_text,
+            content_type="text/csv; charset=utf-8",
+            extra_headers={"Content-Disposition": f'attachment; filename="{resource_key}.csv"'},
+        )
+
+    def _handle_backup_get(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        self._send_json(build_backup_payload())
+
+    def _handle_restore_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+        backup = payload.get("backup")
+        if not isinstance(backup, dict):
+            self._send_json({"error": "Payload backup harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        restore_backup_payload(backup)
+        self._send_json({"ok": True})
 
     def _handle_items_get(self, path: str):
         user = self._require_user()

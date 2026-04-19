@@ -29,19 +29,19 @@ Prototype aplikasi digitalisasi unit kerja `PLIRM34` dengan frontend web, backen
 2. Jalankan backend:
 
 ```powershell
-python server.py --host 0.0.0.0 --port 8012
+python server.py --host 0.0.0.0 --port 8015
 ```
 
 3. Buka browser ke:
 
 ```text
-http://127.0.0.1:8012
+http://127.0.0.1:8015
 ```
 
 Jika ingin dibuka dari HP pada jaringan yang sama, gunakan IP laptop/PC ini, misalnya:
 
 ```text
-http://192.168.x.x:8012
+http://192.168.x.x:8015
 ```
 
 ## Endpoint utama
@@ -59,6 +59,10 @@ http://192.168.x.x:8012
 - `POST /api/items/<resource>`
 - `PUT /api/items/<resource>/<id>`
 - `DELETE /api/items/<resource>/<id>`
+- `GET /api/masters`
+- `GET /api/admin/backup`
+- `POST /api/admin/restore`
+- `GET /api/reports/export/<resource>`
 
 ## Catatan
 
