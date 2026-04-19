@@ -735,6 +735,17 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.topbar-status-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workspace:not([data-active-section="dashboard"]) .topbar-status-group {
+  display: none;
+}
+
 .access-chip {
   padding: 10px 14px;
   border-radius: 999px;

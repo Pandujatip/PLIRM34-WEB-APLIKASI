@@ -875,6 +875,10 @@ function openSection(sectionName) {
     return;
   }
 
+  if (workspace) {
+    workspace.dataset.activeSection = sectionName;
+  }
+
   sections.forEach((section) => {
     section.classList.toggle("visible", section.dataset.panel === sectionName);
   });
