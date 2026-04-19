@@ -2415,22 +2415,43 @@ th {
   }
 
   .sidebar {
-    position: sticky;
-    top: 8px;
+    position: static;
     z-index: 30;
-    padding: 14px 16px;
-    gap: 12px;
+    padding: 0;
+    gap: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    min-height: 0;
   }
 
   .mobile-menu-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    align-self: flex-end;
+  }
+
+  .brand-block {
+    display: none;
   }
 
   .menu-list,
   .sidebar-hud-card {
     display: none;
+  }
+
+  .sidebar.menu-open {
+    position: sticky;
+    top: 8px;
+    padding: 14px 16px;
+    gap: 12px;
+    background:
+      linear-gradient(180deg, rgba(23, 23, 23, 0.98), rgba(12, 12, 12, 0.96)),
+      linear-gradient(180deg, rgba(255, 122, 24, 0.04), transparent 42%);
+    border: 1px solid rgba(255, 140, 66, 0.16);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
   }
 
   .sidebar.menu-open .menu-list {
@@ -2447,18 +2468,13 @@ th {
 
 @media (max-width: 640px) {
   .sidebar {
+    padding: 0;
+    gap: 0;
+  }
+
+  .sidebar.menu-open {
     padding: 16px;
     gap: 14px;
-  }
-
-  .brand-block {
-    justify-content: space-between;
-  }
-
-  .brand-mark {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
   }
 
   .menu-item {
