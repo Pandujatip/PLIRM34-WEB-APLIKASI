@@ -3739,8 +3739,42 @@ function applyServiceFilter() {
     const cardType = card.dataset.type || "";
     const matchesQuery = !query || matchesSearch(cardText, query);
     const matchesType = type === "semua" || cardType === type;
-    card.hidden = !(matchesQuery && matchesType);
+    const isVisible = matchesQuery && matchesType;
+    card.hidden = !isVisible;
+    card.classList.toggle("is-filtered-out", !isVisible);
   });
+
+  [...serviceCardList.querySelectorAll(".service-subgroup")].forEach((section) => {
+    const visibleItems = [...section.querySelectorAll(".service-list-item")].filter((card) => !card.hidden);
+    const emptyState = section.querySelector(".service-list-empty");
+    section.classList.toggle("is-filtered-out", visibleItems.length === 0 && !emptyState);
+    if (emptyState) {
+      emptyState.classList.toggle("is-filtered-out", visibleItems.length > 0);
+    }
+    const countLabel = section.querySelector(".service-subgroup-head span");
+    if (countLabel) {
+      countLabel.textContent = `${visibleItems.length} item`;
+    }
+  });
+
+  let visibleColumnCount = 0;
+  [...serviceCardList.querySelectorAll(".service-column")].forEach((column) => {
+    const groupKey = column.dataset.serviceGroup || "";
+    const matchesType = type === "semua" || groupKey === type;
+    const visibleItems = [...column.querySelectorAll(".service-list-item")].filter((card) => !card.hidden);
+    const visibleSubgroups = [...column.querySelectorAll(".service-subgroup")].filter((section) => !section.classList.contains("is-filtered-out"));
+    const shouldShow = matchesType && (visibleItems.length > 0 || visibleSubgroups.length > 0);
+    column.classList.toggle("is-filtered-out", !shouldShow);
+    if (shouldShow) {
+      visibleColumnCount += 1;
+    }
+    const countLabel = column.querySelector(".service-column-title span");
+    if (countLabel) {
+      countLabel.textContent = `${visibleItems.length} item`;
+    }
+  });
+
+  serviceCardList.classList.toggle("single-focus", visibleColumnCount <= 1);
 }
 
 function applyBomFilter() {
@@ -3938,6 +3972,7 @@ function renderServiceBoard(items) {
   groups.forEach((group) => {
     const column = document.createElement("section");
     column.className = "service-column";
+    column.dataset.serviceGroup = group.key;
     const groupItems = items.filter((item) => item.type === group.key);
     column.innerHTML = `
       <div class="service-column-head">
@@ -3956,6 +3991,7 @@ function renderServiceBoard(items) {
         const sectionItems = groupItems.filter((item) => (item.formType || "") === section.key);
         const wrapper = document.createElement("section");
         wrapper.className = "service-subgroup";
+        wrapper.dataset.sectionKey = section.key;
         wrapper.innerHTML = `
           <div class="service-subgroup-head">
             <strong>${section.title}</strong>
