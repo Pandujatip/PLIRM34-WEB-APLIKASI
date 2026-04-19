@@ -1,4 +1,6 @@
 const loginForm = document.getElementById("login-form");
+const signupButton = document.getElementById("signup-button");
+const forgotPasswordButton = document.getElementById("forgot-password-button");
 const loginScreen = document.getElementById("login-screen");
 const workspace = document.getElementById("workspace");
 const currentUser = document.getElementById("current-user");
@@ -12,6 +14,13 @@ const mobileMenuToggle = document.getElementById("mobile-menu-toggle");
 const menuItems = document.querySelectorAll(".menu-item");
 const sections = document.querySelectorAll(".panel-section");
 const jumpButtons = document.querySelectorAll("[data-section-jump]");
+const createToggleButtons = document.querySelectorAll("[data-create-target]");
+const createPanels = document.querySelectorAll("[data-create-panel]");
+const closePanelButtons = document.querySelectorAll("[data-close-panel]");
+const serviceTabs = document.querySelectorAll(".service-tab");
+const servicePanes = document.querySelectorAll(".service-pane");
+const electricalSubtabs = document.querySelectorAll(".service-subtab");
+const electricalPanes = document.querySelectorAll(".electrical-pane");
 const editableBlocks = document.querySelectorAll("[data-editable-for]");
 const lockedNotes = document.querySelectorAll("[data-locked-for]");
 const forms = document.querySelectorAll(".input-form");
@@ -19,6 +28,18 @@ const negatifListForm = document.querySelector('[data-form-type="negatif-list"]'
 const equipmentReferenceInput = negatifListForm?.querySelector('[name="equipment"]');
 const equipmentReferenceResults = document.getElementById("equipment-reference-results");
 const equipmentReferenceStatus = document.getElementById("equipment-reference-status");
+const carbonBrushEquipmentInput = document.getElementById("carbon-brush-equipment-name");
+const carbonBrushEquipmentResults = document.getElementById("carbon-brush-equipment-results");
+const carbonBrushEquipmentStatus = document.getElementById("carbon-brush-equipment-status");
+const carbonBrushEquipmentMeta = document.getElementById("carbon-brush-equipment-meta");
+const carbonBrushMeasurementGrid = document.getElementById("carbon-brush-measurement-grid");
+const carbonBrushStats = document.getElementById("carbon-brush-stats");
+const serviceDetailModal = document.getElementById("service-detail-modal");
+const serviceDetailClose = document.getElementById("service-detail-close");
+const serviceDetailTitle = document.getElementById("service-detail-title");
+const serviceDetailSubtitle = document.getElementById("service-detail-subtitle");
+const serviceDetailContent = document.getElementById("service-detail-content");
+const userManagementBody = document.getElementById("user-management-body");
 const negatifListBody = document.getElementById("negatif-list-body");
 const sparepartBody = document.getElementById("sparepart-body");
 const serviceCardList = document.getElementById("service-card-list");
@@ -45,6 +66,9 @@ const sampleDataStatus = document.getElementById("sample-data-status");
 const searchNegatifList = document.getElementById("search-negatif-list");
 const filterNegatifPriority = document.getElementById("filter-negatif-priority");
 const filterNegatifCause = document.getElementById("filter-negatif-cause");
+const filterNegatifCategory = document.getElementById("filter-negatif-category");
+const filterNegatifDateFrom = document.getElementById("filter-negatif-date-from");
+const filterNegatifDateTo = document.getElementById("filter-negatif-date-to");
 const searchSparepart = document.getElementById("search-sparepart");
 const filterSparepartCondition = document.getElementById("filter-sparepart-condition");
 const searchService = document.getElementById("search-service");
@@ -59,11 +83,21 @@ const negatifTotalCount = document.getElementById("negatif-total-count");
 const negatifHighCount = document.getElementById("negatif-high-count");
 const negatifRawmillCount = document.getElementById("negatif-rawmill-count");
 const negatifOvhCount = document.getElementById("negatif-ovh-count");
+const negatifStatusChart = document.getElementById("negatif-status-chart");
+const negatifAreaChart = document.getElementById("negatif-area-chart");
+const negatifMarkChart = document.getElementById("negatif-mark-chart");
 const EQUIPMENT_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRt_ysTFRHmKVY3-hlFDgBYex-BExU0cdFnuBaWOPqxKAo6mqavGhtZeKdTkvvFXsm-uvcOt2QVLHHC/pub?output=csv";
+const CARBON_BRUSH_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv";
+const carbonBrushMeasurementRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
+const carbonBrushMeasurementColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const carbonBrushMeasurementKeys = carbonBrushMeasurementRows.flatMap((row) => carbonBrushMeasurementColumns.map((column) => `${row}${column}`));
 let equipmentReferenceList = [];
 let selectedEquipmentReference = "";
+let carbonBrushEquipmentReferenceList = [];
+let selectedCarbonBrushEquipmentReference = "";
 const storageKeys = {
   session: "plirm34-session",
+  users: "plirm34-users",
   lastSection: "plirm34-last-section",
   negatifList: "plirm34-negatif-list",
   sparepart: "plirm34-sparepart-list",
@@ -91,14 +125,20 @@ const roleAccessSummary = {
   team: "Lihat semua modul, edit service",
 };
 
+const defaultAuthUsers = [
+  { username: "admin.plirm34", password: "admin123", role: "admin" },
+  { username: "organik.plirm34", password: "organik123", role: "organik" },
+  { username: "team.plirm34", password: "team123", role: "team" },
+];
+
 const roleSections = {
-  admin: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb"],
+  admin: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "user-management"],
   organik: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb"],
   team: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb"],
 };
 
 const roleEditable = {
-  admin: ["negatif-list", "sparepart", "service", "bom", "spb"],
+  admin: ["negatif-list", "sparepart", "service", "bom", "spb", "user-management"],
   organik: ["negatif-list"],
   team: ["service"],
 };
@@ -121,12 +161,12 @@ const sampleData = {
     { id: "sparepart-006", code: "SPX-106", name: "Industrial Thin Client", category: "DCS", location: "Rak E-06", qty: "1", condition: "Rusak" },
   ],
   service: [
-    { id: "service-001", type: "Electrical", equipmentName: "Trafo Utility TR-02", description: "Arus fasa tidak seimbang dan perlu investigasi pembebanan.", detail: "Vibrasi DE 1.4 mm/s | Vibrasi NDE 1.1 mm/s" },
-    { id: "service-002", type: "Instrument", equipmentName: "Level Transmitter TK-11", description: "Pembacaan level meloncat saat agitator aktif, perlu inspeksi mounting.", detail: "Kondisi sensor: noise sinyal | Foto: level_tk11.jpg" },
-    { id: "service-003", type: "DCS", equipmentName: "Engineering Station ES-01", description: "Response HMI melambat pada jam beban puncak dan perlu housekeeping software.", detail: "Fungsi: engineering & konfigurasi | Kebersihan: bersih" },
-    { id: "service-004", type: "Electrical", equipmentName: "Motor Conveyor CV-07", description: "Temperatur bearing naik melebihi baseline inspeksi bulan lalu.", detail: "Vibrasi DE 4.2 mm/s | Vibrasi NDE 3.7 mm/s" },
-    { id: "service-005", type: "Instrument", equipmentName: "Control Valve Steam CV-12", description: "Actuator masih normal tetapi feedback position sesekali hilang.", detail: "Kondisi sensor: intermittent | Foto: cv12_feedback.jpg" },
-    { id: "service-006", type: "DCS", equipmentName: "Panel Network Rack NR-01", description: "Patch cord tidak tertata dan ventilasi rack perlu dibersihkan.", detail: "Fungsi: distribusi jaringan kontrol | Kebersihan: perlu housekeeping" },
+    { id: "service-001", type: "Electrical", subtype: "Electrical Room", formType: "service-electrical-room", equipmentName: "Electrical Room Raw Mill", description: "Battery charger normal, tetapi kebersihan lantai perlu ditingkatkan dan satu pintu panel MCC belum tertutup rapat.", detail: "Pintu panel: NOT OK | Lantai: Kotor | Temperature: Dingin", payload: { panelDoorCondition: "NOT OK", floorCleanliness: "Kotor", roomTemperature: "Dingin", batteryVdc: "125 VDC", batteryAmpere: "4 A", batteryTotalVdc: "125 VDC", battery1: "12.5 VDC", battery2: "12.5 VDC", battery3: "12.4 VDC", battery4: "12.5 VDC", battery5: "12.5 VDC", battery6: "12.5 VDC", battery7: "12.4 VDC", battery8: "12.5 VDC", battery9: "12.5 VDC", battery10: "12.5 VDC", transformerEquipment: "TR-RM-01", transformerWindingTemperature: "74 C", transformerOilTemperature: "58 C", transformerOilLevel: "Normal", transformerSilicaGel: "OK", findingPhotoName: "room_rawmill.jpg" } },
+    { id: "service-002", type: "Electrical", subtype: "Motor MV", formType: "service-motor-mv", equipmentName: "Motor Raw Mill MV-01", description: "Vibrasi sisi DE meningkat dan arus motor mendekati batas operasi harian.", detail: "Vibrasi DE: 4.2 mm/s | Vibrasi NDE: 3.7 mm/s | Arus: 112 A", payload: { vibrationDe: "4.2 mm/s", vibrationNde: "3.7 mm/s", windingTemperature: "78 C", bearingCondition: "panas", motorCurrent: "112 A" } },
+    { id: "service-003", type: "Electrical", subtype: "Motor MV (Carbon Brush)", formType: "service-motor-mv-carbon-brush", equipmentName: "343RM1 - ABB", description: "Beberapa titik carbon brush turun ke zona merah dan perlu penggantian bertahap saat window shutdown berikutnya.", detail: "Merah: 1 | Kuning: 10 | Hijau: 13 | Terendah: 29.8", payload: { inspectionDate: "2026-04-18T00:00:00.000Z", plant: "Tuban 3", location: "Rawmill", category: "Equipment utama produksi", pic: "Purwanto, Rudi", replacement: "3", megger: "405", measurements: { A1: "36.37", A2: "35.38", A3: "42.31", A4: "34.64", A5: "35.04", B1: "30.56", B2: "41.48", B3: "32.62", C1: "32.3", C2: "44.95", C3: "35.46", C4: "31.65", C5: "33.26", C6: "30.47", D1: "31.7", D2: "29.80", D3: "31.74", D4: "31.36", D5: "42.03", D6: "35.35", D7: "43.58", D8: "38.55", D9: "32.62" }, stats: { low: 1, medium: 10, high: 13, empty: 57, min: 29.8, attentionPoints: ["D2", "B1", "B3", "C1", "C4", "C5", "C6", "D1"] } } },
+    { id: "service-004", type: "Electrical", subtype: "EH/CA", formType: "service-ehca", equipmentName: "Hydraulic Unit EH-01", description: "Tekanan sistem stabil, namun filter oil mendekati batas penggantian.", detail: "Pressure: 135 bar | Filter: perlu ganti | Leakage: tidak ada", payload: { systemPressure: "135 bar", fluidLevel: "normal", filterCondition: "perlu ganti", leakCondition: "tidak ada", unitCondition: "normal" } },
+    { id: "service-005", type: "Instrument", subtype: "Instrument", formType: "service-instrument", equipmentName: "Level Transmitter TK-11", description: "Pembacaan level meloncat saat agitator aktif, perlu inspeksi mounting.", detail: "Kondisi sensor: noise sinyal | Foto: level_tk11.jpg", payload: { sensorCondition: "noise sinyal", findingPhotoName: "level_tk11.jpg" } },
+    { id: "service-006", type: "DCS", subtype: "DCS", formType: "service-dcs", equipmentName: "Engineering Station ES-01", description: "Response HMI melambat pada jam beban puncak dan perlu housekeeping software.", detail: "Fungsi: engineering & konfigurasi | Kebersihan: bersih", payload: { equipmentFunction: "engineering & konfigurasi", environmentCleanliness: "bersih" } },
   ],
   bom: [
     { id: "bom-001", name: "Pump Cooling Water P-204", description: "Centrifugal pump untuk sirkulasi cooling water pada line produksi utama.", meta: "Tag: P-204 | Vendor: KSB | Serial: CW-204A", itemPhoto: "pump_p204.jpg", nameplatePhoto: "nameplate_p204.jpg" },
@@ -204,10 +244,26 @@ function updateEquipmentReferenceStatus(message, isError = false) {
   equipmentReferenceStatus.style.color = isError ? "#ffb4b4" : "";
 }
 
+function updateCarbonBrushEquipmentStatus(message, isError = false) {
+  if (!carbonBrushEquipmentStatus) {
+    return;
+  }
+
+  carbonBrushEquipmentStatus.textContent = message;
+  carbonBrushEquipmentStatus.style.color = isError ? "#ffb4b4" : "";
+}
+
 function hideEquipmentReferenceResults() {
   equipmentReferenceResults?.classList.add("hidden");
   if (equipmentReferenceResults) {
     equipmentReferenceResults.innerHTML = "";
+  }
+}
+
+function hideCarbonBrushEquipmentResults() {
+  carbonBrushEquipmentResults?.classList.add("hidden");
+  if (carbonBrushEquipmentResults) {
+    carbonBrushEquipmentResults.innerHTML = "";
   }
 }
 
@@ -218,6 +274,72 @@ function setEquipmentReferenceValue(value) {
 
   equipmentReferenceInput.value = value;
   selectedEquipmentReference = value;
+}
+
+function setCarbonBrushEquipmentValue(value) {
+  if (!carbonBrushEquipmentInput) {
+    return;
+  }
+
+  carbonBrushEquipmentInput.value = value;
+  selectedCarbonBrushEquipmentReference = value;
+  updateCarbonBrushEquipmentMeta(value);
+  updateCarbonBrushMeasurementColors();
+}
+
+function parseCarbonBrushEquipmentCode(equipmentName) {
+  const match = String(equipmentName || "").trim().match(/^(\d{3}[A-Za-z0-9-]*)/);
+  return match ? match[1] : "";
+}
+
+function getCarbonBrushThresholdConfig(equipmentName, explicitPlant = "") {
+  const code = parseCarbonBrushEquipmentCode(equipmentName);
+  const areaDigit = code[2] || (String(explicitPlant).match(/(\d)$/)?.[1] || "");
+  const plantLabel = areaDigit === "4" ? "Tuban 4" : areaDigit === "3" ? "Tuban 3" : (explicitPlant || "-");
+
+  if (!code && !explicitPlant) {
+    return { plantLabel: "-", low: 30, high: 34, legend: "-" };
+  }
+
+  if (plantLabel === "Tuban 4") {
+    return { plantLabel, low: 35, high: 38, legend: "Merah < 35 | Kuning 35-37.99 | Hijau >= 38" };
+  }
+
+  return { plantLabel: plantLabel === "-" ? "Tuban 3" : plantLabel, low: 30, high: 34, legend: "Merah < 30 | Kuning 30-33.99 | Hijau >= 34" };
+}
+
+function decodeCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
+  const code = parseCarbonBrushEquipmentCode(equipmentName);
+  const locationMap = {
+    "3": "Rawmill",
+  };
+  const categoryMap = {
+    "4": "Equipment utama produksi",
+  };
+  const threshold = getCarbonBrushThresholdConfig(equipmentName, explicitPlant);
+
+  return {
+    code,
+    location: locationMap[code[0]] || "-",
+    category: categoryMap[code[1]] || "-",
+    plant: threshold.plantLabel,
+    thresholdLegend: threshold.legend,
+    threshold,
+  };
+}
+
+function updateCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
+  if (!carbonBrushEquipmentMeta) {
+    return;
+  }
+
+  const meta = decodeCarbonBrushEquipmentMeta(equipmentName, explicitPlant);
+  carbonBrushEquipmentMeta.innerHTML = `
+    <span class="summary-pill">Lokasi: ${meta.location}</span>
+    <span class="summary-pill">Kategori: ${meta.category}</span>
+    <span class="summary-pill">Plant: ${meta.plant}</span>
+    <span class="summary-pill">Batas: ${meta.thresholdLegend}</span>
+  `;
 }
 
 function renderEquipmentReferenceResults(query) {
@@ -260,6 +382,48 @@ function renderEquipmentReferenceResults(query) {
   });
 
   equipmentReferenceResults.classList.remove("hidden");
+}
+
+function renderCarbonBrushEquipmentResults(query) {
+  if (!carbonBrushEquipmentInput || !carbonBrushEquipmentResults) {
+    return;
+  }
+
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) {
+    hideCarbonBrushEquipmentResults();
+    return;
+  }
+
+  const matches = carbonBrushEquipmentReferenceList
+    .filter((name) => name.toLowerCase().includes(trimmedQuery.toLowerCase()))
+    .slice(0, 12);
+
+  carbonBrushEquipmentResults.innerHTML = "";
+
+  if (!matches.length) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "typeahead-empty";
+    emptyState.textContent = "Equipment carbon brush tidak ditemukan.";
+    carbonBrushEquipmentResults.append(emptyState);
+    carbonBrushEquipmentResults.classList.remove("hidden");
+    return;
+  }
+
+  matches.forEach((name) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "typeahead-item";
+    button.textContent = name;
+    button.addEventListener("click", () => {
+      setCarbonBrushEquipmentValue(name);
+      hideCarbonBrushEquipmentResults();
+      updateCarbonBrushEquipmentStatus(`Equipment carbon brush dipilih dari referensi resmi. Total referensi aktif: ${carbonBrushEquipmentReferenceList.length} item.`);
+    });
+    carbonBrushEquipmentResults.append(button);
+  });
+
+  carbonBrushEquipmentResults.classList.remove("hidden");
 }
 
 async function loadEquipmentReference() {
@@ -320,6 +484,196 @@ async function loadEquipmentReference() {
   }
 }
 
+async function loadCarbonBrushEquipmentReference() {
+  if (!carbonBrushEquipmentInput) {
+    return;
+  }
+
+  carbonBrushEquipmentInput.disabled = true;
+  updateCarbonBrushEquipmentStatus("Memuat referensi equipment carbon brush dari spreadsheet...");
+
+  try {
+    const response = await fetch(CARBON_BRUSH_REFERENCE_URL, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const csvText = await response.text();
+    const rows = csvText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map(parseCsvRow);
+
+    if (rows.length === 0) {
+      throw new Error("CSV kosong");
+    }
+
+    const headers = rows[0];
+    const dataRows = rows.slice(1);
+    const equipmentIndex = headers.findIndex((header) => header.toUpperCase() === "EQUIPMENT");
+    if (equipmentIndex < 0) {
+      throw new Error("Kolom EQUIPMENT tidak ditemukan");
+    }
+
+    carbonBrushEquipmentReferenceList = [...new Set(
+      dataRows
+        .map((row) => row[equipmentIndex]?.trim() || "")
+        .filter(Boolean),
+    )].sort((left, right) => left.localeCompare(right, "id"));
+
+    if (!carbonBrushEquipmentReferenceList.length) {
+      throw new Error("Data equipment carbon brush kosong");
+    }
+
+    carbonBrushEquipmentInput.disabled = false;
+    carbonBrushEquipmentInput.placeholder = "Ketik kode equipment, misal 343RM1";
+    if (selectedCarbonBrushEquipmentReference && carbonBrushEquipmentReferenceList.includes(selectedCarbonBrushEquipmentReference)) {
+      carbonBrushEquipmentInput.value = selectedCarbonBrushEquipmentReference;
+    } else {
+      carbonBrushEquipmentInput.value = "";
+      selectedCarbonBrushEquipmentReference = "";
+    }
+    updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari spreadsheet.`);
+  } catch {
+    carbonBrushEquipmentReferenceList = [];
+    carbonBrushEquipmentInput.disabled = true;
+    carbonBrushEquipmentInput.value = "";
+    selectedCarbonBrushEquipmentReference = "";
+    hideCarbonBrushEquipmentResults();
+    updateCarbonBrushEquipmentStatus("Gagal memuat referensi carbon brush. Form ini dikunci sampai referensi berhasil dibaca.", true);
+  }
+}
+
+function renderCarbonBrushMeasurementGrid() {
+  if (!carbonBrushMeasurementGrid) {
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.className = "carbon-brush-matrix-table";
+  const header = `
+    <thead>
+      <tr>
+        <th>Titik</th>
+        ${carbonBrushMeasurementColumns.map((column) => `<th>${column}</th>`).join("")}
+      </tr>
+    </thead>
+  `;
+  const body = carbonBrushMeasurementRows.map((row) => `
+    <tr>
+      <td>${row}</td>
+      ${carbonBrushMeasurementColumns.map((column) => {
+        const key = `${row}${column}`;
+        return `<td><input class="carbon-brush-input" type="text" inputmode="decimal" name="${key}" data-carbon-brush-measurement="${key}" placeholder="${key}"></td>`;
+      }).join("")}
+    </tr>
+  `).join("");
+  table.innerHTML = `${header}<tbody>${body}</tbody>`;
+  carbonBrushMeasurementGrid.innerHTML = "";
+  carbonBrushMeasurementGrid.append(table);
+}
+
+function parseCarbonBrushNumericValue(value) {
+  const match = String(value || "").replace(",", ".").match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function classifyCarbonBrushValue(value, equipmentName, explicitPlant = "") {
+  if (!equipmentName && !explicitPlant) {
+    return "";
+  }
+
+  const numericValue = parseCarbonBrushNumericValue(value);
+  if (numericValue === null) {
+    return "";
+  }
+
+  const threshold = getCarbonBrushThresholdConfig(equipmentName, explicitPlant);
+  if (numericValue < threshold.low) {
+    return "low";
+  }
+  if (numericValue < threshold.high) {
+    return "medium";
+  }
+  return "high";
+}
+
+function computeCarbonBrushStats(measurements, equipmentName, explicitPlant = "") {
+  const stats = {
+    low: 0,
+    medium: 0,
+    high: 0,
+    empty: 0,
+    min: null,
+    attentionPoints: [],
+  };
+
+  carbonBrushMeasurementKeys.forEach((key) => {
+    const rawValue = measurements[key] || "";
+    const bucket = classifyCarbonBrushValue(rawValue, equipmentName, explicitPlant);
+    const numericValue = parseCarbonBrushNumericValue(rawValue);
+
+    if (!bucket) {
+      stats.empty += 1;
+      return;
+    }
+
+    stats[bucket] += 1;
+    if (stats.min === null || (numericValue !== null && numericValue < stats.min)) {
+      stats.min = numericValue;
+    }
+    if (bucket !== "high") {
+      stats.attentionPoints.push(key);
+    }
+  });
+
+  stats.attentionPoints = stats.attentionPoints.slice(0, 8);
+  return stats;
+}
+
+function updateCarbonBrushStatsDisplay(measurements, equipmentName, explicitPlant = "") {
+  if (!carbonBrushStats) {
+    return;
+  }
+
+  const stats = computeCarbonBrushStats(measurements, equipmentName, explicitPlant);
+  carbonBrushStats.innerHTML = `
+    <span class="summary-pill low">Merah: ${stats.low}</span>
+    <span class="summary-pill medium">Kuning: ${stats.medium}</span>
+    <span class="summary-pill high">Hijau: ${stats.high}</span>
+    <span class="summary-pill">Kosong: ${stats.empty}</span>
+    <span class="summary-pill">Terendah: ${stats.min === null ? "-" : stats.min}</span>
+  `;
+}
+
+function collectCarbonBrushMeasurements(form) {
+  return carbonBrushMeasurementKeys.reduce((result, key) => {
+    result[key] = String(form.querySelector(`[name="${key}"]`)?.value || "").trim();
+    return result;
+  }, {});
+}
+
+function updateCarbonBrushMeasurementColors() {
+  const equipmentName = carbonBrushEquipmentInput?.value || selectedCarbonBrushEquipmentReference || "";
+  const measurements = {};
+
+  document.querySelectorAll("[data-carbon-brush-measurement]").forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const bucket = classifyCarbonBrushValue(input.value, equipmentName);
+    input.classList.remove("is-low", "is-medium", "is-high");
+    if (bucket) {
+      input.classList.add(`is-${bucket}`);
+    }
+    measurements[input.name] = input.value.trim();
+  });
+
+  updateCarbonBrushStatsDisplay(measurements, equipmentName);
+}
+
 function openSection(sectionName) {
   if (!roleSections[activeRole].includes(sectionName)) {
     return;
@@ -363,6 +717,7 @@ function applyRoleAccess(role) {
   });
 
   accessSummary.textContent = roleAccessSummary[role] || roleAccessSummary.admin;
+  renderUserManagementTable();
 }
 
 function saveSession(username, role) {
@@ -383,11 +738,10 @@ function restoreSession() {
     return;
   }
 
-  applyRoleAccess(session.role);
-  currentUser.textContent = session.username;
-  currentRole.textContent = roleLabels[session.role] || "Admin";
-  loginScreen.classList.add("hidden");
-  workspace.classList.remove("hidden");
+  loginWithUser({
+    username: session.username,
+    role: session.role,
+  });
   const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
   openSection(lastSection);
 }
@@ -438,6 +792,357 @@ function getServiceTag(type) {
   return "tag-purple";
 }
 
+function openServicePane(tabName) {
+  serviceTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.serviceTab === tabName);
+  });
+  servicePanes.forEach((pane) => {
+    pane.classList.toggle("visible", pane.dataset.servicePane === tabName);
+  });
+}
+
+function openCreatePanel(sectionName) {
+  createPanels.forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.createPanel !== sectionName);
+  });
+}
+
+function closeCreatePanel(sectionName) {
+  createPanels.forEach((panel) => {
+    if (!sectionName || panel.dataset.createPanel === sectionName) {
+      panel.classList.add("hidden");
+    }
+  });
+}
+
+function closeAllCreatePanels() {
+  closeCreatePanel("");
+}
+
+function getSectionNameByFormType(formType) {
+  if (formType === "negatif-list") return "negatif-list";
+  if (formType === "sparepart") return "sparepart";
+  if (formType === "bom") return "bom";
+  if (formType === "spb") return "spb";
+  if (String(formType || "").startsWith("service-")) return "service";
+  return "";
+}
+
+function resetCreatePanelState(sectionName) {
+  const panel = document.querySelector(`[data-create-panel="${sectionName}"]`);
+  if (!panel) {
+    return;
+  }
+
+  panel.querySelectorAll("form").forEach((form) => {
+    form.reset();
+    const note = form.querySelector(".submit-note");
+    if (note) {
+      note.textContent = "";
+    }
+  });
+
+  if (sectionName === "negatif-list") {
+    editingNegatifId = null;
+    selectedEquipmentReference = "";
+    hideEquipmentReferenceResults();
+  }
+
+  if (sectionName === "sparepart") {
+    editingSparepartId = null;
+  }
+
+  if (sectionName === "service") {
+    editingServiceId = null;
+    selectedCarbonBrushEquipmentReference = "";
+    updateCarbonBrushEquipmentMeta("");
+    updateCarbonBrushMeasurementColors();
+    openServicePane("electrical");
+    openElectricalPane("electrical-room");
+  }
+
+  if (sectionName === "bom") {
+    editingBomId = null;
+  }
+
+  if (sectionName === "spb") {
+    editingSpbId = null;
+  }
+}
+
+function openElectricalPane(tabName) {
+  electricalSubtabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.electricalTab === tabName);
+  });
+  electricalPanes.forEach((pane) => {
+    pane.classList.toggle("visible", pane.dataset.electricalPane === tabName);
+  });
+}
+
+function normalizeServiceItem(item) {
+  if (item.formType) {
+    return item;
+  }
+
+  if (item.type === "Electrical") {
+    const match = item.detail.match(/Vibrasi DE (.*) \| Vibrasi NDE (.*)/);
+    return {
+      ...item,
+      subtype: "Motor MV",
+      formType: "service-motor-mv",
+      payload: {
+        vibrationDe: match?.[1] || "",
+        vibrationNde: match?.[2] || "",
+        windingTemperature: "",
+        bearingCondition: "",
+        motorCurrent: "",
+      },
+    };
+  }
+
+  if (item.type === "Instrument") {
+    const match = item.detail.match(/Kondisi sensor: (.*) \| Foto: (.*)/);
+    return {
+      ...item,
+      subtype: "Instrument",
+      formType: "service-instrument",
+      payload: {
+        sensorCondition: match?.[1] || "",
+        findingPhotoName: match?.[2] || "",
+      },
+    };
+  }
+
+  const dcsMatch = item.detail.match(/Fungsi: (.*) \| Kebersihan: (.*)/);
+  return {
+    ...item,
+    subtype: "DCS",
+    formType: "service-dcs",
+    payload: {
+      equipmentFunction: dcsMatch?.[1] || "",
+      environmentCleanliness: dcsMatch?.[2] || "",
+    },
+  };
+}
+
+function formatCarbonBrushPayloadLines(item) {
+  const payload = item.payload || {};
+  const meta = decodeCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
+  const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
+  return [
+    ["Plant", payload.plant || meta.plant || "-"],
+    ["Lokasi", payload.location || meta.location || "-"],
+    ["Kategori", payload.category || meta.category || "-"],
+    ["PIC", payload.pic || "-"],
+    ["Merah", `${stats.low || 0} titik`],
+    ["Kuning", `${stats.medium || 0} titik`],
+    ["Hijau", `${stats.high || 0} titik`],
+    ["Terendah", stats.min ?? "-"],
+    ["Replacement", payload.replacement || "-"],
+    ["Megger", payload.megger || "-"],
+    ["Titik perhatian", stats.attentionPoints?.length ? stats.attentionPoints.join(", ") : "-"],
+  ];
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildDetailGridRows(rows) {
+  return rows.map(([label, value]) => `
+    <div class="detail-item">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value || "-")}</strong>
+    </div>
+  `).join("");
+}
+
+function analyzeServiceItem(item) {
+  const payload = item.payload || {};
+
+  if (item.formType === "service-electrical-room") {
+    const notes = [];
+    if (payload.panelDoorCondition === "NOT OK") {
+      notes.push("Pintu panel belum tertutup sesuai standar. Prioritaskan pengamanan panel sebelum operasi berlanjut.");
+    }
+    if (payload.floorCleanliness === "Kotor") {
+      notes.push("Kebersihan lantai room kurang baik. Housekeeping perlu dijadwalkan untuk menurunkan risiko kontaminasi dan trip.");
+    }
+    if (payload.roomTemperature === "Tidak dingin") {
+      notes.push("Temperature ruangan tidak ideal. Cek ventilasi, AC panel, dan beban panas di dalam room.");
+    }
+    return notes.length ? notes : ["Kondisi umum electrical room relatif aman berdasarkan isian inspeksi terakhir."];
+  }
+
+  if (item.formType === "service-motor-mv") {
+    const notes = [];
+    const vibrationDe = parseCarbonBrushNumericValue(payload.vibrationDe);
+    const vibrationNde = parseCarbonBrushNumericValue(payload.vibrationNde);
+    const windingTemperature = parseCarbonBrushNumericValue(payload.windingTemperature);
+    if (vibrationDe !== null && vibrationDe >= 4) {
+      notes.push("Vibrasi DE sudah tinggi. Perlu cek alignment, kondisi bearing, dan fondasi motor.");
+    }
+    if (vibrationNde !== null && vibrationNde >= 4) {
+      notes.push("Vibrasi NDE tinggi. Siapkan pengecekan balancing dan inspeksi sisi non-drive.");
+    }
+    if (windingTemperature !== null && windingTemperature >= 80) {
+      notes.push("Suhu winding mendekati/masuk zona tinggi. Evaluasi beban motor dan pendinginan.");
+    }
+    return notes.length ? notes : ["Parameter utama motor MV masih dalam batas aman dari data yang diinput."];
+  }
+
+  if (item.formType === "service-motor-mv-carbon-brush") {
+    const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
+    const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", payload.plant || "");
+    const notes = [];
+    if (stats.low > 0) {
+      notes.push(`Ada ${stats.low} titik di zona merah. Titik ini sebaiknya diprioritaskan untuk penggantian/pemeriksaan carbon brush.`);
+    }
+    if (stats.medium > 0) {
+      notes.push(`Ada ${stats.medium} titik di zona kuning. Jadwalkan monitoring lanjutan sebelum turun ke bawah batas ${threshold.low}.`);
+    }
+    if (stats.attentionPoints?.length) {
+      notes.push(`Titik perhatian utama: ${stats.attentionPoints.join(", ")}.`);
+    }
+    if (!notes.length) {
+      notes.push("Sebaran hasil carbon brush berada di zona aman. Lanjutkan monitoring periodik sesuai jadwal.");
+    }
+    return notes;
+  }
+
+  if (item.formType === "service-ehca") {
+    const notes = [];
+    if (/ganti|kotor|buruk/i.test(payload.filterCondition || "")) {
+      notes.push("Kondisi filter sudah perlu tindakan. Siapkan penggantian agar kualitas fluida tetap terjaga.");
+    }
+    if (!/tidak ada|normal/i.test(payload.leakCondition || "")) {
+      notes.push("Terindikasi kebocoran pada unit. Lokalisir titik bocor sebelum berkembang menjadi gangguan operasi.");
+    }
+    return notes.length ? notes : ["Unit EH/CA tidak menunjukkan anomali dominan dari isian inspeksi ini."];
+  }
+
+  if (item.formType === "service-instrument") {
+    if (/rusak|drift|noise|gangguan/i.test(payload.sensorCondition || "")) {
+      return ["Kondisi sensor menunjukkan anomali. Lanjutkan verifikasi loop, mounting, dan kalibrasi ulang bila diperlukan."];
+    }
+    return ["Kondisi sensor relatif stabil dari catatan inspeksi saat ini."];
+  }
+
+  if (item.formType === "service-dcs") {
+    const notes = [];
+    if (!/bersih/i.test(payload.environmentCleanliness || "")) {
+      notes.push("Kebersihan lingkungan belum ideal. Housekeeping area DCS perlu dijaga untuk mencegah gangguan perangkat.");
+    }
+    if ((payload.equipmentFunction || "").length > 0) {
+      notes.push("Pastikan fungsi peralatan tervalidasi kembali setelah inspeksi, terutama bila perangkat masuk kategori kritikal kontrol.");
+    }
+    return notes.length ? notes : ["Kondisi DCS dari isian ini belum menunjukkan temuan kritis."];
+  }
+
+  return ["Analisa otomatis belum tersedia untuk form ini."];
+}
+
+function buildCarbonBrushMatrixHtml(measurements, equipmentName, explicitPlant = "") {
+  const head = `
+    <thead>
+      <tr>
+        <th>Titik</th>
+        ${carbonBrushMeasurementColumns.map((column) => `<th>${column}</th>`).join("")}
+      </tr>
+    </thead>
+  `;
+
+  const body = carbonBrushMeasurementRows.map((row) => `
+    <tr>
+      <td>${row}</td>
+      ${carbonBrushMeasurementColumns.map((column) => {
+        const key = `${row}${column}`;
+        const value = measurements[key] || "-";
+        const bucket = classifyCarbonBrushValue(value, equipmentName, explicitPlant);
+        const className = bucket ? `is-${bucket}` : "";
+        return `<td><div class="carbon-brush-input ${className}">${escapeHtml(value)}</div></td>`;
+      }).join("")}
+    </tr>
+  `).join("");
+
+  return `<div class="carbon-brush-matrix-wrap"><table class="carbon-brush-matrix-table">${head}<tbody>${body}</tbody></table></div>`;
+}
+
+function openServiceDetail(item) {
+  if (!serviceDetailModal || !serviceDetailContent || !serviceDetailTitle || !serviceDetailSubtitle) {
+    return;
+  }
+
+  const payload = item.payload || {};
+  const infoRows = [
+    ["Tipe", item.type || "-"],
+    ["Sub menu", item.subtype || item.type || "-"],
+    ["Equipment", item.equipmentName || "-"],
+    ["Tanggal inspeksi", formatInspectionDate(payload.inspectionDate)],
+  ];
+  const rawRows = formatServicePayloadLines(item);
+  const analysisRows = analyzeServiceItem(item);
+
+  let rawHtml = `<div class="detail-grid">${buildDetailGridRows(rawRows)}</div>`;
+  if (item.formType === "service-motor-mv-carbon-brush") {
+    rawHtml = `
+      <div class="detail-grid">${buildDetailGridRows(formatCarbonBrushPayloadLines(item))}</div>
+      ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "")}
+    `;
+  }
+
+  const photoHtml = payload.findingPhotoData
+    ? `
+      <section class="detail-card">
+        <h4>Lampiran Foto</h4>
+        <img class="detail-photo" src="${payload.findingPhotoData}" alt="Lampiran inspeksi ${escapeHtml(item.equipmentName || "")}">
+      </section>
+    `
+    : "";
+
+  serviceDetailTitle.textContent = item.equipmentName || "Hasil inspeksi";
+  serviceDetailSubtitle.textContent = `${item.subtype || item.type || "Service"} • data mentah dan analisa hasil inspeksi`;
+  serviceDetailContent.innerHTML = `
+    <section class="detail-card">
+      <h4>Informasi Umum</h4>
+      <div class="detail-grid">${buildDetailGridRows(infoRows)}</div>
+    </section>
+    <section class="detail-card">
+      <h4>Deskripsi Temuan</h4>
+      <div class="detail-analysis">
+        <div class="detail-analysis-item">${escapeHtml(item.description || "-")}</div>
+      </div>
+    </section>
+    <section class="detail-card">
+      <h4>Hasil Inspeksi</h4>
+      ${rawHtml}
+    </section>
+    <section class="detail-card">
+      <h4>Analisa</h4>
+      <div class="detail-analysis">
+        ${analysisRows.map((entry) => `<div class="detail-analysis-item">${escapeHtml(entry)}</div>`).join("")}
+      </div>
+    </section>
+    ${photoHtml}
+  `;
+
+  serviceDetailModal.classList.remove("hidden");
+  serviceDetailModal.setAttribute("aria-hidden", "false");
+}
+
+function closeServiceDetail() {
+  if (!serviceDetailModal) {
+    return;
+  }
+  serviceDetailModal.classList.add("hidden");
+  serviceDetailModal.setAttribute("aria-hidden", "true");
+}
+
 function setSubmitNote(form, message) {
   let note = form.querySelector(".submit-note");
   if (!note) {
@@ -463,6 +1168,585 @@ function showToast(title, message) {
   }, 3200);
 }
 
+function formatServicePayloadLines(item) {
+  const payload = item.payload || {};
+
+  if (item.formType === "service-electrical-room") {
+    return [
+      ["Kondisi pintu panel", payload.panelDoorCondition || "-"],
+      ["Kebersihan lantai", payload.floorCleanliness || "-"],
+      ["Temperature ruangan", payload.roomTemperature || "-"],
+      ["Battery charge VDC", payload.batteryVdc || "-"],
+      ["Battery charge Amper", payload.batteryAmpere || "-"],
+      ["VDC battery total", payload.batteryTotalVdc || "-"],
+      ["VDC battery 1", payload.battery1 || "-"],
+      ["VDC battery 2", payload.battery2 || "-"],
+      ["VDC battery 3", payload.battery3 || "-"],
+      ["VDC battery 4", payload.battery4 || "-"],
+      ["VDC battery 5", payload.battery5 || "-"],
+      ["VDC battery 6", payload.battery6 || "-"],
+      ["VDC battery 7", payload.battery7 || "-"],
+      ["VDC battery 8", payload.battery8 || "-"],
+      ["VDC battery 9", payload.battery9 || "-"],
+      ["VDC battery 10", payload.battery10 || "-"],
+      ["Equipment trafo", payload.transformerEquipment || "-"],
+      ["Temperature winding", payload.transformerWindingTemperature || "-"],
+      ["Temperature oil", payload.transformerOilTemperature || "-"],
+      ["Level oil", payload.transformerOilLevel || "-"],
+      ["Silica gel", payload.transformerSilicaGel || "-"],
+      ["Foto temuan", payload.findingPhotoName || "-"],
+    ];
+  }
+
+  if (item.formType === "service-motor-mv") {
+    return [
+      ["Vibrasi DE", payload.vibrationDe || "-"],
+      ["Vibrasi NDE", payload.vibrationNde || "-"],
+      ["Suhu winding", payload.windingTemperature || "-"],
+      ["Kondisi bearing", payload.bearingCondition || "-"],
+      ["Arus motor", payload.motorCurrent || "-"],
+    ];
+  }
+
+  if (item.formType === "service-motor-mv-carbon-brush") {
+    return formatCarbonBrushPayloadLines(item);
+  }
+
+  if (item.formType === "service-ehca") {
+    return [
+      ["Tekanan sistem", payload.systemPressure || "-"],
+      ["Level oli/media", payload.fluidLevel || "-"],
+      ["Kondisi filter", payload.filterCondition || "-"],
+      ["Kebocoran", payload.leakCondition || "-"],
+      ["Kondisi unit", payload.unitCondition || "-"],
+    ];
+  }
+
+  if (item.formType === "service-instrument") {
+    return [
+      ["Kondisi sensor", payload.sensorCondition || "-"],
+      ["Foto temuan", payload.findingPhotoName || "-"],
+    ];
+  }
+
+  if (item.formType === "service-dcs") {
+    return [
+      ["Fungsi peralatan", payload.equipmentFunction || "-"],
+      ["Kebersihan lingkungan", payload.environmentCleanliness || "-"],
+    ];
+  }
+
+  return [["Detail", item.detail || "-"]];
+}
+
+function wrapCanvasText(context, text, maxWidth) {
+  const words = String(text || "-").split(/\s+/);
+  const lines = [];
+  let currentLine = "";
+
+  words.forEach((word) => {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (context.measureText(testLine).width <= maxWidth) {
+      currentLine = testLine;
+      return;
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    currentLine = word;
+  });
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.length ? lines : ["-"];
+}
+
+function formatInspectionDate(value) {
+  if (!value) {
+    return new Date().toLocaleDateString("id-ID");
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+
+  return parsed.toLocaleDateString("id-ID");
+}
+
+async function createServiceInspectionImage(item) {
+  const payloadLines = formatServicePayloadLines(item);
+  const payload = item.payload || {};
+  const photoData = payload.findingPhotoData || "";
+  const photoImage = photoData ? await loadImageElement(photoData).catch(() => null) : null;
+  const titleText = `HASIL INSPEKSI ${String(item.subtype || item.type || "SERVICE").toUpperCase()} - ${item.equipmentName || "-"}`;
+  const inspectionDate = formatInspectionDate(payload.inspectionDate);
+  const analysisLines = analyzeServiceItem(item);
+  const headerLines = [
+    ["Tipe inspeksi", item.type || "-"],
+    ["Sub menu", item.subtype || item.type || "-"],
+    ["Equipment", item.equipmentName || "-"],
+    ["Tanggal inspeksi", inspectionDate],
+  ];
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas tidak tersedia");
+  }
+
+  const width = 1400;
+  const padding = 64;
+  const contentWidth = width - (padding * 2);
+  canvas.width = width;
+
+  context.font = "28px Arial";
+  const rowGap = 14;
+  const sectionGap = 28;
+  const titleLines = wrapCanvasText(context, titleText, contentWidth);
+  const isElectricalRoom = item.formType === "service-electrical-room";
+  const isCarbonBrush = item.formType === "service-motor-mv-carbon-brush";
+  const batteryChargeRows = [
+    ["Battery charge VDC", payload.batteryVdc || "-"],
+    ["Battery charge Amper", payload.batteryAmpere || "-"],
+    ["VDC battery total", payload.batteryTotalVdc || "-"],
+    ["VDC battery 1", payload.battery1 || "-"],
+    ["VDC battery 2", payload.battery2 || "-"],
+    ["VDC battery 3", payload.battery3 || "-"],
+    ["VDC battery 4", payload.battery4 || "-"],
+    ["VDC battery 5", payload.battery5 || "-"],
+    ["VDC battery 6", payload.battery6 || "-"],
+    ["VDC battery 7", payload.battery7 || "-"],
+    ["VDC battery 8", payload.battery8 || "-"],
+    ["VDC battery 9", payload.battery9 || "-"],
+    ["VDC battery 10", payload.battery10 || "-"],
+  ];
+  const transformerRows = [
+    ["Equipment trafo", payload.transformerEquipment || "-"],
+    ["Temperature winding", payload.transformerWindingTemperature || "-"],
+    ["Temperature oil", payload.transformerOilTemperature || "-"],
+    ["Level oil", payload.transformerOilLevel || "-"],
+    ["Silica gel", payload.transformerSilicaGel || "-"],
+  ];
+  const generalElectricalRows = [
+    ["Kondisi pintu panel", payload.panelDoorCondition || "-"],
+    ["Kebersihan lantai", payload.floorCleanliness || "-"],
+    ["Temperature ruangan", payload.roomTemperature || "-"],
+  ];
+
+  let estimatedHeight = 180 + (titleLines.length * 48);
+  const measureRows = (rows) => {
+    rows.forEach(([, value]) => {
+      const wrapped = wrapCanvasText(context, value, contentWidth - 280);
+      estimatedHeight += (wrapped.length * 38) + rowGap;
+    });
+  };
+
+  measureRows(headerLines);
+  estimatedHeight += 96;
+  const descriptionLines = wrapCanvasText(context, item.description || "-", contentWidth);
+  estimatedHeight += descriptionLines.length * 40;
+  estimatedHeight += sectionGap + 52;
+  estimatedHeight += sectionGap;
+  if (isElectricalRoom) {
+    measureRows(generalElectricalRows);
+    estimatedHeight += 96;
+    estimatedHeight += 6 * 42;
+    estimatedHeight += 7 * 42;
+    estimatedHeight += 48;
+    measureRows(transformerRows);
+    if (payload.findingPhotoName) {
+      estimatedHeight += 52;
+    }
+  } else if (isCarbonBrush) {
+    measureRows(formatCarbonBrushPayloadLines(item));
+    estimatedHeight += 26 * 42;
+  } else {
+    measureRows(payloadLines);
+  }
+  analysisLines.forEach((entry) => {
+    const wrapped = wrapCanvasText(context, entry, contentWidth - 36);
+    estimatedHeight += (wrapped.length * 36) + 24;
+  });
+  if (photoImage) {
+    estimatedHeight += sectionGap + 420;
+  }
+  estimatedHeight += 80;
+
+  canvas.height = estimatedHeight;
+
+  context.fillStyle = "#0b1220";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  const drawCardSection = (title, startY, drawer) => {
+    const cardPaddingX = 22;
+    const cardPaddingTop = 22;
+    const titleHeight = 34;
+    const innerWidth = contentWidth - (cardPaddingX * 2);
+    const measuredHeight = drawer(null, startY + cardPaddingTop + titleHeight + 10, innerWidth, true);
+    const cardHeight = measuredHeight - startY + 22;
+
+    context.fillStyle = "rgba(255,255,255,0.035)";
+    context.strokeStyle = "rgba(124, 199, 255, 0.16)";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.roundRect(padding, startY, contentWidth, cardHeight, 22);
+    context.fill();
+    context.stroke();
+
+    context.fillStyle = "#15b8a6";
+    context.font = "700 26px Arial";
+    context.fillText(title, padding + cardPaddingX, startY + cardPaddingTop + 6);
+
+    return drawer(context, startY + cardPaddingTop + titleHeight + 10, innerWidth, false) + 22;
+  };
+
+  const drawRows = (rows, y, leftX = padding, widthLimit = contentWidth - 280) => {
+    rows.forEach(([label, value]) => {
+      context.fillStyle = "#7cc7ff";
+      context.font = "700 24px Arial";
+      context.fillText(label, leftX, y);
+
+      context.fillStyle = "#eef6ff";
+      context.font = "24px Arial";
+      const wrapped = wrapCanvasText(context, value, widthLimit);
+      wrapped.forEach((line, index) => {
+        context.fillText(line, leftX + 280, y + (index * 34));
+      });
+      y += (wrapped.length * 34) + rowGap;
+    });
+    return y;
+  };
+
+  const drawBatteryColumns = (rows, y) => {
+    const leftRows = rows.slice(0, Math.ceil(rows.length / 2));
+    const rightRows = rows.slice(Math.ceil(rows.length / 2));
+    const columnGap = 46;
+    const columnWidth = (contentWidth - columnGap) / 2;
+    const labelWidth = 220;
+    const valueWidth = columnWidth - labelWidth;
+    const rowHeight = 42;
+
+    const drawColumn = (columnRows, x, startY) => {
+      columnRows.forEach(([label, value], index) => {
+        const rowY = startY + (index * rowHeight);
+        context.fillStyle = "#7cc7ff";
+        context.font = "700 22px Arial";
+        context.fillText(label, x, rowY);
+        context.fillStyle = "#eef6ff";
+        context.font = "22px Arial";
+        const wrapped = wrapCanvasText(context, value, valueWidth);
+        wrapped.slice(0, 2).forEach((line, lineIndex) => {
+          context.fillText(line, x + labelWidth, rowY + (lineIndex * 24));
+        });
+      });
+      return startY + (columnRows.length * rowHeight);
+    };
+
+    const leftBottom = drawColumn(leftRows, padding, y);
+    const rightBottom = drawColumn(rightRows, padding + columnWidth + columnGap, y);
+    return Math.max(leftBottom, rightBottom);
+  };
+
+  const drawAnalysis = (entries, y, leftX = padding + 22, boxWidth = contentWidth - 44) => {
+    entries.forEach((entry) => {
+      const wrapped = wrapCanvasText(context, entry, boxWidth - 28);
+      const itemHeight = (wrapped.length * 34) + 18;
+      context.fillStyle = "rgba(124, 199, 255, 0.06)";
+      context.strokeStyle = "rgba(124, 199, 255, 0.14)";
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.roundRect(leftX, y, boxWidth, itemHeight, 14);
+      context.fill();
+      context.stroke();
+
+      context.fillStyle = "#eef6ff";
+      context.font = "24px Arial";
+      wrapped.forEach((line, index) => {
+        context.fillText(line, leftX + 14, y + 28 + (index * 32));
+      });
+      y += itemHeight + 12;
+    });
+    return y;
+  };
+
+  const drawCarbonBrushMatrix = (measurements, equipmentName, explicitPlant, y) => {
+    const startX = padding + 22;
+    const rowLabelWidth = 54;
+    const cellWidth = 112;
+    const cellHeight = 40;
+    const tableWidth = rowLabelWidth + (cellWidth * carbonBrushMeasurementColumns.length);
+
+    context.fillStyle = "rgba(124, 199, 255, 0.08)";
+    context.font = "700 20px Arial";
+    context.fillText("Titik", startX + 10, y + 26);
+    carbonBrushMeasurementColumns.forEach((column, index) => {
+      context.fillText(String(column), startX + rowLabelWidth + 18 + (index * cellWidth), y + 26);
+    });
+    y += 36;
+
+    carbonBrushMeasurementRows.forEach((row) => {
+      context.fillStyle = "rgba(255,255,255,0.03)";
+      context.fillRect(startX, y, rowLabelWidth, cellHeight);
+      context.fillStyle = "#eef6ff";
+      context.font = "700 20px Arial";
+      context.fillText(row, startX + 18, y + 25);
+
+      carbonBrushMeasurementColumns.forEach((column, index) => {
+        const key = `${row}${column}`;
+        const value = measurements[key] || "-";
+        const bucket = classifyCarbonBrushValue(value, equipmentName, explicitPlant);
+        const fillMap = {
+          low: "rgba(255, 107, 107, 0.18)",
+          medium: "rgba(255, 194, 102, 0.18)",
+          high: "rgba(50, 211, 153, 0.18)",
+        };
+        context.fillStyle = fillMap[bucket] || "rgba(255,255,255,0.03)";
+        context.fillRect(startX + rowLabelWidth + (index * cellWidth), y, cellWidth, cellHeight);
+        context.strokeStyle = "rgba(124, 199, 255, 0.12)";
+        context.strokeRect(startX + rowLabelWidth + (index * cellWidth), y, cellWidth, cellHeight);
+        context.fillStyle = "#eef6ff";
+        context.font = "18px Arial";
+        context.fillText(String(value), startX + rowLabelWidth + 12 + (index * cellWidth), y + 25);
+      });
+      y += cellHeight;
+    });
+
+    context.strokeStyle = "rgba(124, 199, 255, 0.12)";
+    context.strokeRect(startX, y - (cellHeight * carbonBrushMeasurementRows.length), tableWidth, (cellHeight * carbonBrushMeasurementRows.length) + 36);
+    return y;
+  };
+
+  let y = 70;
+  context.fillStyle = "#eef6ff";
+  context.font = "700 42px Arial";
+  titleLines.forEach((line) => {
+    context.fillText(line, padding, y);
+    y += 48;
+  });
+
+  context.fillStyle = "#9bb0c8";
+  context.font = "24px Arial";
+  context.fillText(`Tanggal inspeksi: ${inspectionDate}`, padding, y);
+
+  y += sectionGap;
+  y = drawCardSection("Informasi Umum", y, (_ctx, cardY, innerWidth, measuringOnly) => {
+    if (measuringOnly) {
+      let currentY = cardY;
+      headerLines.forEach(([, value]) => {
+        const wrapped = wrapCanvasText(context, value, innerWidth - 280);
+        currentY += (wrapped.length * 34) + rowGap;
+      });
+      return currentY;
+    }
+    return drawRows(headerLines, cardY, padding + 22, innerWidth - 280);
+  });
+
+  y += sectionGap;
+  y = drawCardSection("Deskripsi Temuan", y, (_ctx, cardY, innerWidth, measuringOnly) => {
+    const lines = wrapCanvasText(context, item.description || "-", innerWidth);
+    if (measuringOnly) {
+      return cardY + (lines.length * 34);
+    }
+    context.fillStyle = "#eef6ff";
+    context.font = "24px Arial";
+    lines.forEach((line) => {
+      context.fillText(line, padding + 22, cardY);
+      cardY += 34;
+    });
+    return cardY;
+  });
+
+  y += sectionGap;
+  y = drawCardSection("Hasil Inspeksi", y, (_ctx, cardY, innerWidth, measuringOnly) => {
+    if (isElectricalRoom) {
+      if (measuringOnly) {
+        let currentY = cardY;
+        generalElectricalRows.forEach(([, value]) => {
+          const wrapped = wrapCanvasText(context, value, innerWidth - 280);
+          currentY += (wrapped.length * 34) + rowGap;
+        });
+        currentY += 52 + (Math.ceil(batteryChargeRows.length / 2) * 42) + 42 + (transformerRows.length * 48);
+        if (payload.findingPhotoName) {
+          currentY += 48;
+        }
+        return currentY;
+      }
+      let currentY = drawRows(generalElectricalRows, cardY, padding + 22, innerWidth - 280);
+      currentY += 10;
+      context.fillStyle = "#15b8a6";
+      context.font = "700 24px Arial";
+      context.fillText("Battery Charge", padding + 22, currentY);
+      currentY += 34;
+      currentY = drawBatteryColumns(batteryChargeRows, currentY);
+      currentY += 18;
+      context.fillStyle = "#15b8a6";
+      context.font = "700 24px Arial";
+      context.fillText("Transformator", padding + 22, currentY);
+      currentY += 34;
+      currentY = drawRows(transformerRows, currentY, padding + 22, innerWidth - 280);
+      if (payload.findingPhotoName) {
+        currentY = drawRows([["Foto temuan", payload.findingPhotoName]], currentY + 8, padding + 22, innerWidth - 280);
+      }
+      return currentY;
+    }
+
+    if (isCarbonBrush) {
+      const summaryRows = formatCarbonBrushPayloadLines(item);
+      if (measuringOnly) {
+        let currentY = cardY;
+        summaryRows.forEach(([, value]) => {
+          const wrapped = wrapCanvasText(context, value, innerWidth - 280);
+          currentY += (wrapped.length * 34) + rowGap;
+        });
+        currentY += 36 + (carbonBrushMeasurementRows.length * 40) + 42;
+        return currentY;
+      }
+      let currentY = drawRows(summaryRows, cardY, padding + 22, innerWidth - 280);
+      currentY += 18;
+      currentY = drawCarbonBrushMatrix(payload.measurements || {}, item.equipmentName || "", payload.plant || "", currentY);
+      return currentY;
+    }
+
+    if (measuringOnly) {
+      let currentY = cardY;
+      payloadLines.forEach(([, value]) => {
+        const wrapped = wrapCanvasText(context, value, innerWidth - 280);
+        currentY += (wrapped.length * 34) + rowGap;
+      });
+      return currentY;
+    }
+    return drawRows(payloadLines, cardY, padding + 22, innerWidth - 280);
+  });
+
+  y += sectionGap;
+  y = drawCardSection("Analisa", y, (_ctx, cardY, innerWidth, measuringOnly) => {
+    if (measuringOnly) {
+      let currentY = cardY;
+      analysisLines.forEach((entry) => {
+        const wrapped = wrapCanvasText(context, entry, innerWidth - 28);
+        currentY += (wrapped.length * 36) + 24 + 12;
+      });
+      return currentY;
+    }
+    return drawAnalysis(analysisLines, cardY, padding + 22, innerWidth);
+  });
+
+  if (photoImage) {
+    y += sectionGap;
+    y = drawCardSection("Lampiran Foto", y, (_ctx, cardY, innerWidth, measuringOnly) => {
+      const maxPhotoWidth = innerWidth;
+      const maxPhotoHeight = 360;
+      const ratio = Math.min(maxPhotoWidth / photoImage.width, maxPhotoHeight / photoImage.height, 1);
+      const drawWidth = photoImage.width * ratio;
+      const drawHeight = photoImage.height * ratio;
+      if (measuringOnly) {
+        return cardY + drawHeight;
+      }
+      context.fillStyle = "rgba(255,255,255,0.03)";
+      context.fillRect(padding + 22, cardY, drawWidth, drawHeight);
+      context.drawImage(photoImage, padding + 22, cardY, drawWidth, drawHeight);
+      return cardY + drawHeight;
+    });
+  }
+
+  y += 18;
+  context.strokeStyle = "rgba(124, 199, 255, 0.24)";
+  context.lineWidth = 2;
+  context.strokeRect(padding / 2, padding / 2, width - padding, canvas.height - padding);
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) {
+    throw new Error("Gagal membentuk image inspeksi");
+  }
+
+  return blob;
+}
+
+function buildServiceWhatsAppText(item) {
+  return [
+    "PLIRM34 - Hasil Inspeksi Service",
+    `Tipe: ${item.type || "-"}`,
+    `Sub menu: ${item.subtype || item.type || "-"}`,
+    `Equipment: ${item.equipmentName || "-"}`,
+    `Temuan: ${item.description || "-"}`,
+    "",
+    "Gambar ringkasan inspeksi sudah disiapkan dari aplikasi.",
+  ].join("\n");
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Gagal membaca file gambar"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function getFindingPhotoPayload(formData, existingPayload = {}) {
+  const photo = formData.get("findingPhoto");
+  if (photo && typeof photo === "object" && "name" in photo && photo.name && "size" in photo && photo.size > 0) {
+    return {
+      findingPhotoName: photo.name,
+      findingPhotoData: await readFileAsDataUrl(photo),
+    };
+  }
+
+  return {
+    findingPhotoName: existingPayload.findingPhotoName || "tidak ada file",
+    findingPhotoData: existingPayload.findingPhotoData || "",
+  };
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Gagal memuat image lampiran"));
+    image.src = src;
+  });
+}
+
+async function sendServiceToWhatsApp(item) {
+  const blob = await createServiceInspectionImage(item);
+  const filename = `plirm34-${(item.subtype || item.type || "service").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}.png`;
+  const file = new File([blob], filename, { type: "image/png" });
+  const caption = buildServiceWhatsAppText(item);
+
+  if (window.isSecureContext && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      title: `PLIRM34 - ${item.subtype || item.type}`,
+      text: caption,
+      files: [file],
+    });
+    return "shared";
+  }
+
+  const imageUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = imageUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(imageUrl), 1000);
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(caption);
+    } catch {
+      // Ignore clipboard failures and continue with fallback.
+    }
+  }
+
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(caption)}`;
+  window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+  return "fallback";
+}
+
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
@@ -478,6 +1762,59 @@ function readStorage(key) {
 
 function writeStorage(key, value) {
   window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getStoredUsers() {
+  const storedUsers = readStorage(storageKeys.users);
+  if (Array.isArray(storedUsers) && storedUsers.length > 0) {
+    return storedUsers;
+  }
+  writeStorage(storageKeys.users, defaultAuthUsers);
+  return [...defaultAuthUsers];
+}
+
+function findUserByUsername(username) {
+  return getStoredUsers().find((user) => user.username.toLowerCase() === username.toLowerCase());
+}
+
+function loginWithUser(user) {
+  applyRoleAccess(user.role);
+  currentUser.textContent = user.username;
+  currentRole.textContent = roleLabels[user.role] || "Team";
+  saveSession(user.username, user.role);
+  loginScreen.classList.add("hidden");
+  workspace.classList.remove("hidden");
+  renderUserManagementTable();
+  openSection("dashboard");
+}
+
+function renderUserManagementTable() {
+  if (!userManagementBody) {
+    return;
+  }
+
+  const users = getStoredUsers();
+  userManagementBody.innerHTML = "";
+
+  users.forEach((user) => {
+    const row = document.createElement("tr");
+    row.dataset.username = user.username;
+    row.innerHTML = `
+      <td>${user.username}</td>
+      <td><span class="tag tag-blue">${roleLabels[user.role] || user.role}</span></td>
+      <td>
+        <select class="user-role-select" data-username="${user.username}">
+          <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
+          <option value="organik" ${user.role === "organik" ? "selected" : ""}>Organik</option>
+          <option value="team" ${user.role === "team" ? "selected" : ""}>Team</option>
+        </select>
+      </td>
+      <td class="action-cell">
+        <button class="table-action" data-action="save-user-role" type="button">Simpan Role</button>
+      </td>
+    `;
+    userManagementBody.append(row);
+  });
 }
 
 function getNegatifItemsFromDom() {
@@ -498,9 +1835,12 @@ function getServiceItemsFromDom() {
   return [...serviceCardList.querySelectorAll(".inspection-card")].map((card) => ({
     id: card.dataset.id,
     type: card.dataset.type,
+    subtype: card.dataset.subtype || card.dataset.type,
+    formType: card.dataset.formType || "",
     equipmentName: card.querySelector(".inspection-head strong").textContent,
     description: card.querySelector("p").textContent,
-    detail: card.querySelector(".inspection-meta span").textContent,
+    detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
+    payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
   }));
 }
 
@@ -547,6 +1887,7 @@ function updateDashboardStats() {
   renderDashboardPreviews(negatifItems, spbItems);
   renderMobileCards(negatifItems, spbItems);
   renderNegatifModuleSummary(negatifItems);
+  renderNegatifCharts(negatifItems);
 }
 
 function renderNegatifModuleSummary(negatifItems) {
@@ -557,6 +1898,25 @@ function renderNegatifModuleSummary(negatifItems) {
   negatifHighCount.textContent = `${negatifItems.filter((item) => item.workStatus === "Open").length}`;
   negatifRawmillCount.textContent = `${negatifItems.filter((item) => item.pendingMark === "Menunggu Rawmill service").length}`;
   negatifOvhCount.textContent = `${negatifItems.filter((item) => item.pendingMark === "Menunggu OVH").length}`;
+}
+
+function renderNegatifCharts(negatifItems) {
+  renderChart(negatifStatusChart, [
+    { label: "Open", value: negatifItems.filter((item) => item.workStatus === "Open").length },
+    { label: "Close", value: negatifItems.filter((item) => item.workStatus === "Close").length },
+  ]);
+
+  renderChart(negatifAreaChart, [
+    { label: "Tuban 3", value: negatifItems.filter((item) => item.area === "Tuban 3").length },
+    { label: "Tuban 4", value: negatifItems.filter((item) => item.area === "Tuban 4").length },
+    { label: "Tuban 34", value: negatifItems.filter((item) => item.area === "Tuban 34").length },
+  ]);
+
+  renderChart(negatifMarkChart, [
+    { label: "Material", value: negatifItems.filter((item) => item.pendingMark === "Menunggu material").length },
+    { label: "Rawmill", value: negatifItems.filter((item) => item.pendingMark === "Menunggu Rawmill service").length },
+    { label: "OVH", value: negatifItems.filter((item) => item.pendingMark === "Menunggu OVH").length },
+  ]);
 }
 
 function renderExecutiveSummary(negatifItems, serviceItems, spbItems) {
@@ -689,15 +2049,40 @@ function applyNegatifListFilter() {
   const query = searchNegatifList?.value || "";
   const status = filterNegatifPriority?.value || "semua";
   const cause = filterNegatifCause?.value || "semua";
+  const category = filterNegatifCategory?.value || "semua";
+  const dateFrom = filterNegatifDateFrom?.value || "";
+  const dateTo = filterNegatifDateTo?.value || "";
   [...negatifListBody.querySelectorAll("tr")].forEach((row) => {
     const rowText = row.textContent || "";
     const rowStatus = row.children[5]?.textContent.trim() || "";
     const rowCause = row.children[4]?.textContent.trim() || "";
+    const rowCategory = row.children[6]?.textContent.trim() || "";
+    const rowDate = row.children[3]?.textContent.trim() || "";
     const matchesQuery = !query || matchesSearch(rowText, query);
     const matchesStatus = status === "semua" || rowStatus === status;
     const matchesCause = cause === "semua" || rowCause === cause;
-    row.hidden = !(matchesQuery && matchesStatus && matchesCause);
+    const matchesCategory = category === "semua" || rowCategory === category;
+    const matchesDateFrom = !dateFrom || rowDate >= dateFrom;
+    const matchesDateTo = !dateTo || rowDate <= dateTo;
+    row.hidden = !(matchesQuery && matchesStatus && matchesCause && matchesCategory && matchesDateFrom && matchesDateTo);
   });
+
+  const visibleItems = [...negatifListBody.querySelectorAll("tr")]
+    .filter((row) => !row.hidden)
+    .map((row) => ({
+      id: row.dataset.id,
+      equipment: row.children[0]?.textContent.trim() || "",
+      damageDescription: row.children[1]?.textContent.trim() || "",
+      followUpPlan: row.children[2]?.textContent.trim() || "",
+      foundDate: row.children[3]?.textContent.trim() || "",
+      pendingMark: row.children[4]?.textContent.trim() || "",
+      workStatus: row.children[5]?.textContent.trim() || "",
+      category: row.children[6]?.textContent.trim() || "",
+      area: row.children[7]?.textContent.trim() || "",
+    }));
+
+  renderNegatifModuleSummary(visibleItems);
+  renderNegatifCharts(visibleItems);
 }
 
 function applySparepartFilter() {
@@ -748,6 +2133,9 @@ function resetFilters() {
   if (searchNegatifList) searchNegatifList.value = "";
   if (filterNegatifPriority) filterNegatifPriority.value = "semua";
   if (filterNegatifCause) filterNegatifCause.value = "semua";
+  if (filterNegatifCategory) filterNegatifCategory.value = "semua";
+  if (filterNegatifDateFrom) filterNegatifDateFrom.value = "";
+  if (filterNegatifDateTo) filterNegatifDateTo.value = "";
   if (searchSparepart) searchSparepart.value = "";
   if (filterSparepartCondition) filterSparepartCondition.value = "semua";
   if (searchService) searchService.value = "";
@@ -839,21 +2227,47 @@ function renderNegatifRow(item) {
 function renderServiceCard(item) {
   const card = document.createElement("article");
   card.className = "inspection-card";
+  card.dataset.openable = "true";
+  card.tabIndex = 0;
   card.dataset.id = item.id;
   card.dataset.type = item.type;
+  card.dataset.subtype = item.subtype || item.type;
+  card.dataset.formType = item.formType || "";
+  card.dataset.payload = JSON.stringify(item.payload || {});
+  const carbonBrushStatsPayload = item.formType === "service-motor-mv-carbon-brush"
+    ? (item.payload?.stats || computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || ""))
+    : null;
+  const carbonBrushMeta = item.formType === "service-motor-mv-carbon-brush"
+    ? decodeCarbonBrushEquipmentMeta(item.equipmentName || "", item.payload?.plant || "")
+    : null;
+  const carbonBrushSummary = item.formType === "service-motor-mv-carbon-brush"
+    ? `
+      <div class="carbon-brush-card-summary">
+        <span class="summary-pill">${carbonBrushMeta?.plant || "-"}</span>
+        <span class="summary-pill">${carbonBrushMeta?.location || "-"}</span>
+        <span class="summary-pill low">Merah: ${carbonBrushStatsPayload?.low || 0}</span>
+        <span class="summary-pill medium">Kuning: ${carbonBrushStatsPayload?.medium || 0}</span>
+        <span class="summary-pill high">Hijau: ${carbonBrushStatsPayload?.high || 0}</span>
+        <span class="summary-pill">Terendah: ${carbonBrushStatsPayload?.min ?? "-"}</span>
+      </div>
+    `
+    : "";
   card.innerHTML = `
+    <div class="card-actions card-actions-icon service-card-actions">
+      <button class="table-action icon-action send" data-action="send-service" type="button" title="Kirim" aria-label="Kirim">↗</button>
+      <button class="table-action icon-action" data-action="edit-service" type="button" title="Edit" aria-label="Edit">✎</button>
+      <button class="table-action icon-action danger" data-action="delete-service" type="button" title="Hapus" aria-label="Hapus">✕</button>
+    </div>
     <div class="inspection-head">
       <span class="tag ${getServiceTag(item.type)}">${item.type}</span>
       <strong>${item.equipmentName}</strong>
     </div>
     <p>${item.description}</p>
+    ${carbonBrushSummary}
     <div class="inspection-meta">
+      <span>Sub menu: ${item.subtype || item.type}</span>
       <span>${item.detail}</span>
       <span>Status: Draft frontend</span>
-    </div>
-    <div class="card-actions">
-      <button class="table-action" data-action="edit-service" type="button">Edit</button>
-      <button class="table-action danger" data-action="delete-service" type="button">Hapus</button>
     </div>
   `;
   return card;
@@ -1096,25 +2510,15 @@ function loadStoredData() {
   const storedService = readStorage(storageKeys.service);
   if (storedService.length) {
     serviceCardList.innerHTML = "";
-    storedService.forEach((item) => {
+    const normalizedService = storedService.map((item) => normalizeServiceItem(item));
+    normalizedService.forEach((item) => {
       serviceCardList.append(renderServiceCard(item));
     });
+    writeStorage(storageKeys.service, normalizedService);
   } else {
-    [...serviceCardList.querySelectorAll(".inspection-card")].forEach((card, index) => {
-      const type = card.querySelector(".inspection-head .tag").textContent.trim();
-      card.dataset.id = createId("service");
-      card.dataset.type = type;
-      const editButton = card.querySelectorAll(".table-action")[0];
-      const deleteButton = card.querySelectorAll(".table-action")[1];
-      if (editButton) {
-        editButton.dataset.action = "edit-service";
-      }
-      if (deleteButton) {
-        deleteButton.dataset.action = "delete-service";
-      }
-      if (!card.querySelector(".inspection-meta span")) {
-        card.querySelector(".inspection-meta").prepend(`Item ${index + 1}`);
-      }
+    serviceCardList.innerHTML = "";
+    sampleData.service.forEach((item) => {
+      serviceCardList.append(renderServiceCard(item));
     });
     persistServiceList();
   }
@@ -1182,38 +2586,105 @@ function hydrateNegatifForm(item) {
 }
 
 function hydrateServiceForm(item) {
-  const typeMap = {
-    Electrical: 'service-electrical',
-    Instrument: 'service-instrument',
-    DCS: 'service-dcs',
-  };
-  const form = document.querySelector(`[data-form-type="${typeMap[item.type]}"]`);
+  const form = document.querySelector(`[data-form-type="${item.formType}"]`);
   if (!form) {
     return;
   }
 
-  form.equipmentName.value = item.equipmentName;
-  form.description.value = item.description;
-
   if (item.type === "Electrical") {
-    const match = item.detail.match(/Vibrasi DE (.*) \| Vibrasi NDE (.*)/);
-    form.vibrationDe.value = match?.[1] || "";
-    form.vibrationNde.value = match?.[2] || "";
+    openServicePane("electrical");
+    if (item.formType === "service-electrical-room") {
+      openElectricalPane("electrical-room");
+    }
+    if (item.formType === "service-motor-mv") {
+      openElectricalPane("motor-mv");
+    }
+    if (item.formType === "service-motor-mv-carbon-brush") {
+      openElectricalPane("motor-mv-carbon-brush");
+    }
+    if (item.formType === "service-ehca") {
+      openElectricalPane("ehca");
+    }
   }
 
   if (item.type === "Instrument") {
-    const match = item.detail.match(/Kondisi sensor: (.*) \| Foto: (.*)/);
-    form.sensorCondition.value = match?.[1] || "";
+    openServicePane("instrument");
   }
 
   if (item.type === "DCS") {
-    const match = item.detail.match(/Fungsi: (.*) \| Kebersihan: (.*)/);
-    form.equipmentFunction.value = match?.[1] || "";
-    form.environmentCleanliness.value = match?.[2] || "";
+    openServicePane("dcs");
+  }
+
+  form.equipmentName.value = item.equipmentName;
+  form.description.value = item.description;
+  const payload = item.payload || {};
+
+  if (item.formType === "service-electrical-room") {
+    form.panelDoorCondition.value = payload.panelDoorCondition || "OK";
+    form.floorCleanliness.value = payload.floorCleanliness || "Bersih";
+    form.roomTemperature.value = payload.roomTemperature || "Dingin";
+    form.batteryVdc.value = payload.batteryVdc || "";
+    form.batteryAmpere.value = payload.batteryAmpere || "";
+    form.batteryTotalVdc.value = payload.batteryTotalVdc || "";
+    form.battery1.value = payload.battery1 || "";
+    form.battery2.value = payload.battery2 || "";
+    form.battery3.value = payload.battery3 || "";
+    form.battery4.value = payload.battery4 || "";
+    form.battery5.value = payload.battery5 || "";
+    form.battery6.value = payload.battery6 || "";
+    form.battery7.value = payload.battery7 || "";
+    form.battery8.value = payload.battery8 || "";
+    form.battery9.value = payload.battery9 || "";
+    form.battery10.value = payload.battery10 || "";
+    form.transformerEquipment.value = payload.transformerEquipment || "";
+    form.transformerWindingTemperature.value = payload.transformerWindingTemperature || "";
+    form.transformerOilTemperature.value = payload.transformerOilTemperature || "";
+    form.transformerOilLevel.value = payload.transformerOilLevel || "";
+    form.transformerSilicaGel.value = payload.transformerSilicaGel || "OK";
+  }
+
+  if (item.formType === "service-motor-mv") {
+    form.vibrationDe.value = payload.vibrationDe || "";
+    form.vibrationNde.value = payload.vibrationNde || "";
+    form.windingTemperature.value = payload.windingTemperature || "";
+    form.bearingCondition.value = payload.bearingCondition || "";
+    form.motorCurrent.value = payload.motorCurrent || "";
+  }
+
+  if (item.formType === "service-motor-mv-carbon-brush") {
+    selectedCarbonBrushEquipmentReference = item.equipmentName || "";
+    form.replacement.value = payload.replacement || "";
+    form.megger.value = payload.megger || "";
+    form.pic.value = payload.pic || "";
+    carbonBrushMeasurementKeys.forEach((key) => {
+      const input = form.querySelector(`[name="${key}"]`);
+      if (input) {
+        input.value = payload.measurements?.[key] || "";
+      }
+    });
+    updateCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
+    updateCarbonBrushMeasurementColors();
+  }
+
+  if (item.formType === "service-ehca") {
+    form.systemPressure.value = payload.systemPressure || "";
+    form.fluidLevel.value = payload.fluidLevel || "";
+    form.filterCondition.value = payload.filterCondition || "";
+    form.leakCondition.value = payload.leakCondition || "";
+    form.unitCondition.value = payload.unitCondition || "";
+  }
+
+  if (item.formType === "service-instrument") {
+    form.sensorCondition.value = payload.sensorCondition || "";
+  }
+
+  if (item.formType === "service-dcs") {
+    form.equipmentFunction.value = payload.equipmentFunction || "";
+    form.environmentCleanliness.value = payload.environmentCleanliness || "";
   }
 
   editingServiceId = item.id;
-  setSubmitNote(form, `Mode edit aktif untuk service ${item.type}.`);
+  setSubmitNote(form, `Mode edit aktif untuk service ${item.subtype || item.type}.`);
 }
 
 function hydrateSparepartForm(item) {
@@ -1259,21 +2730,112 @@ if (loginForm) {
 
     const formData = new FormData(loginForm);
     const username = String(formData.get("username") || "user.plirm34").trim();
-    const role = String(formData.get("role") || "admin");
+    const password = String(formData.get("password") || "");
+    const matchedUser = findUserByUsername(username);
 
-    applyRoleAccess(role);
-    currentUser.textContent = username || "user.plirm34";
-    currentRole.textContent = roleLabels[role] || "Admin";
-    saveSession(username || "user.plirm34", role);
+    if (!matchedUser || matchedUser.password !== password) {
+      showToast("Login Gagal", "Username atau password tidak cocok.");
+      return;
+    }
 
-    loginScreen.classList.add("hidden");
-    workspace.classList.remove("hidden");
-    openSection("dashboard");
+    loginWithUser(matchedUser);
+    showToast("Login Berhasil", `Masuk sebagai ${matchedUser.username} (${roleLabels[matchedUser.role]}).`);
   });
 }
 
+signupButton?.addEventListener("click", () => {
+  const usernameField = document.getElementById("username");
+  const passwordField = document.getElementById("password");
+  const username = String(usernameField?.value || "").trim();
+  const password = String(passwordField?.value || "");
+
+  if (!username || !password) {
+    showToast("Sign Up", "Isi username dan password terlebih dahulu.");
+    return;
+  }
+
+  const existingUser = findUserByUsername(username);
+  if (existingUser) {
+    showToast("Sign Up", "Username sudah terdaftar. Gunakan username lain atau login.");
+    return;
+  }
+
+  const users = getStoredUsers();
+  const newUser = {
+    username,
+    password,
+    role: "team",
+  };
+  users.push(newUser);
+  writeStorage(storageKeys.users, users);
+  loginWithUser(newUser);
+  showToast("Sign Up Berhasil", "Akun baru dibuat dengan role Team.");
+});
+
+forgotPasswordButton?.addEventListener("click", () => {
+  const username = String(document.getElementById("username")?.value || "").trim();
+  if (!username) {
+    showToast("Lupa Password", "Masukkan username terlebih dahulu untuk cek akun lokal.");
+    return;
+  }
+
+  const user = findUserByUsername(username);
+  if (!user) {
+    showToast("Lupa Password", "Username belum terdaftar di penyimpanan lokal aplikasi.");
+    return;
+  }
+
+  showToast("Lupa Password", `Reset backend belum tersedia. Untuk prototype ini, akun ${user.username} tersimpan lokal dan perlu diubah manual.`);
+});
+
+userManagementBody?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || target.dataset.action !== "save-user-role") {
+    return;
+  }
+
+  const row = target.closest("tr");
+  if (!row) {
+    return;
+  }
+
+  const username = row.dataset.username || "";
+  const roleSelect = row.querySelector(".user-role-select");
+  if (!(roleSelect instanceof HTMLSelectElement) || !username) {
+    return;
+  }
+
+  const nextRole = roleSelect.value;
+  const users = getStoredUsers();
+  const updatedUsers = users.map((user) => (
+    user.username === username
+      ? { ...user, role: nextRole }
+      : user
+  ));
+
+  writeStorage(storageKeys.users, updatedUsers);
+  renderUserManagementTable();
+
+  const session = readStorage(storageKeys.session);
+  if (session && !Array.isArray(session) && session.username === username) {
+    saveSession(session.username, nextRole);
+    applyRoleAccess(nextRole);
+    currentRole.textContent = roleLabels[nextRole] || nextRole;
+    if (nextRole !== "admin") {
+      openSection("dashboard");
+      showToast("Manajemen User", `Role akun aktif berubah menjadi ${roleLabels[nextRole]}. Akses admin ditutup.`);
+      return;
+    }
+  }
+
+  showToast("Manajemen User", `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
+});
+
 loadStoredData();
 loadEquipmentReference();
+renderCarbonBrushMeasurementGrid();
+loadCarbonBrushEquipmentReference();
+getStoredUsers();
 restoreSession();
 
 if (!hasAnyStoredData()) {
@@ -1324,9 +2886,76 @@ document.addEventListener("click", (event) => {
   }
 });
 
+serviceTabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    openServicePane(button.dataset.serviceTab);
+  });
+});
+
+electricalSubtabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    openElectricalPane(button.dataset.electricalTab);
+  });
+});
+
+carbonBrushEquipmentInput?.addEventListener("input", (event) => {
+  const query = event.target.value.trim();
+  selectedCarbonBrushEquipmentReference = carbonBrushEquipmentReferenceList.includes(query) ? query : "";
+  updateCarbonBrushEquipmentMeta(query);
+  renderCarbonBrushEquipmentResults(query);
+  updateCarbonBrushMeasurementColors();
+});
+
+carbonBrushEquipmentInput?.addEventListener("focus", () => {
+  renderCarbonBrushEquipmentResults(carbonBrushEquipmentInput.value);
+});
+
+carbonBrushEquipmentInput?.addEventListener("blur", () => {
+  window.setTimeout(() => {
+    const currentValue = carbonBrushEquipmentInput.value.trim();
+    if (!currentValue) {
+      selectedCarbonBrushEquipmentReference = "";
+      updateCarbonBrushEquipmentMeta("");
+      hideCarbonBrushEquipmentResults();
+      return;
+    }
+
+    if (!carbonBrushEquipmentReferenceList.includes(currentValue)) {
+      selectedCarbonBrushEquipmentReference = "";
+      updateCarbonBrushEquipmentStatus("Pilih equipment carbon brush dari referensi resmi.", true);
+    } else {
+      selectedCarbonBrushEquipmentReference = currentValue;
+      updateCarbonBrushEquipmentStatus(`Equipment carbon brush dipilih dari referensi resmi. Total referensi aktif: ${carbonBrushEquipmentReferenceList.length} item.`);
+    }
+    hideCarbonBrushEquipmentResults();
+  }, 140);
+});
+
+document.addEventListener("input", (event) => {
+  if (event.target instanceof HTMLElement && event.target.matches("[data-carbon-brush-measurement]")) {
+    updateCarbonBrushMeasurementColors();
+  }
+});
+
+serviceDetailClose?.addEventListener("click", closeServiceDetail);
+
+serviceDetailModal?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLElement && target.dataset.closeDetail === "true") {
+    closeServiceDetail();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && serviceDetailModal && !serviceDetailModal.classList.contains("hidden")) {
+    closeServiceDetail();
+  }
+});
+
 menuItems.forEach((item) => {
   item.addEventListener("click", () => {
     openSection(item.dataset.section);
+    closeAllCreatePanels();
     if (window.innerWidth <= 640) {
       sidebar?.classList.remove("menu-open");
     }
@@ -1336,11 +2965,29 @@ menuItems.forEach((item) => {
 jumpButtons.forEach((button) => {
   button.addEventListener("click", () => {
     openSection(button.dataset.sectionJump);
+    closeAllCreatePanels();
+  });
+});
+
+createToggleButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const sectionName = button.dataset.createTarget || "";
+    if (!sectionName) {
+      return;
+    }
+    resetCreatePanelState(sectionName);
+    openCreatePanel(sectionName);
+  });
+});
+
+closePanelButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    closeCreatePanel(button.dataset.closePanel || "");
   });
 });
 
 forms.forEach((form) => {
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formType = form.dataset.formType;
     const formData = new FormData(form);
@@ -1382,26 +3029,194 @@ forms.forEach((form) => {
       applyNegatifListFilter();
     }
 
-    if (formType === "service-electrical") {
+    if (formType === "service-electrical-room") {
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
       const item = {
         id: editingServiceId || createId("service"),
         type: "Electrical",
+        subtype: "Electrical Room",
+        formType: "service-electrical-room",
         equipmentName: String(formData.get("equipmentName") || "-"),
         description: String(formData.get("description") || "-"),
-        detail: `Vibrasi DE ${String(formData.get("vibrationDe") || "-")} | Vibrasi NDE ${String(formData.get("vibrationNde") || "-")}`,
+        detail: `Pintu panel: ${String(formData.get("panelDoorCondition") || "-")} | Lantai: ${String(formData.get("floorCleanliness") || "-")} | Temperature: ${String(formData.get("roomTemperature") || "-")}`,
+          payload: {
+            inspectionDate: existingPayload.inspectionDate || new Date().toISOString(),
+            panelDoorCondition: String(formData.get("panelDoorCondition") || "OK"),
+            floorCleanliness: String(formData.get("floorCleanliness") || "Bersih"),
+            roomTemperature: String(formData.get("roomTemperature") || "Dingin"),
+            batteryVdc: String(formData.get("batteryVdc") || ""),
+            batteryAmpere: String(formData.get("batteryAmpere") || ""),
+          batteryTotalVdc: String(formData.get("batteryTotalVdc") || ""),
+          battery1: String(formData.get("battery1") || ""),
+          battery2: String(formData.get("battery2") || ""),
+          battery3: String(formData.get("battery3") || ""),
+          battery4: String(formData.get("battery4") || ""),
+          battery5: String(formData.get("battery5") || ""),
+          battery6: String(formData.get("battery6") || ""),
+          battery7: String(formData.get("battery7") || ""),
+          battery8: String(formData.get("battery8") || ""),
+          battery9: String(formData.get("battery9") || ""),
+          battery10: String(formData.get("battery10") || ""),
+          transformerEquipment: String(formData.get("transformerEquipment") || ""),
+          transformerWindingTemperature: String(formData.get("transformerWindingTemperature") || ""),
+          transformerOilTemperature: String(formData.get("transformerOilTemperature") || ""),
+          transformerOilLevel: String(formData.get("transformerOilLevel") || ""),
+          transformerSilicaGel: String(formData.get("transformerSilicaGel") || "OK"),
+          findingPhotoName: photoPayload.findingPhotoName,
+          findingPhotoData: photoPayload.findingPhotoData,
+        },
       };
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
           existing.replaceWith(renderServiceCard(item));
         }
-        setSubmitNote(form, "Service electrical berhasil diperbarui.");
-        showToast("Service Electrical", "Data berhasil diperbarui.");
+        setSubmitNote(form, "Electrical Room berhasil diperbarui.");
+        showToast("Electrical Room", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
         appendServiceCard(item);
-        setSubmitNote(form, "Service electrical berhasil ditambahkan ke daftar service.");
-        showToast("Service Electrical", "Item baru berhasil ditambahkan.");
+        setSubmitNote(form, "Inspeksi Electrical Room berhasil ditambahkan.");
+        showToast("Electrical Room", "Item baru berhasil ditambahkan.");
+      }
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
+    }
+
+    if (formType === "service-motor-mv") {
+      const item = {
+        id: editingServiceId || createId("service"),
+        type: "Electrical",
+          subtype: "Motor MV",
+          formType: "service-motor-mv",
+        equipmentName: String(formData.get("equipmentName") || "-"),
+        description: String(formData.get("description") || "-"),
+          detail: `Vibrasi DE: ${String(formData.get("vibrationDe") || "-")} | Vibrasi NDE: ${String(formData.get("vibrationNde") || "-")} | Arus: ${String(formData.get("motorCurrent") || "-")}`,
+          payload: {
+            inspectionDate: editingServiceId
+              ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload?.inspectionDate || new Date().toISOString()
+              : new Date().toISOString(),
+            vibrationDe: String(formData.get("vibrationDe") || ""),
+            vibrationNde: String(formData.get("vibrationNde") || ""),
+            windingTemperature: String(formData.get("windingTemperature") || ""),
+            bearingCondition: String(formData.get("bearingCondition") || ""),
+            motorCurrent: String(formData.get("motorCurrent") || ""),
+        },
+      };
+      if (editingServiceId) {
+        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
+        if (existing) {
+          existing.replaceWith(renderServiceCard(item));
+        }
+        setSubmitNote(form, "Motor MV berhasil diperbarui.");
+        showToast("Motor MV", "Data berhasil diperbarui.");
+        editingServiceId = null;
+      } else {
+        appendServiceCard(item);
+        setSubmitNote(form, "Inspeksi Motor MV berhasil ditambahkan.");
+        showToast("Motor MV", "Item baru berhasil ditambahkan.");
+      }
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
+    }
+
+    if (formType === "service-motor-mv-carbon-brush") {
+      const selectedEquipment = String(formData.get("equipmentName") || "").trim();
+      if (!selectedEquipment || selectedEquipment !== selectedCarbonBrushEquipmentReference || !carbonBrushEquipmentReferenceList.includes(selectedEquipment)) {
+        setSubmitNote(form, "Pilih equipment carbon brush dari referensi resmi terlebih dahulu.");
+        showToast("Carbon Brush", "Equipment harus dipilih dari referensi resmi.");
+        return;
+      }
+
+      const measurements = collectCarbonBrushMeasurements(form);
+      const meta = decodeCarbonBrushEquipmentMeta(selectedEquipment);
+      const stats = computeCarbonBrushStats(measurements, selectedEquipment, meta.plant);
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const item = {
+        id: editingServiceId || createId("service"),
+        type: "Electrical",
+        subtype: "Motor MV (Carbon Brush)",
+        formType: "service-motor-mv-carbon-brush",
+        equipmentName: selectedEquipment,
+        description: String(formData.get("description") || "-"),
+        detail: `Merah: ${stats.low} | Kuning: ${stats.medium} | Hijau: ${stats.high} | Terendah: ${stats.min ?? "-"}`,
+        payload: {
+          inspectionDate: existingPayload.inspectionDate || new Date().toISOString(),
+          plant: meta.plant,
+          location: meta.location,
+          category: meta.category,
+          replacement: String(formData.get("replacement") || ""),
+          megger: String(formData.get("megger") || ""),
+          pic: String(formData.get("pic") || ""),
+          measurements,
+          stats: {
+            low: stats.low,
+            medium: stats.medium,
+            high: stats.high,
+            empty: stats.empty,
+            min: stats.min,
+            attentionPoints: stats.attentionPoints,
+          },
+        },
+      };
+
+      if (editingServiceId) {
+        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
+        if (existing) {
+          existing.replaceWith(renderServiceCard(item));
+        }
+        setSubmitNote(form, "Motor MV Carbon Brush berhasil diperbarui.");
+        showToast("Carbon Brush", "Data berhasil diperbarui.");
+        editingServiceId = null;
+      } else {
+        appendServiceCard(item);
+        setSubmitNote(form, "Inspeksi Motor MV Carbon Brush berhasil ditambahkan.");
+        showToast("Carbon Brush", "Item baru berhasil ditambahkan.");
+      }
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
+    }
+
+    if (formType === "service-ehca") {
+      const item = {
+          id: editingServiceId || createId("service"),
+          type: "Electrical",
+          subtype: "EH/CA",
+          formType: "service-ehca",
+        equipmentName: String(formData.get("equipmentName") || "-"),
+        description: String(formData.get("description") || "-"),
+          detail: `Pressure: ${String(formData.get("systemPressure") || "-")} | Filter: ${String(formData.get("filterCondition") || "-")} | Leakage: ${String(formData.get("leakCondition") || "-")}`,
+          payload: {
+            inspectionDate: editingServiceId
+              ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload?.inspectionDate || new Date().toISOString()
+              : new Date().toISOString(),
+            systemPressure: String(formData.get("systemPressure") || ""),
+            fluidLevel: String(formData.get("fluidLevel") || ""),
+            filterCondition: String(formData.get("filterCondition") || ""),
+            leakCondition: String(formData.get("leakCondition") || ""),
+            unitCondition: String(formData.get("unitCondition") || ""),
+        },
+      };
+      if (editingServiceId) {
+        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
+        if (existing) {
+          existing.replaceWith(renderServiceCard(item));
+        }
+        setSubmitNote(form, "EH/CA berhasil diperbarui.");
+        showToast("EH/CA", "Data berhasil diperbarui.");
+        editingServiceId = null;
+      } else {
+        appendServiceCard(item);
+        setSubmitNote(form, "Inspeksi EH/CA berhasil ditambahkan.");
+        showToast("EH/CA", "Item baru berhasil ditambahkan.");
       }
       persistServiceList();
       updateDashboardStats();
@@ -1409,14 +3224,24 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-instrument") {
-      const photo = formData.get("findingPhoto");
-      const photoName = photo && typeof photo === "object" && "name" in photo && photo.name ? photo.name : "tidak ada file";
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
       const item = {
         id: editingServiceId || createId("service"),
         type: "Instrument",
+        subtype: "Instrument",
+        formType: "service-instrument",
         equipmentName: String(formData.get("equipmentName") || "-"),
         description: String(formData.get("description") || "-"),
-        detail: `Kondisi sensor: ${String(formData.get("sensorCondition") || "-")} | Foto: ${photoName}`,
+          detail: `Kondisi sensor: ${String(formData.get("sensorCondition") || "-")} | Foto: ${photoPayload.findingPhotoName}`,
+          payload: {
+            inspectionDate: existingPayload.inspectionDate || new Date().toISOString(),
+            sensorCondition: String(formData.get("sensorCondition") || ""),
+            findingPhotoName: photoPayload.findingPhotoName,
+            findingPhotoData: photoPayload.findingPhotoData,
+          },
       };
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
@@ -1437,13 +3262,22 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-dcs") {
-      const item = {
-        id: editingServiceId || createId("service"),
-        type: "DCS",
+        const item = {
+          id: editingServiceId || createId("service"),
+          type: "DCS",
+          subtype: "DCS",
+          formType: "service-dcs",
         equipmentName: String(formData.get("equipmentName") || "-"),
         description: String(formData.get("description") || "-"),
-        detail: `Fungsi: ${String(formData.get("equipmentFunction") || "-")} | Kebersihan: ${String(formData.get("environmentCleanliness") || "-")}`,
-      };
+          detail: `Fungsi: ${String(formData.get("equipmentFunction") || "-")} | Kebersihan: ${String(formData.get("environmentCleanliness") || "-")}`,
+          payload: {
+            inspectionDate: editingServiceId
+              ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload?.inspectionDate || new Date().toISOString()
+              : new Date().toISOString(),
+            equipmentFunction: String(formData.get("equipmentFunction") || ""),
+            environmentCleanliness: String(formData.get("environmentCleanliness") || ""),
+          },
+        };
       if (editingServiceId) {
         const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
         if (existing) {
@@ -1545,7 +3379,17 @@ forms.forEach((form) => {
       }
     }
 
+    const formSectionName = getSectionNameByFormType(formType);
+    if (formSectionName) {
+      closeCreatePanel(formSectionName);
+    }
+
     form.reset();
+    if (formType === "service-motor-mv-carbon-brush") {
+      selectedCarbonBrushEquipmentReference = "";
+      updateCarbonBrushEquipmentMeta("");
+      updateCarbonBrushMeasurementColors();
+    }
   });
 });
 
@@ -1580,6 +3424,7 @@ negatifListBody.addEventListener("click", (event) => {
       area: row.children[7].textContent.trim(),
     });
     openSection("negatif-list");
+    openCreatePanel("negatif-list");
   }
 });
 
@@ -1608,6 +3453,7 @@ sparepartBody.addEventListener("click", (event) => {
       condition: row.children[5].textContent.trim(),
     });
     openSection("sparepart");
+    openCreatePanel("sparepart");
   }
 });
 
@@ -1621,6 +3467,20 @@ serviceCardList.addEventListener("click", (event) => {
     return;
   }
 
+  if (!target.closest("[data-action]")) {
+    openServiceDetail({
+      id: card.dataset.id,
+      type: card.dataset.type,
+      subtype: card.dataset.subtype || card.dataset.type,
+      formType: card.dataset.formType || "",
+      equipmentName: card.querySelector(".inspection-head strong").textContent,
+      description: card.querySelector("p").textContent,
+      detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
+      payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
+    });
+    return;
+  }
+
   if (target.dataset.action === "delete-service") {
     card.remove();
     persistServiceList();
@@ -1629,16 +3489,70 @@ serviceCardList.addEventListener("click", (event) => {
     showToast("Service", "Item berhasil dihapus.");
   }
 
+  if (target.dataset.action === "send-service") {
+    const item = {
+      id: card.dataset.id,
+      type: card.dataset.type,
+      subtype: card.dataset.subtype || card.dataset.type,
+      formType: card.dataset.formType || "",
+      equipmentName: card.querySelector(".inspection-head strong").textContent,
+      description: card.querySelector("p").textContent,
+      detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
+      payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
+    };
+
+    showToast("Service", "Menyiapkan image inspeksi untuk dikirim...");
+    sendServiceToWhatsApp(item)
+      .then((result) => {
+        if (result === "shared") {
+          showToast("WhatsApp", "Image inspeksi siap dibagikan ke WhatsApp.");
+          return;
+        }
+        showToast("WhatsApp", "Mode lokal HTTP tidak bisa melampirkan image otomatis ke WhatsApp. Gambar diunduh, caption disiapkan, dan WhatsApp dibuka dengan teks.");
+      })
+      .catch(() => {
+        showToast("WhatsApp", "Gagal menyiapkan image inspeksi.");
+      });
+  }
+
   if (target.dataset.action === "edit-service") {
     hydrateServiceForm({
       id: card.dataset.id,
       type: card.dataset.type,
+      subtype: card.dataset.subtype || card.dataset.type,
+      formType: card.dataset.formType || "",
       equipmentName: card.querySelector(".inspection-head strong").textContent,
       description: card.querySelector("p").textContent,
-      detail: card.querySelector(".inspection-meta span").textContent,
+      detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
+      payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
     });
     openSection("service");
+    openCreatePanel("service");
   }
+});
+
+serviceCardList.addEventListener("keydown", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !(event.key === "Enter" || event.key === " ")) {
+    return;
+  }
+
+  const card = target.closest(".inspection-card");
+  if (!card || target.closest("[data-action]")) {
+    return;
+  }
+
+  event.preventDefault();
+  openServiceDetail({
+    id: card.dataset.id,
+    type: card.dataset.type,
+    subtype: card.dataset.subtype || card.dataset.type,
+    formType: card.dataset.formType || "",
+    equipmentName: card.querySelector(".inspection-head strong").textContent,
+    description: card.querySelector("p").textContent,
+    detail: card.querySelectorAll(".inspection-meta span")[1]?.textContent || "",
+    payload: card.dataset.payload ? JSON.parse(card.dataset.payload) : {},
+  });
 });
 
 bomList.addEventListener("click", (event) => {
@@ -1663,6 +3577,7 @@ bomList.addEventListener("click", (event) => {
       meta: card.querySelector(".bom-copy small").textContent,
     });
     openSection("bom");
+    openCreatePanel("bom");
   }
 });
 
@@ -1695,12 +3610,16 @@ spbBody.addEventListener("click", (event) => {
       status: row.children[9].textContent.trim(),
     });
     openSection("spb");
+    openCreatePanel("spb");
   }
 });
 
 searchNegatifList?.addEventListener("input", applyNegatifListFilter);
 filterNegatifPriority?.addEventListener("change", applyNegatifListFilter);
 filterNegatifCause?.addEventListener("change", applyNegatifListFilter);
+filterNegatifCategory?.addEventListener("change", applyNegatifListFilter);
+filterNegatifDateFrom?.addEventListener("change", applyNegatifListFilter);
+filterNegatifDateTo?.addEventListener("change", applyNegatifListFilter);
 searchSparepart?.addEventListener("input", applySparepartFilter);
 filterSparepartCondition?.addEventListener("change", applySparepartFilter);
 searchService?.addEventListener("input", applyServiceFilter);
@@ -1738,11 +3657,11 @@ exportButtons.forEach((button) => {
       showToast("Export", "Sparepart berhasil diexport ke CSV.");
     }
 
-    if (exportType === "service") {
-      const items = getServiceItemsFromDom();
-      downloadCsv("service.csv", ["Tipe", "Equipment", "Deskripsi", "Detail"], items.map((item) => [item.type, item.equipmentName, item.description, item.detail]));
-      showToast("Export", "Service berhasil diexport ke CSV.");
-    }
+      if (exportType === "service") {
+        const items = getServiceItemsFromDom();
+        downloadCsv("service.csv", ["Tipe", "Sub Menu", "Equipment", "Deskripsi", "Detail"], items.map((item) => [item.type, item.subtype, item.equipmentName, item.description, item.detail]));
+        showToast("Export", "Service berhasil diexport ke CSV.");
+      }
 
     if (exportType === "bom") {
       const items = getBomItemsFromDom();
