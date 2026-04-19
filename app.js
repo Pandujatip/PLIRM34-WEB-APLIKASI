@@ -3746,13 +3746,16 @@ function applyServiceFilter() {
 function applyBomFilter() {
   const query = searchBom?.value || "";
   const area = filterBomArea?.value || "semua";
-  const targetList = activeBomPane === "motor" ? bomMotorList : bomList;
-  [...(targetList?.querySelectorAll(".bom-card") || [])].forEach((card) => {
-    const cardText = card.textContent || "";
-    const cardArea = card.dataset.area || getBomAreaFromEquipment(card.dataset.equipment || "");
-    const matchesQuery = !query || matchesSearch(cardText, query);
-    const matchesArea = area === "semua" || cardArea === area;
-    card.hidden = !(matchesQuery && matchesArea);
+  [bomList, bomMotorList].forEach((list) => {
+    [...(list?.querySelectorAll(".bom-card") || [])].forEach((card) => {
+      const cardText = card.textContent || "";
+      const cardArea = card.dataset.area || getBomAreaFromEquipment(card.dataset.equipment || "");
+      const matchesQuery = !query || matchesSearch(cardText, query);
+      const matchesArea = area === "semua" || cardArea === area;
+      const isVisible = matchesQuery && matchesArea;
+      card.hidden = !isVisible;
+      card.classList.toggle("is-filtered-out", !isVisible);
+    });
   });
 }
 

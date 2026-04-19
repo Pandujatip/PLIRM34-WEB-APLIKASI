@@ -65,6 +65,10 @@ select {
   display: none !important;
 }
 
+.is-filtered-out {
+  display: none !important;
+}
+
 .visible {
   display: block;
 }
