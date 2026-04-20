@@ -167,6 +167,8 @@ let equipmentReferenceList = [];
 let selectedEquipmentReference = "";
 let dcsEquipmentReferenceItems = [];
 let selectedDcsEquipmentReference = "";
+let dcsEquipmentReferenceLoadedAt = 0;
+let dcsEquipmentReferencePromise = null;
 let carbonBrushEquipmentReferenceList = [];
 let selectedCarbonBrushEquipmentReference = "";
 const storageKeys = {
@@ -850,74 +852,96 @@ async function loadCarbonBrushEquipmentReference() {
   }
 }
 
-async function loadDcsEquipmentReference() {
+async function loadDcsEquipmentReference(options = {}) {
   if (!serviceDcsEquipmentInput) {
     return;
+  }
+
+  const force = Boolean(options.force);
+  const cacheFresh = dcsEquipmentReferenceItems.length > 0 && (Date.now() - dcsEquipmentReferenceLoadedAt) < 300000;
+  if (!force && cacheFresh) {
+    setDcsEquipmentInputEnabled(true);
+    updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+    return dcsEquipmentReferenceItems;
+  }
+
+  if (!force && dcsEquipmentReferencePromise) {
+    return dcsEquipmentReferencePromise;
   }
 
   setDcsEquipmentInputEnabled(false);
   updateDcsEquipmentReferenceStatus("Memuat referensi equipment DCS...");
 
-  try {
-    dcsEquipmentReferenceItems = [];
+  dcsEquipmentReferencePromise = (async () => {
+    try {
+      dcsEquipmentReferenceItems = [];
 
-    if (backendState.available && backendState.sessionActive) {
-      const result = await apiRequest("/masters?source_group=dcs-service");
-      const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
-      dcsEquipmentReferenceItems = references
-        .map((item) => ({
-          equipmentName: String(item.equipmentName || "").trim(),
-          description: String(item.metadata?.equipmentDescription || item.metadata?.description || "").trim(),
-        }))
-        .filter((item) => item.equipmentName);
-    }
-
-    if (!dcsEquipmentReferenceItems.length) {
-      const response = await fetch(DCS_EQUIPMENT_REFERENCE_URL, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (backendState.available && backendState.sessionActive) {
+        const result = await apiRequest("/masters?source_group=dcs-service");
+        const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
+        dcsEquipmentReferenceItems = references
+          .map((item) => ({
+            equipmentName: String(item.equipmentName || "").trim(),
+            description: String(item.metadata?.equipmentDescription || item.metadata?.description || "").trim(),
+          }))
+          .filter((item) => item.equipmentName);
       }
 
-      const csvText = await response.text();
-      const rows = csvText
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map(parseCsvRow);
+      if (!dcsEquipmentReferenceItems.length) {
+        const response = await fetch(DCS_EQUIPMENT_REFERENCE_URL, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
 
-      dcsEquipmentReferenceItems = rows
-        .slice(1)
-        .map((row) => ({
-          equipmentName: normalizeDcsEquipmentCode(row[0] || ""),
-          description: normalizeDcsEquipmentDescription(row[1] || ""),
-        }))
-        .filter((item) => item.equipmentName)
-        .filter((item, index, array) => array.findIndex((entry) => entry.equipmentName === item.equipmentName) === index)
-        .sort((left, right) => left.equipmentName.localeCompare(right.equipmentName, "id"));
-    }
+        const csvText = await response.text();
+        const rows = csvText
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map(parseCsvRow);
 
-    if (!dcsEquipmentReferenceItems.length) {
-      throw new Error("Referensi DCS kosong");
-    }
+        dcsEquipmentReferenceItems = rows
+          .slice(1)
+          .map((row) => ({
+            equipmentName: normalizeDcsEquipmentCode(row[0] || ""),
+            description: normalizeDcsEquipmentDescription(row[1] || ""),
+          }))
+          .filter((item) => item.equipmentName)
+          .filter((item, index, array) => array.findIndex((entry) => entry.equipmentName === item.equipmentName) === index)
+          .sort((left, right) => left.equipmentName.localeCompare(right.equipmentName, "id"));
+      }
 
-    setDcsEquipmentInputEnabled(true);
-    serviceDcsEquipmentInput.placeholder = "Ketik kode equipment DCS, misal 776PLCA3";
-    const currentReference = findDcsEquipmentReference(selectedDcsEquipmentReference || serviceDcsEquipmentInput.value);
-    if (currentReference) {
-      setDcsEquipmentReferenceValue(currentReference.equipmentName, currentReference.description);
-    } else {
+      if (!dcsEquipmentReferenceItems.length) {
+        throw new Error("Referensi DCS kosong");
+      }
+
+      dcsEquipmentReferenceLoadedAt = Date.now();
+      setDcsEquipmentInputEnabled(true);
+      serviceDcsEquipmentInput.placeholder = "Ketik kode equipment DCS, misal 776PLCA3";
+      const currentReference = findDcsEquipmentReference(selectedDcsEquipmentReference || serviceDcsEquipmentInput.value);
+      if (currentReference) {
+        setDcsEquipmentReferenceValue(currentReference.equipmentName, currentReference.description);
+      } else {
+        setDcsEquipmentReferenceValue("", "");
+        selectedDcsEquipmentReference = "";
+      }
+      updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+      return dcsEquipmentReferenceItems;
+    } catch (error) {
+      dcsEquipmentReferenceItems = [];
+      dcsEquipmentReferenceLoadedAt = 0;
+      setDcsEquipmentInputEnabled(false);
       setDcsEquipmentReferenceValue("", "");
       selectedDcsEquipmentReference = "";
+      hideDcsEquipmentResults();
+      updateDcsEquipmentReferenceStatus("Gagal memuat referensi equipment DCS. Form DCS dikunci sampai referensi berhasil dibaca.", true);
+      throw error;
+    } finally {
+      dcsEquipmentReferencePromise = null;
     }
-    updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
-  } catch (error) {
-    dcsEquipmentReferenceItems = [];
-    setDcsEquipmentInputEnabled(false);
-    setDcsEquipmentReferenceValue("", "");
-    selectedDcsEquipmentReference = "";
-    hideDcsEquipmentResults();
-    updateDcsEquipmentReferenceStatus("Gagal memuat referensi equipment DCS. Form DCS dikunci sampai referensi berhasil dibaca.", true);
-  }
+  })();
+
+  return dcsEquipmentReferencePromise;
 }
 
 function renderCarbonBrushMeasurementGrid() {
@@ -3367,7 +3391,6 @@ async function hydrateFromBackendAfterLogin() {
   }
   await loadAllDataFromBackend();
   await loadMastersFromBackend();
-  await loadDcsEquipmentReference();
   renderUserManagementTable();
   await refreshAdminMasters();
   await refreshActivityLogs();
@@ -3392,7 +3415,6 @@ async function restoreBackendSession() {
     }
     await loadAllDataFromBackend();
     await loadMastersFromBackend();
-    await loadDcsEquipmentReference();
     loginWithUser(bootstrap.user);
     await refreshAdminMasters();
     await refreshActivityLogs();
@@ -3425,7 +3447,6 @@ async function initializeApplication() {
 
   await Promise.allSettled([
     loadEquipmentReference(),
-    loadDcsEquipmentReference(),
     loadCarbonBrushEquipmentReference(),
   ]);
 
