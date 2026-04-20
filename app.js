@@ -1205,6 +1205,9 @@ function openServicePane(tabName) {
   servicePanes.forEach((pane) => {
     pane.classList.toggle("visible", pane.dataset.servicePane === tabName);
   });
+  if (tabName === "dcs") {
+    void loadDcsEquipmentReference();
+  }
 }
 
 function openBomPane(tabName) {
@@ -3342,6 +3345,7 @@ async function hydrateFromBackendAfterLogin() {
   }
   await loadAllDataFromBackend();
   await loadMastersFromBackend();
+  await loadDcsEquipmentReference();
   renderUserManagementTable();
   await refreshAdminMasters();
   await refreshActivityLogs();
@@ -3366,6 +3370,7 @@ async function restoreBackendSession() {
     }
     await loadAllDataFromBackend();
     await loadMastersFromBackend();
+    await loadDcsEquipmentReference();
     loginWithUser(bootstrap.user);
     await refreshAdminMasters();
     await refreshActivityLogs();
