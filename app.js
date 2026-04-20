@@ -2623,7 +2623,7 @@ function buildCarbonBrushMeggerAuditHtml(item, history, meggerTrend, meggerMinim
     ? history.map((entry, index, array) => {
       const prev = index > 0 ? array[index - 1] : null;
       const daysGap = prev?.inspectionDate ? getDaysBetweenDates(prev.inspectionDate, entry.inspectionDate) : null;
-      const delta = prev?.numericValue !== null && entry.numericValue !== null
+      const delta = prev && prev.numericValue !== null && entry.numericValue !== null
         ? entry.numericValue - prev.numericValue
         : null;
       return `
