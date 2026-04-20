@@ -361,6 +361,20 @@ function updateDcsEquipmentReferenceStatus(message, isError = false) {
   serviceDcsEquipmentStatus.classList.toggle("error-text", isError);
 }
 
+function setDcsEquipmentInputEnabled(isEnabled) {
+  if (!serviceDcsEquipmentInput) {
+    return;
+  }
+  serviceDcsEquipmentInput.disabled = !isEnabled;
+  serviceDcsEquipmentInput.readOnly = false;
+  if (isEnabled) {
+    serviceDcsEquipmentInput.removeAttribute("disabled");
+    serviceDcsEquipmentInput.removeAttribute("readonly");
+  } else {
+    serviceDcsEquipmentInput.setAttribute("disabled", "disabled");
+  }
+}
+
 function setDcsEquipmentReferenceValue(value, description = "") {
   if (!serviceDcsEquipmentInput) {
     return;
@@ -841,7 +855,7 @@ async function loadDcsEquipmentReference() {
     return;
   }
 
-  serviceDcsEquipmentInput.disabled = true;
+  setDcsEquipmentInputEnabled(false);
   updateDcsEquipmentReferenceStatus("Memuat referensi equipment DCS...");
 
   try {
@@ -886,7 +900,7 @@ async function loadDcsEquipmentReference() {
       throw new Error("Referensi DCS kosong");
     }
 
-    serviceDcsEquipmentInput.disabled = false;
+    setDcsEquipmentInputEnabled(true);
     serviceDcsEquipmentInput.placeholder = "Ketik kode equipment DCS, misal 776PLCA3";
     const currentReference = findDcsEquipmentReference(selectedDcsEquipmentReference || serviceDcsEquipmentInput.value);
     if (currentReference) {
@@ -898,7 +912,7 @@ async function loadDcsEquipmentReference() {
     updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
   } catch (error) {
     dcsEquipmentReferenceItems = [];
-    serviceDcsEquipmentInput.disabled = true;
+    setDcsEquipmentInputEnabled(false);
     setDcsEquipmentReferenceValue("", "");
     selectedDcsEquipmentReference = "";
     hideDcsEquipmentResults();
@@ -1206,6 +1220,7 @@ function openServicePane(tabName) {
     pane.classList.toggle("visible", pane.dataset.servicePane === tabName);
   });
   if (tabName === "dcs") {
+    setDcsEquipmentInputEnabled(true);
     void loadDcsEquipmentReference();
   }
 }
@@ -1238,6 +1253,13 @@ function openCreatePanel(sectionName) {
     panel.classList.toggle("hidden", panel.dataset.createPanel !== sectionName);
   });
   const panel = document.querySelector(`[data-create-panel="${sectionName}"]`);
+  if (sectionName === "service" && servicePanes) {
+    const activePane = [...servicePanes].find((pane) => pane.classList.contains("visible"));
+    if (activePane?.dataset.servicePane === "dcs") {
+      setDcsEquipmentInputEnabled(true);
+      void loadDcsEquipmentReference();
+    }
+  }
   panel?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -5541,9 +5563,15 @@ serviceDcsEquipmentInput?.addEventListener("input", () => {
 });
 
 serviceDcsEquipmentInput?.addEventListener("focus", () => {
+  setDcsEquipmentInputEnabled(true);
   if (serviceDcsEquipmentInput.value.trim()) {
     renderDcsEquipmentResults(serviceDcsEquipmentInput.value);
   }
+});
+
+serviceDcsEquipmentInput?.addEventListener("click", () => {
+  setDcsEquipmentInputEnabled(true);
+  serviceDcsEquipmentInput.focus();
 });
 
 serviceDcsEquipmentInput?.addEventListener("blur", () => {
