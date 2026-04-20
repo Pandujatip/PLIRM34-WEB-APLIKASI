@@ -3377,6 +3377,16 @@ async function loadAllDataFromBackend() {
   loadStoredData();
 }
 
+function hydrateBootstrapData(data = {}) {
+  writeStorage(storageKeys.negatifList, Array.isArray(data.negatif_list) ? data.negatif_list.map((item) => normalizeNegatifItem(item)) : []);
+  writeStorage(storageKeys.sparepart, Array.isArray(data.sparepart) ? data.sparepart : []);
+  writeStorage(storageKeys.service, Array.isArray(data.service) ? data.service.map((item) => normalizeServiceItem(item)) : []);
+  writeStorage(storageKeys.bom, Array.isArray(data.bom) ? data.bom : []);
+  writeStorage(storageKeys.bomMotor, Array.isArray(data.bom_motor) ? data.bom_motor : []);
+  writeStorage(storageKeys.spb, Array.isArray(data.spb) ? data.spb : []);
+  loadStoredData();
+}
+
 async function hydrateFromBackendAfterLogin() {
   const bootstrap = await apiRequest("/bootstrap");
   backendState.sessionActive = true;
@@ -3389,11 +3399,13 @@ async function hydrateFromBackendAfterLogin() {
   if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
     cacheUsers(bootstrap.users);
   }
-  await loadAllDataFromBackend();
+  hydrateBootstrapData(bootstrap.data || {});
   await loadMastersFromBackend();
   renderUserManagementTable();
-  await refreshAdminMasters();
-  await refreshActivityLogs();
+  if (bootstrap.user?.role === "admin") {
+    await refreshAdminMasters();
+    await refreshActivityLogs();
+  }
 }
 
 async function restoreBackendSession() {
@@ -3413,11 +3425,13 @@ async function restoreBackendSession() {
     if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
       cacheUsers(bootstrap.users);
     }
-    await loadAllDataFromBackend();
+    hydrateBootstrapData(bootstrap.data || {});
     await loadMastersFromBackend();
     loginWithUser(bootstrap.user);
-    await refreshAdminMasters();
-    await refreshActivityLogs();
+    if (bootstrap.user?.role === "admin") {
+      await refreshAdminMasters();
+      await refreshActivityLogs();
+    }
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
     return true;
