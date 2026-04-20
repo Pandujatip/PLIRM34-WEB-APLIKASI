@@ -2556,6 +2556,60 @@ function getCarbonBrushMeggerHistory(item) {
     .sort((left, right) => left.inspectionDate - right.inspectionDate);
 }
 
+function analyzeCarbonBrushMeggerTrend(history, meggerMinimum = 100) {
+  const numericHistory = history.filter((entry) => entry.numericValue !== null);
+  if (numericHistory.length < 2) {
+    return {
+      numericHistory,
+      totalDrop: null,
+      avgDropPerService: null,
+      avgDropPerMonth: null,
+      servicesToThreshold: null,
+      monthsToThreshold: null,
+      estimatedThresholdDateLabel: "-",
+      status: "Belum cukup histori",
+    };
+  }
+
+  const first = numericHistory[0];
+  const latest = numericHistory[numericHistory.length - 1];
+  const totalServices = numericHistory.length - 1;
+  const totalDays = getDaysBetweenDates(first.inspectionDate, latest.inspectionDate);
+  const totalDrop = first.numericValue - latest.numericValue;
+  const avgDropPerService = totalDrop > 0 ? totalDrop / totalServices : null;
+  const avgDropPerMonth = totalDrop > 0 && totalDays && totalDays > 0 ? totalDrop / (totalDays / 30) : null;
+  const servicesToThreshold = latest.numericValue > meggerMinimum && avgDropPerService
+    ? (latest.numericValue - meggerMinimum) / avgDropPerService
+    : null;
+  const monthsToThreshold = latest.numericValue > meggerMinimum && avgDropPerMonth
+    ? (latest.numericValue - meggerMinimum) / avgDropPerMonth
+    : null;
+
+  let estimatedThresholdDateLabel = "-";
+  if (monthsToThreshold !== null && Number.isFinite(monthsToThreshold) && latest.inspectionDate instanceof Date) {
+    const predictedDate = new Date(latest.inspectionDate.getTime() + Math.round(monthsToThreshold * 30) * 86400000);
+    estimatedThresholdDateLabel = formatInspectionDate(predictedDate);
+  }
+
+  let status = "Stabil / belum terlihat tren turun";
+  if (latest.numericValue <= meggerMinimum) {
+    status = "Sudah di bawah batas";
+  } else if (avgDropPerService && avgDropPerService > 0) {
+    status = "Ada tren turun";
+  }
+
+  return {
+    numericHistory,
+    totalDrop,
+    avgDropPerService,
+    avgDropPerMonth,
+    servicesToThreshold,
+    monthsToThreshold,
+    estimatedThresholdDateLabel,
+    status,
+  };
+}
+
 function detectCarbonBrushReplacementEvents(history, thresholdHigh) {
   const events = [];
   history.forEach((entry, index) => {
@@ -2762,7 +2816,8 @@ function buildCarbonBrushMeggerTrendSvg(history) {
 function buildCarbonBrushMeggerTrendHtml(item) {
   const meggerMinimum = 100;
   const history = getCarbonBrushMeggerHistory(item);
-  const numericHistory = history.filter((entry) => entry.numericValue !== null);
+  const meggerTrend = analyzeCarbonBrushMeggerTrend(history, meggerMinimum);
+  const numericHistory = meggerTrend.numericHistory;
   const latest = numericHistory.length ? numericHistory[numericHistory.length - 1] : null;
   const previous = numericHistory.length > 1 ? numericHistory[numericHistory.length - 2] : null;
   const delta = latest && previous ? latest.numericValue - previous.numericValue : null;
@@ -2793,11 +2848,28 @@ function buildCarbonBrushMeggerTrendHtml(item) {
           ["Status terbaru", latest?.numericValue !== null ? (latest.numericValue < meggerMinimum ? "Di bawah batas" : "Memenuhi batas") : "-"],
           ["Megger sebelumnya", previous?.rawValue || "-"],
           ["Tren terbaru", delta === null ? trendDirection : `${trendDirection} ${Math.abs(delta).toFixed(2)}`],
+          ["Rata-rata turun / service", meggerTrend.avgDropPerService !== null ? `${meggerTrend.avgDropPerService.toFixed(2)} Mohm` : "-"],
+          ["Rata-rata turun / bulan", meggerTrend.avgDropPerMonth !== null ? `${meggerTrend.avgDropPerMonth.toFixed(2)} Mohm` : "-"],
+          ["Estimasi menuju 100 Mohm", meggerTrend.servicesToThreshold !== null ? `${meggerTrend.servicesToThreshold.toFixed(1)} service lagi` : "-"],
+          ["Estimasi waktu", meggerTrend.monthsToThreshold !== null ? `${meggerTrend.monthsToThreshold.toFixed(1)} bulan lagi` : "-"],
+          ["Perkiraan tanggal", meggerTrend.estimatedThresholdDateLabel],
           ["Megger terendah", lowest ?? "-"],
           ["Megger tertinggi", highest ?? "-"],
         ])}
       </div>
       <div class="detail-analysis trend-event-list">
+        <div class="detail-analysis-item">
+          <strong>Prediksi Tren</strong>
+          <span>${
+            escapeHtml(
+              latest?.numericValue !== null && latest.numericValue <= meggerMinimum
+                ? `Megger terbaru sudah menyentuh atau berada di bawah batas minimum ${meggerMinimum} Mohm. Perlu tindak lanjut prioritas.`
+                : meggerTrend.avgDropPerService !== null
+                  ? `Tren megger menunjukkan penurunan rata-rata ${meggerTrend.avgDropPerService.toFixed(2)} Mohm per service dan ${meggerTrend.avgDropPerMonth !== null ? `${meggerTrend.avgDropPerMonth.toFixed(2)} Mohm per bulan` : "belum cukup data per bulan"}. Dengan laju ini, nilai diperkirakan mendekati ${meggerMinimum} Mohm dalam ${meggerTrend.servicesToThreshold !== null ? `${meggerTrend.servicesToThreshold.toFixed(1)} service` : "-"} atau ${meggerTrend.monthsToThreshold !== null ? `${meggerTrend.monthsToThreshold.toFixed(1)} bulan` : "-"} sekitar ${meggerTrend.estimatedThresholdDateLabel}.`
+                  : "Belum terlihat tren penurunan rata-rata yang cukup untuk membuat prediksi menuju batas minimum."
+            )
+          }</span>
+        </div>
         ${(history.length ? history : [{ inspectionDateLabel: "-", rawValue: "-", pic: "-" }]).map((entry, index, array) => {
           const prev = index > 0 ? array[index - 1] : null;
           const currentNumeric = entry.numericValue;
