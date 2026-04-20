@@ -3910,6 +3910,18 @@ function getNegatifItemsFromDom() {
 }
 
 function getServiceItemsFromDom() {
+  if (serviceItemCache.size > 0) {
+    return getSortedServiceItems([...serviceItemCache.values()].map((item) => ({
+      ...item,
+      payload: item.payload || {},
+    })));
+  }
+
+  const storedItems = readStorage(storageKeys.service);
+  if (Array.isArray(storedItems) && storedItems.length > 0) {
+    return getSortedServiceItems(storedItems.map((item) => normalizeServiceItem(item)));
+  }
+
   return [...serviceCardList.querySelectorAll(".service-list-item")].map((row) => ({
     ...(serviceItemCache.get(row.dataset.id || "") || {
       id: row.dataset.id,
