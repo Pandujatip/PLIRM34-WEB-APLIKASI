@@ -8,3 +8,5 @@ __pycache__/
 
 bom-images/
 bom-motor-images/
+service-mcc-images/
+service-mcc-source.csv

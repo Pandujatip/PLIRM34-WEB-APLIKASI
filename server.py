@@ -331,6 +331,9 @@ DEFAULT_INSPECTION_TEMPLATES = [
     ("service", "Electrical", "Motor MV (Carbon Brush)", "Inspeksi Carbon Brush", json.dumps({
         "fields": ["measurements", "replacement", "megger", "pic"]
     }, ensure_ascii=False)),
+    ("service", "Electrical", "MCC", "Inspeksi MCC", json.dumps({
+        "fields": ["testFunction", "visualCondition", "partCleanliness", "findingPhoto"]
+    }, ensure_ascii=False)),
     ("service", "Electrical", "EH/CA", "Inspeksi EH/CA", json.dumps({
         "fields": ["systemPressure", "fluidLevel", "filterCondition", "leakCondition", "unitCondition"]
     }, ensure_ascii=False)),
@@ -856,6 +859,15 @@ def init_db() -> None:
                 pic TEXT NOT NULL DEFAULT '',
                 measurements_json TEXT NOT NULL DEFAULT '{}',
                 stats_json TEXT NOT NULL DEFAULT '{}',
+                FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS service_mcc_details (
+                service_id TEXT PRIMARY KEY,
+                test_function TEXT NOT NULL DEFAULT '',
+                visual_condition TEXT NOT NULL DEFAULT '',
+                part_cleanliness TEXT NOT NULL DEFAULT '',
+                finding_photo_name TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
             );
 
@@ -1410,6 +1422,7 @@ def sync_service_detail_tables(connection: sqlite3.Connection, item: dict) -> No
         "service_electrical_room_details",
         "service_motor_mv_details",
         "service_motor_mv_carbon_brush_details",
+        "service_mcc_details",
         "service_ehca_details",
         "service_instrument_details",
         "service_dcs_details",
@@ -1485,6 +1498,23 @@ def sync_service_detail_tables(connection: sqlite3.Connection, item: dict) -> No
                 str(payload.get("pic", "")),
                 json.dumps(payload.get("measurements", {}), ensure_ascii=False),
                 json.dumps(payload.get("stats", {}), ensure_ascii=False),
+            ),
+        )
+        return
+
+    if form_type == "service-mcc":
+        connection.execute(
+            """
+            INSERT INTO service_mcc_details (
+                service_id, test_function, visual_condition, part_cleanliness, finding_photo_name
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                service_id,
+                str(payload.get("testFunction", "")),
+                str(payload.get("visualCondition", "")),
+                str(payload.get("partCleanliness", "")),
+                str(payload.get("findingPhotoName", "")),
             ),
         )
         return
@@ -2760,6 +2790,7 @@ def build_service_summary() -> dict:
             FROM service_motor_mv_carbon_brush_details
             """
         ).fetchone()
+        mcc = connection.execute("SELECT COUNT(*) AS total FROM service_mcc_details").fetchone()
         ehca = connection.execute("SELECT COUNT(*) AS total FROM service_ehca_details").fetchone()
         instrument = connection.execute("SELECT COUNT(*) AS total FROM service_instrument_details").fetchone()
         dcs = connection.execute("SELECT COUNT(*) AS total FROM service_dcs_details").fetchone()
@@ -2777,6 +2808,9 @@ def build_service_summary() -> dict:
             },
             "carbonBrush": {
                 "total": int(carbon_brush["total"] or 0),
+            },
+            "mcc": {
+                "total": int(mcc["total"] or 0),
             },
             "ehca": {
                 "total": int(ehca["total"] or 0),

@@ -41,10 +41,14 @@ const carbonBrushMeasurementGrid = document.getElementById("carbon-brush-measure
 const carbonBrushStats = document.getElementById("carbon-brush-stats");
 const serviceElectricalCarbonBrushForm = document.querySelector('[data-form-type="service-motor-mv-carbon-brush"]');
 const serviceElectricalRoomForm = document.querySelector('[data-form-type="service-electrical-room"]');
+const serviceMccForm = document.querySelector('[data-form-type="service-mcc"]');
 const serviceItemCache = new Map();
 const electricalRoomNameInput = document.getElementById("electrical-room-name-input");
 const electricalRoomReferenceListElement = document.getElementById("electrical-room-reference-list");
 const electricalRoomReferenceHint = document.getElementById("electrical-room-reference-hint");
+const serviceMccEquipmentInput = document.getElementById("service-mcc-equipment-input");
+const serviceMccReferenceListElement = document.getElementById("service-mcc-reference-list");
+const serviceMccReferenceHint = document.getElementById("service-mcc-reference-hint");
 const serviceDetailModal = document.getElementById("service-detail-modal");
 const serviceDetailClose = document.getElementById("service-detail-close");
 const serviceDetailTitle = document.getElementById("service-detail-title");
@@ -479,6 +483,54 @@ function renderElectricalRoomReferenceOptions() {
       ? `Referensi aktif: ${items.join(", ")}.`
       : "Belum ada referensi room / panel. Tambahkan dari menu admin.";
   }
+}
+
+function getMccEquipmentReferenceList() {
+  const serviceItems = getServiceItemsFromDom()
+    .filter((item) => item.formType === "service-mcc")
+    .map((item) => String(item.equipmentName || "").trim().toUpperCase())
+    .filter(Boolean);
+  return [...new Set(serviceItems)].sort((left, right) => left.localeCompare(right));
+}
+
+function renderMccReferenceOptions() {
+  if (!serviceMccReferenceListElement) {
+    return;
+  }
+  const items = getMccEquipmentReferenceList();
+  serviceMccReferenceListElement.innerHTML = "";
+  items.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item;
+    serviceMccReferenceListElement.append(option);
+  });
+  if (serviceMccReferenceHint) {
+    serviceMccReferenceHint.textContent = items.length
+      ? `Referensi MCC aktif: ${items.length} equipment dari data inspeksi/import.`
+      : "Belum ada referensi MCC tersimpan. Setelah import data atau simpan inspeksi pertama, daftar akan muncul di sini.";
+  }
+}
+
+function normalizeMccStatusValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) {
+    return "OK";
+  }
+  if (["true", "ok", "baik", "bersih", "normal", "yes", "ya"].includes(normalized)) {
+    return "OK";
+  }
+  if (["false", "not ok", "tidak", "kotor", "abnormal", "no"].includes(normalized)) {
+    return "NOT OK";
+  }
+  return normalized.toUpperCase();
+}
+
+function buildMccDetailSummary(payload = {}) {
+  return [
+    `Fungsi: ${payload.testFunction || "-"}`,
+    `Visual: ${payload.visualCondition || "-"}`,
+    `Kebersihan: ${payload.partCleanliness || "-"}`,
+  ].join(" | ");
 }
 
 function hydrateElectricalRoomThresholdForm() {
@@ -1749,6 +1801,20 @@ function analyzeServiceItem(item) {
     return notes;
   }
 
+  if (item.formType === "service-mcc") {
+    const notes = [];
+    if (normalizeMccStatusValue(payload.testFunction) !== "OK") {
+      notes.push("Test fungsi MCC tidak OK. Lanjutkan pengecekan suplai, interlock, fuse/MCB, kontaktor, overload, dan jalur kontrol sebelum unit dikembalikan ke operasi.");
+    }
+    if (normalizeMccStatusValue(payload.visualCondition) !== "OK") {
+      notes.push("Kondisi visual MCC tidak OK. Periksa indikasi panas, perubahan warna, terminal longgar, karat, debu, atau kerusakan fisik pada komponen panel.");
+    }
+    if (normalizeMccStatusValue(payload.partCleanliness) !== "OK") {
+      notes.push("Kebersihan part belum baik. Lakukan cleaning terkontrol pada panel atau komponen MCC agar debu dan kontaminasi tidak memicu gangguan operasi.");
+    }
+    return notes.length ? notes : ["Kondisi MCC masih baik berdasarkan tiga poin inspeksi utama yang diinput."];
+  }
+
   if (item.formType === "service-ehca") {
     const notes = [];
     if (/ganti|kotor|buruk/i.test(payload.filterCondition || "")) {
@@ -1899,7 +1965,7 @@ function openServiceDetail(item) {
         <div class="detail-photo-grid">
           ${photoEntries.map((entry, index) => `
             <div class="detail-photo-item">
-              <img class="detail-photo" src="${escapeHtml(entry.data)}" alt="Lampiran inspeksi ${escapeHtml(item.equipmentName || "")} ${index + 1}">
+              <img class="detail-photo" src="${escapeHtml(entry.data || entry.url || "")}" alt="Lampiran inspeksi ${escapeHtml(item.equipmentName || "")} ${index + 1}">
               <span>${escapeHtml(entry.name || `Foto ${index + 1}`)}</span>
             </div>
           `).join("")}
@@ -2206,6 +2272,15 @@ function formatServicePayloadLines(item) {
     return formatCarbonBrushPayloadLines(item);
   }
 
+  if (item.formType === "service-mcc") {
+    return [
+      ["Test fungsi", payload.testFunction || "-"],
+      ["Visual", payload.visualCondition || "-"],
+      ["Kebersihan part", payload.partCleanliness || "-"],
+      ["Foto temuan", photoSummary],
+    ];
+  }
+
   if (item.formType === "service-ehca") {
     return [
       ["Tekanan sistem", payload.systemPressure || "-"],
@@ -2492,10 +2567,11 @@ async function createServiceInspectionImage(item) {
   const photoEntries = getInspectionPhotoEntries(payload);
   const photoImages = (await Promise.all(
     photoEntries.map(async (entry, index) => {
-      if (!entry?.data) {
+      const source = entry?.data || entry?.url || "";
+      if (!source) {
         return null;
       }
-      const image = await loadImageElement(entry.data).catch(() => null);
+      const image = await loadImageElement(source).catch(() => null);
       if (!image) {
         return null;
       }
@@ -2983,8 +3059,9 @@ function normalizeFindingPhotosPayload(payload = {}) {
         .map((entry) => ({
           name: String(entry.name || "").trim() || "foto",
           data: String(entry.data || "").trim(),
+          url: String(entry.url || "").trim(),
         }))
-        .filter((entry) => entry.data)
+        .filter((entry) => entry.data || entry.url)
     : [];
 
   if (existingItems.length > 0) {
@@ -2995,6 +3072,15 @@ function normalizeFindingPhotosPayload(payload = {}) {
     return [{
       name: String(payload.findingPhotoName || "foto-temuan").trim() || "foto-temuan",
       data: String(payload.findingPhotoData || ""),
+      url: String(payload.findingPhotoUrl || "").trim(),
+    }];
+  }
+
+  if (payload.findingPhotoUrl) {
+    return [{
+      name: String(payload.findingPhotoName || "foto-temuan").trim() || "foto-temuan",
+      data: "",
+      url: String(payload.findingPhotoUrl || "").trim(),
     }];
   }
 
@@ -3002,7 +3088,13 @@ function normalizeFindingPhotosPayload(payload = {}) {
 }
 
 function buildFindingPhotoCompatibility(photos = []) {
-  const safePhotos = photos.filter((entry) => entry && entry.data);
+  const safePhotos = photos
+    .filter((entry) => entry && (entry.data || entry.url))
+    .map((entry) => ({
+      name: String(entry.name || "").trim() || "foto",
+      data: String(entry.data || "").trim(),
+      url: String(entry.url || "").trim(),
+    }));
   const firstPhoto = safePhotos[0] || null;
   return {
     findingPhotos: safePhotos,
@@ -3010,6 +3102,7 @@ function buildFindingPhotoCompatibility(photos = []) {
       ? safePhotos.map((entry) => entry.name).join(", ")
       : "tidak ada file",
     findingPhotoData: firstPhoto?.data || "",
+    findingPhotoUrl: firstPhoto?.url || "",
   };
 }
 
@@ -4585,6 +4678,7 @@ function renderServiceBoard(items) {
         { key: "service-electrical-room", title: "Electrical Room" },
         { key: "service-motor-mv", title: "Service Motor MV" },
         { key: "service-motor-mv-carbon-brush", title: "Motor MV (Carbon Brush)" },
+        { key: "service-mcc", title: "MCC" },
         { key: "service-ehca", title: "EH/CA" },
       ],
     },
@@ -4649,6 +4743,8 @@ function renderServiceBoard(items) {
     }
     serviceCardList.append(column);
   });
+
+  renderMccReferenceOptions();
 }
 
 function renderSparepartRow(item) {
@@ -5037,6 +5133,9 @@ function hydrateServiceForm(item) {
     if (item.formType === "service-motor-mv-carbon-brush") {
       openElectricalPane("motor-mv-carbon-brush");
     }
+    if (item.formType === "service-mcc") {
+      openElectricalPane("mcc");
+    }
     if (item.formType === "service-ehca") {
       openElectricalPane("ehca");
     }
@@ -5099,6 +5198,13 @@ function hydrateServiceForm(item) {
     });
     updateCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
     updateCarbonBrushMeasurementColors();
+  }
+
+  if (item.formType === "service-mcc") {
+    form.inspectionDate.value = String(payload.inspectionDate || "").slice(0, 10);
+    form.testFunction.value = normalizeMccStatusValue(payload.testFunction || "OK");
+    form.visualCondition.value = normalizeMccStatusValue(payload.visualCondition || "OK");
+    form.partCleanliness.value = normalizeMccStatusValue(payload.partCleanliness || "OK");
   }
 
   if (item.formType === "service-ehca") {
@@ -5826,6 +5932,10 @@ electricalRoomNameInput?.addEventListener("blur", () => {
   electricalRoomNameInput.value = String(electricalRoomNameInput.value || "").trim().toUpperCase();
 });
 
+serviceMccEquipmentInput?.addEventListener("blur", () => {
+  serviceMccEquipmentInput.value = String(serviceMccEquipmentInput.value || "").trim().toUpperCase();
+});
+
 document.addEventListener("input", (event) => {
   if (event.target instanceof HTMLElement && event.target.matches("[data-carbon-brush-measurement]")) {
     updateCarbonBrushMeasurementColors();
@@ -6093,6 +6203,53 @@ forms.forEach((form) => {
         appendServiceCard(savedItem);
         setSubmitNote(form, "Inspeksi Motor MV Carbon Brush berhasil ditambahkan.");
         showToast("Carbon Brush", "Item baru berhasil ditambahkan.");
+      }
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
+    }
+
+    if (formType === "service-mcc") {
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
+      const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+      const item = {
+        id: editingServiceId || createId("service"),
+        type: "Electrical",
+        subtype: "MCC",
+        formType: "service-mcc",
+        equipmentName: String(formData.get("equipmentName") || "-").trim().toUpperCase() || "-",
+        description: String(formData.get("description") || "-").trim() || "-",
+        detail: buildMccDetailSummary({
+          testFunction: normalizeMccStatusValue(formData.get("testFunction")),
+          visualCondition: normalizeMccStatusValue(formData.get("visualCondition")),
+          partCleanliness: normalizeMccStatusValue(formData.get("partCleanliness")),
+        }),
+        payload: {
+          inspectionDate: inspectionDateValue
+            ? new Date(`${inspectionDateValue}T00:00:00`).toISOString()
+            : existingPayload.inspectionDate || new Date().toISOString(),
+          testFunction: normalizeMccStatusValue(formData.get("testFunction")),
+          visualCondition: normalizeMccStatusValue(formData.get("visualCondition")),
+          partCleanliness: normalizeMccStatusValue(formData.get("partCleanliness")),
+          ...photoPayload,
+        },
+      };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
+      if (editingServiceId) {
+        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
+        if (existing) {
+          existing.replaceWith(renderServiceCard(savedItem));
+        }
+        setSubmitNote(form, "MCC berhasil diperbarui.");
+        showToast("MCC", "Data berhasil diperbarui.");
+        editingServiceId = null;
+      } else {
+        appendServiceCard(savedItem);
+        setSubmitNote(form, "Inspeksi MCC berhasil ditambahkan.");
+        showToast("MCC", "Item baru berhasil ditambahkan.");
       }
       persistServiceList();
       updateDashboardStats();

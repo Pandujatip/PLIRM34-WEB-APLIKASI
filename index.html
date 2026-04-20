@@ -744,6 +744,7 @@
                 <button class="chip-button service-subtab active" data-electrical-tab="electrical-room" type="button">Electrical Room</button>
                 <button class="chip-button service-subtab" data-electrical-tab="motor-mv" type="button">Motor MV</button>
                 <button class="chip-button service-subtab" data-electrical-tab="motor-mv-carbon-brush" type="button">Motor MV (Carbon Brush)</button>
+                <button class="chip-button service-subtab" data-electrical-tab="mcc" type="button">MCC</button>
                 <button class="chip-button service-subtab" data-electrical-tab="ehca" type="button">EH/CA</button>
               </div>
               <div class="service-form-grid service-form-grid-single">
@@ -1047,6 +1048,80 @@
                   </div>
                 </div>
                 <button class="btn btn-primary" type="submit">Simpan Motor MV Carbon Brush</button>
+              </form>
+
+              <form class="input-form electrical-pane" data-editable-for="admin,team" data-electrical-pane="mcc" data-form-type="service-mcc">
+                <div class="card-head compact-head">
+                  <p class="eyebrow">MCC</p>
+                  <h3>Inspeksi MCC</h3>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Identitas Inspeksi</strong>
+                    <span>Template mengikuti data sumber MCC. Equipment dapat dipilih dari referensi hasil import terbaru.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label>
+                      Tanggal inspeksi
+                      <input type="date" name="inspectionDate">
+                    </label>
+                    <label>
+                      Equipment MCC
+                      <input id="service-mcc-equipment-input" type="text" name="equipmentName" list="service-mcc-reference-list" placeholder="Contoh: 353BE1M01" autocomplete="off" required>
+                    </label>
+                  </div>
+                  <datalist id="service-mcc-reference-list"></datalist>
+                  <p class="form-hint" id="service-mcc-reference-hint">Referensi equipment MCC akan mengikuti hasil import atau data inspeksi yang sudah tersimpan.</p>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Poin Pengecekan</strong>
+                    <span>Setiap poin dipisah per kolom agar input lebih cepat dan mudah dibaca dari HP.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Test fungsi
+                      <select name="testFunction" required>
+                        <option value="OK">OK</option>
+                        <option value="NOT OK">NOT OK</option>
+                      </select>
+                    </label>
+                    <label>
+                      Visual
+                      <select name="visualCondition" required>
+                        <option value="OK">OK</option>
+                        <option value="NOT OK">NOT OK</option>
+                      </select>
+                    </label>
+                    <label>
+                      Kebersihan part
+                      <select name="partCleanliness" required>
+                        <option value="OK">OK</option>
+                        <option value="NOT OK">NOT OK</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Catatan dan Dokumentasi</strong>
+                    <span>Isi keterangan tambahan dan lampirkan dokumentasi bila ada temuan.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Keterangan
+                      <textarea name="description" rows="4" placeholder="Catatan inspeksi MCC"></textarea>
+                    </label>
+                    <label class="full-span">
+                      Foto temuan
+                      <input type="file" name="findingPhoto" accept="image/*" multiple>
+                    </label>
+                  </div>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan MCC</button>
               </form>
 
               <form class="input-form electrical-pane" data-editable-for="admin,team" data-electrical-pane="ehca" data-form-type="service-ehca">
