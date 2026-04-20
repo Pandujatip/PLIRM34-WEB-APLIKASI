@@ -28,6 +28,11 @@ const negatifListForm = document.querySelector('[data-form-type="negatif-list"]'
 const equipmentReferenceInput = negatifListForm?.querySelector('[name="equipment"]');
 const equipmentReferenceResults = document.getElementById("equipment-reference-results");
 const equipmentReferenceStatus = document.getElementById("equipment-reference-status");
+const serviceDcsForm = document.querySelector('[data-form-type="service-dcs"]');
+const serviceDcsEquipmentInput = document.getElementById("service-dcs-equipment-input");
+const serviceDcsEquipmentResults = document.getElementById("service-dcs-equipment-results");
+const serviceDcsEquipmentStatus = document.getElementById("service-dcs-equipment-status");
+const serviceDcsEquipmentDescription = document.getElementById("service-dcs-equipment-description");
 const carbonBrushEquipmentInput = document.getElementById("carbon-brush-equipment-name");
 const carbonBrushEquipmentResults = document.getElementById("carbon-brush-equipment-results");
 const carbonBrushEquipmentStatus = document.getElementById("carbon-brush-equipment-status");
@@ -152,6 +157,7 @@ const negatifStatusChart = document.getElementById("negatif-status-chart");
 const negatifAreaChart = document.getElementById("negatif-area-chart");
 const negatifMarkChart = document.getElementById("negatif-mark-chart");
 const EQUIPMENT_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRt_ysTFRHmKVY3-hlFDgBYex-BExU0cdFnuBaWOPqxKAo6mqavGhtZeKdTkvvFXsm-uvcOt2QVLHHC/pub?output=csv";
+const DCS_EQUIPMENT_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4f9-NuVnXVz24mPVlXP_b7rEbVGbutbSnspudmS8qztvXBEMY-Jw6moGdWWNEAHkYS68ohM2jM1E_/pub?gid=1968615039&single=true&output=csv";
 const DEFAULT_ELECTRICAL_ROOM_REFERENCES = ["ER17", "ER23C", "ER24"];
 const CARBON_BRUSH_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv";
 const carbonBrushMeasurementRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
@@ -159,6 +165,8 @@ const carbonBrushMeasurementColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const carbonBrushMeasurementKeys = carbonBrushMeasurementRows.flatMap((row) => carbonBrushMeasurementColumns.map((column) => `${row}${column}`));
 let equipmentReferenceList = [];
 let selectedEquipmentReference = "";
+let dcsEquipmentReferenceItems = [];
+let selectedDcsEquipmentReference = "";
 let carbonBrushEquipmentReferenceList = [];
 let selectedCarbonBrushEquipmentReference = "";
 const storageKeys = {
@@ -343,6 +351,55 @@ function setEquipmentReferenceValue(value) {
 
   equipmentReferenceInput.value = value;
   selectedEquipmentReference = value;
+}
+
+function updateDcsEquipmentReferenceStatus(message, isError = false) {
+  if (!serviceDcsEquipmentStatus) {
+    return;
+  }
+  serviceDcsEquipmentStatus.textContent = message;
+  serviceDcsEquipmentStatus.classList.toggle("error-text", isError);
+}
+
+function setDcsEquipmentReferenceValue(value, description = "") {
+  if (!serviceDcsEquipmentInput) {
+    return;
+  }
+
+  serviceDcsEquipmentInput.value = value;
+  if (serviceDcsEquipmentDescription) {
+    serviceDcsEquipmentDescription.value = description;
+  }
+  selectedDcsEquipmentReference = value;
+}
+
+function hideDcsEquipmentResults() {
+  serviceDcsEquipmentResults?.classList.add("hidden");
+  if (serviceDcsEquipmentResults) {
+    serviceDcsEquipmentResults.innerHTML = "";
+  }
+}
+
+function normalizeDcsEquipmentCode(rawValue) {
+  return String(rawValue || "")
+    .split("\t")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+}
+
+function normalizeDcsEquipmentDescription(rawValue) {
+  return String(rawValue || "")
+    .trim()
+    .replace(/^\(+|\)+$/g, "")
+    .trim();
+}
+
+function findDcsEquipmentReference(value) {
+  const normalizedValue = String(value || "").trim().toUpperCase();
+  return dcsEquipmentReferenceItems.find((item) => item.equipmentName.toUpperCase() === normalizedValue) || null;
 }
 
 function setCarbonBrushEquipmentValue(value) {
@@ -567,6 +624,53 @@ function renderCarbonBrushEquipmentResults(query) {
   carbonBrushEquipmentResults.classList.remove("hidden");
 }
 
+function renderDcsEquipmentResults(query) {
+  if (!serviceDcsEquipmentInput || !serviceDcsEquipmentResults) {
+    return;
+  }
+
+  const trimmedQuery = query.trim().toLowerCase();
+  if (!trimmedQuery) {
+    hideDcsEquipmentResults();
+    return;
+  }
+
+  const matches = dcsEquipmentReferenceItems
+    .filter((item) =>
+      item.equipmentName.toLowerCase().includes(trimmedQuery)
+      || item.description.toLowerCase().includes(trimmedQuery))
+    .slice(0, 12);
+
+  serviceDcsEquipmentResults.innerHTML = "";
+
+  if (!matches.length) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "typeahead-empty";
+    emptyState.textContent = "Referensi DCS tidak ditemukan.";
+    serviceDcsEquipmentResults.append(emptyState);
+    serviceDcsEquipmentResults.classList.remove("hidden");
+    return;
+  }
+
+  matches.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "typeahead-item";
+    button.innerHTML = `
+      <strong>${escapeHtml(item.equipmentName)}</strong>
+      <small>${escapeHtml(item.description || "-")}</small>
+    `;
+    button.addEventListener("click", () => {
+      setDcsEquipmentReferenceValue(item.equipmentName, item.description);
+      hideDcsEquipmentResults();
+      updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+    });
+    serviceDcsEquipmentResults.append(button);
+  });
+
+  serviceDcsEquipmentResults.classList.remove("hidden");
+}
+
 async function loadEquipmentReference() {
   if (!equipmentReferenceInput) {
     return;
@@ -729,6 +833,76 @@ async function loadCarbonBrushEquipmentReference() {
     selectedCarbonBrushEquipmentReference = "";
     hideCarbonBrushEquipmentResults();
     updateCarbonBrushEquipmentStatus("Gagal memuat referensi carbon brush. Form ini dikunci sampai referensi berhasil dibaca.", true);
+  }
+}
+
+async function loadDcsEquipmentReference() {
+  if (!serviceDcsEquipmentInput) {
+    return;
+  }
+
+  serviceDcsEquipmentInput.disabled = true;
+  updateDcsEquipmentReferenceStatus("Memuat referensi equipment DCS...");
+
+  try {
+    dcsEquipmentReferenceItems = [];
+
+    if (backendState.available && backendState.sessionActive) {
+      const result = await apiRequest("/masters?source_group=dcs-service");
+      const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
+      dcsEquipmentReferenceItems = references
+        .map((item) => ({
+          equipmentName: String(item.equipmentName || "").trim(),
+          description: String(item.metadata?.equipmentDescription || item.metadata?.description || "").trim(),
+        }))
+        .filter((item) => item.equipmentName);
+    }
+
+    if (!dcsEquipmentReferenceItems.length) {
+      const response = await fetch(DCS_EQUIPMENT_REFERENCE_URL, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const csvText = await response.text();
+      const rows = csvText
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map(parseCsvRow);
+
+      dcsEquipmentReferenceItems = rows
+        .slice(1)
+        .map((row) => ({
+          equipmentName: normalizeDcsEquipmentCode(row[0] || ""),
+          description: normalizeDcsEquipmentDescription(row[1] || ""),
+        }))
+        .filter((item) => item.equipmentName)
+        .filter((item, index, array) => array.findIndex((entry) => entry.equipmentName === item.equipmentName) === index)
+        .sort((left, right) => left.equipmentName.localeCompare(right.equipmentName, "id"));
+    }
+
+    if (!dcsEquipmentReferenceItems.length) {
+      throw new Error("Referensi DCS kosong");
+    }
+
+    serviceDcsEquipmentInput.disabled = false;
+    serviceDcsEquipmentInput.placeholder = "Ketik kode equipment DCS, misal 776PLCA3";
+    const currentReference = findDcsEquipmentReference(selectedDcsEquipmentReference || serviceDcsEquipmentInput.value);
+    if (currentReference) {
+      setDcsEquipmentReferenceValue(currentReference.equipmentName, currentReference.description);
+    } else {
+      setDcsEquipmentReferenceValue("", "");
+      selectedDcsEquipmentReference = "";
+    }
+    updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+  } catch (error) {
+    dcsEquipmentReferenceItems = [];
+    serviceDcsEquipmentInput.disabled = true;
+    setDcsEquipmentReferenceValue("", "");
+    selectedDcsEquipmentReference = "";
+    hideDcsEquipmentResults();
+    updateDcsEquipmentReferenceStatus("Gagal memuat referensi equipment DCS. Form DCS dikunci sampai referensi berhasil dibaca.", true);
   }
 }
 
@@ -1190,6 +1364,7 @@ function normalizeDcsPayload(payload = {}, legacyDcsMatch = null) {
   const photoCompatibility = buildFindingPhotoCompatibility(normalizeFindingPhotosPayload(payload));
   return {
     inspectionDate: payload.inspectionDate || new Date().toISOString(),
+    equipmentDescription: payload.equipmentDescription || "",
     plcPowerSupplyModule: payload.plcPowerSupplyModule || "",
     plcCommunicationModule: payload.plcCommunicationModule || "",
     plcProcessorModule: payload.plcProcessorModule || "",
@@ -1982,6 +2157,7 @@ function formatServicePayloadLines(item) {
   if (item.formType === "service-dcs") {
     const payload = normalizeDcsPayload(item.payload || {});
     return [
+      ["Deskripsi equipment", payload.equipmentDescription || "-"],
       ["PLC MODULE - Power Supply Module", payload.plcPowerSupplyModule || "-"],
       ["PLC MODULE - Communication Module", payload.plcCommunicationModule || "-"],
       ["PLC MODULE - Processor Module", payload.plcProcessorModule || "-"],
@@ -3222,6 +3398,7 @@ async function initializeApplication() {
 
   await Promise.allSettled([
     loadEquipmentReference(),
+    loadDcsEquipmentReference(),
     loadCarbonBrushEquipmentReference(),
   ]);
 
@@ -4751,6 +4928,8 @@ function hydrateServiceForm(item) {
 
   if (item.formType === "service-dcs") {
     const dcsPayload = normalizeDcsPayload(payload);
+    selectedDcsEquipmentReference = item.equipmentName || "";
+    form.equipmentDescription.value = dcsPayload.equipmentDescription || "";
     form.plcPowerSupplyModule.value = dcsPayload.plcPowerSupplyModule || "";
     form.plcCommunicationModule.value = dcsPayload.plcCommunicationModule || "";
     form.plcProcessorModule.value = dcsPayload.plcProcessorModule || "";
@@ -5347,12 +5526,55 @@ equipmentReferenceInput?.addEventListener("blur", () => {
   }, 120);
 });
 
+serviceDcsEquipmentInput?.addEventListener("input", () => {
+  const query = serviceDcsEquipmentInput.value.trim();
+  selectedDcsEquipmentReference = findDcsEquipmentReference(query)?.equipmentName || "";
+  if (serviceDcsEquipmentDescription && selectedDcsEquipmentReference !== query) {
+    serviceDcsEquipmentDescription.value = "";
+  }
+  renderDcsEquipmentResults(query);
+});
+
+serviceDcsEquipmentInput?.addEventListener("focus", () => {
+  if (serviceDcsEquipmentInput.value.trim()) {
+    renderDcsEquipmentResults(serviceDcsEquipmentInput.value);
+  }
+});
+
+serviceDcsEquipmentInput?.addEventListener("blur", () => {
+  window.setTimeout(() => {
+    hideDcsEquipmentResults();
+    const currentValue = String(serviceDcsEquipmentInput.value || "").trim();
+    if (!currentValue) {
+      selectedDcsEquipmentReference = "";
+      if (serviceDcsEquipmentDescription) {
+        serviceDcsEquipmentDescription.value = "";
+      }
+      return;
+    }
+    const matchedReference = findDcsEquipmentReference(currentValue);
+    if (!matchedReference) {
+      selectedDcsEquipmentReference = "";
+      if (serviceDcsEquipmentDescription) {
+        serviceDcsEquipmentDescription.value = "";
+      }
+      updateDcsEquipmentReferenceStatus("Pilih equipment DCS dari hasil referensi yang muncul di bawah field.", true);
+    } else {
+      setDcsEquipmentReferenceValue(matchedReference.equipmentName, matchedReference.description);
+      updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+    }
+  }, 120);
+});
+
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Node)) {
     return;
   }
   if (negatifListForm && !negatifListForm.contains(event.target)) {
     hideEquipmentReferenceResults();
+  }
+  if (serviceDcsForm && !serviceDcsForm.contains(event.target)) {
+    hideDcsEquipmentResults();
   }
 });
 
@@ -5761,12 +5983,23 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-dcs") {
+        const selectedEquipment = String(formData.get("equipmentName") || "").trim();
+        const matchedDcsReference = findDcsEquipmentReference(selectedEquipment);
+        if (!matchedDcsReference || selectedEquipment !== selectedDcsEquipmentReference) {
+          setSubmitNote(form, "Pilih equipment DCS dari referensi resmi yang muncul di bawah field.", true);
+          updateDcsEquipmentReferenceStatus("Pilih equipment DCS dari referensi resmi yang muncul di bawah field.", true);
+          return;
+        }
+        if (serviceDcsEquipmentDescription && !serviceDcsEquipmentDescription.value.trim()) {
+          serviceDcsEquipmentDescription.value = matchedDcsReference.description || "";
+        }
         const existingPayload = editingServiceId
           ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
           : {};
         const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
         const payload = normalizeDcsPayload({
           inspectionDate: existingPayload.inspectionDate || new Date().toISOString(),
+          equipmentDescription: String(formData.get("equipmentDescription") || ""),
           plcPowerSupplyModule: String(formData.get("plcPowerSupplyModule") || ""),
           plcCommunicationModule: String(formData.get("plcCommunicationModule") || ""),
           plcProcessorModule: String(formData.get("plcProcessorModule") || ""),

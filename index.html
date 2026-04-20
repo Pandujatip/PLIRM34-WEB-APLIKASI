@@ -1130,9 +1130,17 @@
                   <h3>Input inspeksi DCS</h3>
                 </div>
                 <div class="form-grid">
-                  <label class="full-span">
+                  <label class="full-span typeahead-field">
                     EQUIPMENT
-                    <input type="text" name="equipmentName" placeholder="Contoh: PLC Kiln Line 3 / Historian Server" required>
+                    <div class="typeahead-wrap">
+                      <input type="text" name="equipmentName" id="service-dcs-equipment-input" placeholder="Ketik kode equipment DCS referensi" autocomplete="off" required disabled>
+                      <div class="typeahead-list hidden" id="service-dcs-equipment-results"></div>
+                    </div>
+                    <small id="service-dcs-equipment-status">Equipment DCS hanya bisa dipilih dari referensi resmi.</small>
+                  </label>
+                  <label class="full-span">
+                    DESKRIPSI EQUIPMENT
+                    <textarea name="equipmentDescription" id="service-dcs-equipment-description" rows="2" placeholder="Deskripsi equipment akan terisi otomatis dari referensi" readonly></textarea>
                   </label>
                 </div>
 
