@@ -3688,6 +3688,17 @@ function formatCompactCurrency(value) {
   return `Rp${numeric.toLocaleString("id-ID")}`;
 }
 
+function formatSpbChartAmount(value) {
+  const numeric = Number(value || 0);
+  if (numeric >= 1000000000) {
+    return `${(numeric / 1000000000).toFixed(1).replace(".", ",").replace(",0", "")} M`;
+  }
+  if (numeric >= 1000000) {
+    return `${Math.round(numeric / 1000000).toLocaleString("id-ID")} juta`;
+  }
+  return numeric.toLocaleString("id-ID");
+}
+
 function renderActivityLogTable(items) {
   if (!activityLogBody) {
     return;
@@ -4022,7 +4033,7 @@ function renderNegatifCharts(negatifItems) {
   ]);
 }
 
-function renderChart(container, rows) {
+function renderChart(container, rows, valueFormatter = (value) => String(value)) {
   if (!container) return;
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
   container.innerHTML = "";
@@ -4034,7 +4045,7 @@ function renderChart(container, rows) {
       <div class="chart-track">
         <div class="chart-fill" style="width:${(row.value / maxValue) * 100}%"></div>
       </div>
-      <strong>${row.value}</strong>
+      <strong>${valueFormatter(row.value)}</strong>
     `;
     container.append(node);
   });
@@ -4065,7 +4076,7 @@ function renderMiniCharts(negatifItems, serviceItems, spbItems) {
 
   renderChart(chartSpb, yearlyTotals.length ? yearlyTotals : [
     { label: String(new Date().getFullYear()), value: 0 },
-  ]);
+  ], formatSpbChartAmount);
 }
 
 function renderMobileCards(negatifItems, spbItems) {
