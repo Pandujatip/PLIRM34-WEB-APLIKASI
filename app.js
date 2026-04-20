@@ -2020,8 +2020,8 @@ function openServiceDetail(item) {
         <button class="table-action" type="button" data-action="save-carbon-brush-replacements">Simpan Titik Diganti</button>
       </div>
       <div class="detail-grid">${buildCarbonBrushPayloadDetailHtml(item)}</div>
+      <div id="carbon-brush-analysis-slot">${buildCarbonBrushMeggerTrendHtml(item)}</div>
       ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "", carbonBrushReplacementDraft)}
-      <div id="carbon-brush-analysis-slot"></div>
     `;
   }
 
