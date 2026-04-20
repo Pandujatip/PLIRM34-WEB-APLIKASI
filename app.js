@@ -2278,6 +2278,10 @@ function showToast(title, message) {
   }, 3200);
 }
 
+function confirmDeleteAction(label = "data ini") {
+  return window.confirm(`Apakah anda yakin ingin menghapus ${label}?`);
+}
+
 function formatServicePayloadLines(item) {
   const payload = item.payload || {};
   const photoSummary = buildFindingPhotoCompatibility(getInspectionPhotoEntries(payload)).findingPhotoName;
@@ -5772,6 +5776,9 @@ adminAreasBody?.addEventListener("click", async (event) => {
   if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-area") {
     return;
   }
+  if (!confirmDeleteAction("area ini")) {
+    return;
+  }
   const row = target.closest("tr");
   const code = row?.dataset.code || "";
   try {
@@ -5786,6 +5793,9 @@ adminAreasBody?.addEventListener("click", async (event) => {
 adminEquipmentBody?.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-equipment-master") {
+    return;
+  }
+  if (!confirmDeleteAction("referensi equipment ini")) {
     return;
   }
   const row = target.closest("tr");
@@ -5808,6 +5818,9 @@ adminTemplatesBody?.addEventListener("click", async (event) => {
   if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-template") {
     return;
   }
+  if (!confirmDeleteAction("template ini")) {
+    return;
+  }
   const row = target.closest("tr");
   const identifier = row?.dataset.identifier || "";
   try {
@@ -5822,6 +5835,9 @@ adminTemplatesBody?.addEventListener("click", async (event) => {
 adminElectricalRoomBody?.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-electrical-room-reference") {
+    return;
+  }
+  if (!confirmDeleteAction("referensi room / panel ini")) {
     return;
   }
   const row = target.closest("tr");
@@ -6621,6 +6637,9 @@ negatifListBody.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "delete-negatif") {
+    if (!confirmDeleteAction("data ini")) {
+      return;
+    }
     try {
       await deleteItemFromBackend("negatif-list", row.dataset.id || "");
       row.remove();
@@ -6657,6 +6676,9 @@ sparepartBody.addEventListener("click", async (event) => {
   if (!row) return;
 
   if (target.dataset.action === "delete-sparepart") {
+    if (!confirmDeleteAction("data ini")) {
+      return;
+    }
     try {
       await deleteItemFromBackend("sparepart", row.dataset.id || "");
       row.remove();
@@ -6710,6 +6732,9 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "delete-service") {
+    if (!confirmDeleteAction("data ini")) {
+      return;
+    }
     try {
       await deleteItemFromBackend("service", card.dataset.id || "");
       renderServiceBoard(getServiceItemsFromDom().filter((entry) => entry.id !== card.dataset.id));
@@ -6864,6 +6889,9 @@ bomList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "delete-bom") {
+    if (!confirmDeleteAction("data ini")) {
+      return;
+    }
     try {
       await deleteItemFromBackend("bom", card.dataset.id || "");
       card.remove();
@@ -6924,6 +6952,9 @@ bomMotorList?.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "delete-bom-motor") {
+    if (!confirmDeleteAction("data ini")) {
+      return;
+    }
     try {
       await deleteItemFromBackend("bom-motor", card.dataset.id || "");
       card.remove();
@@ -6983,6 +7014,9 @@ spbBody.addEventListener("click", async (event) => {
   if (!row) return;
 
   if (target.dataset.action === "delete-spb") {
+    if (!confirmDeleteAction("data ini")) {
+      return;
+    }
     try {
       await deleteItemFromBackend("spb", row.dataset.id || "");
       row.remove();
