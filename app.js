@@ -2708,6 +2708,7 @@ function buildCarbonBrushTrendHtml(item, pointKey) {
 }
 
 function buildCarbonBrushMeggerTrendSvg(history) {
+  const meggerMinimum = 100;
   const width = 860;
   const height = 260;
   const padding = { top: 24, right: 24, bottom: 40, left: 54 };
@@ -2719,7 +2720,7 @@ function buildCarbonBrushMeggerTrendSvg(history) {
   }
 
   const values = numericPoints.map((entry) => entry.numericValue);
-  const minValue = Math.min(...values);
+  const minValue = Math.min(...values, meggerMinimum);
   const maxValue = Math.max(...values);
   const paddingValue = Math.max((maxValue - minValue) * 0.12, 0.2);
   const domainMin = Math.max(0, minValue - paddingValue);
@@ -2738,24 +2739,28 @@ function buildCarbonBrushMeggerTrendSvg(history) {
   const trendStroke = previous && latest.numericValue < previous.numericValue
     ? "rgba(255,107,120,0.95)"
     : "rgba(124,199,255,0.95)";
+  const thresholdY = valueToY(meggerMinimum);
 
   return `
     <svg class="trend-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafik tren megger carbon brush">
       <rect x="${padding.left}" y="${padding.top}" width="${chartWidth}" height="${chartHeight}" rx="14" fill="rgba(255,255,255,0.02)"></rect>
+      <line x1="${padding.left}" y1="${thresholdY}" x2="${width - padding.right}" y2="${thresholdY}" stroke="rgba(255,107,120,0.82)" stroke-dasharray="6 6"></line>
       <polyline fill="none" stroke="${trendStroke}" stroke-width="3" points="${polyline}"></polyline>
       ${points.map((point) => `
         <g>
-          <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point"></circle>
+          <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point ${point.value < meggerMinimum ? "is-low" : "is-high"}"></circle>
           <text x="${point.x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.label)}</text>
           <text x="${point.x}" y="${point.y - 10}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.value)}</text>
         </g>
       `).join("")}
-      <text x="${padding.left}" y="${padding.top - 6}" class="trend-threshold high">Megger (sesuai satuan input)</text>
+      <text x="${padding.left}" y="${thresholdY - 8}" class="trend-threshold low">Batas minimum IEEE 43: 100 Mohm</text>
+      <text x="${padding.left}" y="${padding.top - 6}" class="trend-threshold high">Megger slip ring motor MV 6,3 kV</text>
     </svg>
   `;
 }
 
 function buildCarbonBrushMeggerTrendHtml(item) {
+  const meggerMinimum = 100;
   const history = getCarbonBrushMeggerHistory(item);
   const numericHistory = history.filter((entry) => entry.numericValue !== null);
   const latest = numericHistory.length ? numericHistory[numericHistory.length - 1] : null;
@@ -2776,14 +2781,16 @@ function buildCarbonBrushMeggerTrendHtml(item) {
       <div class="detail-modal-head compact-trend-head">
         <div>
           <h4>Tren Megger - ${escapeHtml(item.equipmentName || "-")}</h4>
-          <p>Riwayat nilai megger tiap service untuk melihat kecenderungan penurunan isolasi equipment.</p>
+          <p>Riwayat nilai megger tiap service untuk melihat kecenderungan penurunan isolasi equipment. Acuan minimum yang dipakai adalah 100 Mohm.</p>
         </div>
       </div>
       ${buildCarbonBrushMeggerTrendSvg(history)}
       <div class="detail-grid trend-summary-grid">
         ${buildDetailGridRows([
           ["Total histori", `${history.length} inspeksi`],
+          ["Batas minimum", `${meggerMinimum} Mohm`],
           ["Megger terbaru", latest?.rawValue || "-"],
+          ["Status terbaru", latest?.numericValue !== null ? (latest.numericValue < meggerMinimum ? "Di bawah batas" : "Memenuhi batas") : "-"],
           ["Megger sebelumnya", previous?.rawValue || "-"],
           ["Tren terbaru", delta === null ? trendDirection : `${trendDirection} ${Math.abs(delta).toFixed(2)}`],
           ["Megger terendah", lowest ?? "-"],
@@ -2796,17 +2803,25 @@ function buildCarbonBrushMeggerTrendHtml(item) {
           const currentNumeric = entry.numericValue;
           const previousNumeric = prev?.numericValue ?? null;
           const entryDelta = currentNumeric !== null && previousNumeric !== null ? currentNumeric - previousNumeric : null;
-          const note = entryDelta === null
-            ? "Baseline histori megger."
-            : entryDelta < 0
-              ? `Turun ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`
-              : entryDelta > 0
-                ? `Naik ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`
-                : "Nilai tetap dibanding service sebelumnya.";
+          const noteParts = [];
+          if (entryDelta === null) {
+            noteParts.push("Baseline histori megger.");
+          } else if (entryDelta < 0) {
+            noteParts.push(`Turun ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`);
+          } else if (entryDelta > 0) {
+            noteParts.push(`Naik ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`);
+          } else {
+            noteParts.push("Nilai tetap dibanding service sebelumnya.");
+          }
+          if (currentNumeric !== null) {
+            noteParts.push(currentNumeric < meggerMinimum
+              ? `Di bawah batas minimum ${meggerMinimum} Mohm.`
+              : `Masih di atas batas minimum ${meggerMinimum} Mohm.`);
+          }
           return `
             <div class="detail-analysis-item">
               <strong>${escapeHtml(entry.inspectionDateLabel)}</strong>
-              <span>Megger ${escapeHtml(entry.rawValue || "-")} | PIC ${escapeHtml(entry.pic || "-")} | ${escapeHtml(note)}</span>
+              <span>Megger ${escapeHtml(entry.rawValue || "-")} | PIC ${escapeHtml(entry.pic || "-")} | ${escapeHtml(noteParts.join(" "))}</span>
             </div>
           `;
         }).join("")}
