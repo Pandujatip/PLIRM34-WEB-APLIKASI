@@ -2521,14 +2521,16 @@ async function createServiceInspectionImage(item) {
     throw new Error("Canvas tidak tersedia");
   }
 
-  const width = 1400;
-  const padding = 64;
+  const width = 1800;
+  const padding = 84;
   const contentWidth = width - (padding * 2);
   canvas.width = width;
 
-  context.font = "28px Arial";
-  const rowGap = 14;
-  const sectionGap = 28;
+  context.font = "34px Arial";
+  const rowGap = 18;
+  const sectionGap = 34;
+  const titleLineHeight = 60;
+  const bodyLineHeight = 42;
   const titleLines = wrapCanvasText(context, titleText, contentWidth);
   const isElectricalRoom = item.formType === "service-electrical-room";
   const isCarbonBrush = item.formType === "service-motor-mv-carbon-brush";
@@ -2559,53 +2561,53 @@ async function createServiceInspectionImage(item) {
     ["Kebersihan lantai", payload.floorCleanliness || "-"],
     ["Temperature ruangan", payload.roomTemperature || "-"],
   ];
-  const defaultLabelWidth = 420;
-  const valueColumnGap = 26;
+  const defaultLabelWidth = 500;
+  const valueColumnGap = 34;
 
-  let estimatedHeight = 180 + (titleLines.length * 48);
+  let estimatedHeight = 220 + (titleLines.length * titleLineHeight);
   const measureRows = (rows, totalWidth = contentWidth, labelWidth = defaultLabelWidth) => {
-    const safeLabelWidth = Math.min(labelWidth, Math.max(220, totalWidth * 0.48));
-    const valueWidth = Math.max(180, totalWidth - safeLabelWidth - valueColumnGap);
+    const safeLabelWidth = Math.min(labelWidth, Math.max(280, totalWidth * 0.44));
+    const valueWidth = Math.max(220, totalWidth - safeLabelWidth - valueColumnGap);
     rows.forEach(([label, value]) => {
       const wrappedLabel = wrapCanvasText(context, label, safeLabelWidth - 8);
       const wrappedValue = wrapCanvasText(context, value, valueWidth);
       const lineCount = Math.max(wrappedLabel.length, wrappedValue.length);
-      estimatedHeight += (lineCount * 38) + rowGap;
+      estimatedHeight += (lineCount * bodyLineHeight) + rowGap;
     });
   };
 
   measureRows(headerLines);
   estimatedHeight += 96;
   const descriptionLines = wrapCanvasText(context, item.description || "-", contentWidth);
-  estimatedHeight += descriptionLines.length * 40;
-  estimatedHeight += sectionGap + 52;
+  estimatedHeight += descriptionLines.length * bodyLineHeight;
+  estimatedHeight += sectionGap + 60;
   estimatedHeight += sectionGap;
   if (isElectricalRoom) {
     measureRows(generalElectricalRows);
-    estimatedHeight += 96;
-    estimatedHeight += 6 * 42;
-    estimatedHeight += 7 * 42;
-    estimatedHeight += 48;
+    estimatedHeight += 108;
+    estimatedHeight += 6 * 48;
+    estimatedHeight += 7 * 48;
+    estimatedHeight += 54;
     measureRows(transformerRows);
     if (payload.findingPhotoName) {
-      estimatedHeight += 52;
+      estimatedHeight += 58;
     }
   } else if (isCarbonBrush) {
     measureRows(formatCarbonBrushPayloadLines(item));
-    estimatedHeight += 26 * 42;
+    estimatedHeight += 26 * 50;
   } else {
     measureRows(payloadLines);
   }
   analysisLines.forEach((entry) => {
     const wrapped = wrapCanvasText(context, entry, contentWidth - 36);
-    estimatedHeight += (wrapped.length * 36) + 24;
+    estimatedHeight += (wrapped.length * 40) + 28;
   });
   if (photoImages.length > 0) {
     const photoColumns = photoImages.length === 1 ? 1 : 2;
     const photoCardWidth = (contentWidth - 44 - ((photoColumns - 1) * 18)) / photoColumns;
     const photoHeights = photoImages.map(({ image }) => {
-      const ratio = Math.min(photoCardWidth / image.width, 220 / image.height, 1);
-      return (image.height * ratio) + 34;
+      const ratio = Math.min(photoCardWidth / image.width, 320 / image.height, 1);
+      return (image.height * ratio) + 48;
     });
     const photoRows = [];
     for (let index = 0; index < photoHeights.length; index += photoColumns) {
@@ -2621,12 +2623,12 @@ async function createServiceInspectionImage(item) {
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   const drawCardSection = (title, startY, drawer) => {
-    const cardPaddingX = 22;
-    const cardPaddingTop = 22;
-    const titleHeight = 34;
+    const cardPaddingX = 30;
+    const cardPaddingTop = 28;
+    const titleHeight = 40;
     const innerWidth = contentWidth - (cardPaddingX * 2);
     const measuredHeight = drawer(null, startY + cardPaddingTop + titleHeight + 10, innerWidth, true);
-    const cardHeight = measuredHeight - startY + 22;
+    const cardHeight = measuredHeight - startY + 28;
 
     context.fillStyle = "rgba(255,255,255,0.035)";
     context.strokeStyle = "rgba(124, 199, 255, 0.16)";
@@ -2637,71 +2639,71 @@ async function createServiceInspectionImage(item) {
     context.stroke();
 
     context.fillStyle = "#15b8a6";
-    context.font = "700 26px Arial";
-    context.fillText(title, padding + cardPaddingX, startY + cardPaddingTop + 6);
+    context.font = "700 30px Arial";
+    context.fillText(title, padding + cardPaddingX, startY + cardPaddingTop + 8);
 
-    return drawer(context, startY + cardPaddingTop + titleHeight + 10, innerWidth, false) + 22;
+    return drawer(context, startY + cardPaddingTop + titleHeight + 10, innerWidth, false) + 28;
   };
 
   const drawRows = (rows, y, leftX = padding, totalWidth = contentWidth, labelWidth = defaultLabelWidth) => {
-    const safeLabelWidth = Math.min(labelWidth, Math.max(220, totalWidth * 0.48));
+    const safeLabelWidth = Math.min(labelWidth, Math.max(280, totalWidth * 0.44));
     const valueX = leftX + safeLabelWidth + valueColumnGap;
-    const valueWidth = Math.max(180, totalWidth - safeLabelWidth - valueColumnGap);
+    const valueWidth = Math.max(220, totalWidth - safeLabelWidth - valueColumnGap);
     rows.forEach(([label, value]) => {
       const wrappedLabel = wrapCanvasText(context, label, safeLabelWidth - 8);
       const wrappedValue = wrapCanvasText(context, value, valueWidth);
       const lineCount = Math.max(wrappedLabel.length, wrappedValue.length);
 
       context.fillStyle = "#7cc7ff";
-      context.font = "700 24px Arial";
+      context.font = "700 28px Arial";
       wrappedLabel.forEach((line, index) => {
-        context.fillText(line, leftX, y + (index * 34));
+        context.fillText(line, leftX, y + (index * bodyLineHeight));
       });
 
       context.fillStyle = "#eef6ff";
-      context.font = "24px Arial";
+      context.font = "28px Arial";
       wrappedValue.forEach((line, index) => {
-        context.fillText(line, valueX, y + (index * 34));
+        context.fillText(line, valueX, y + (index * bodyLineHeight));
       });
-      y += (lineCount * 34) + rowGap;
+      y += (lineCount * bodyLineHeight) + rowGap;
     });
     return y;
   };
 
-  const drawBatteryColumns = (rows, y) => {
+  const drawBatteryColumns = (rows, y, leftX = padding + 30, totalWidth = contentWidth - 60) => {
     const leftRows = rows.slice(0, Math.ceil(rows.length / 2));
     const rightRows = rows.slice(Math.ceil(rows.length / 2));
     const columnGap = 46;
-    const columnWidth = (contentWidth - columnGap) / 2;
-    const labelWidth = 220;
+    const columnWidth = (totalWidth - columnGap) / 2;
+    const labelWidth = 250;
     const valueWidth = columnWidth - labelWidth;
-    const rowHeight = 42;
+    const rowHeight = 48;
 
     const drawColumn = (columnRows, x, startY) => {
       columnRows.forEach(([label, value], index) => {
         const rowY = startY + (index * rowHeight);
         context.fillStyle = "#7cc7ff";
-        context.font = "700 22px Arial";
+        context.font = "700 24px Arial";
         context.fillText(label, x, rowY);
         context.fillStyle = "#eef6ff";
-        context.font = "22px Arial";
+        context.font = "24px Arial";
         const wrapped = wrapCanvasText(context, value, valueWidth);
         wrapped.slice(0, 2).forEach((line, lineIndex) => {
-          context.fillText(line, x + labelWidth, rowY + (lineIndex * 24));
+          context.fillText(line, x + labelWidth, rowY + (lineIndex * 28));
         });
       });
       return startY + (columnRows.length * rowHeight);
     };
 
-    const leftBottom = drawColumn(leftRows, padding, y);
-    const rightBottom = drawColumn(rightRows, padding + columnWidth + columnGap, y);
+    const leftBottom = drawColumn(leftRows, leftX, y);
+    const rightBottom = drawColumn(rightRows, leftX + columnWidth + columnGap, y);
     return Math.max(leftBottom, rightBottom);
   };
 
   const drawAnalysis = (entries, y, leftX = padding + 22, boxWidth = contentWidth - 44) => {
     entries.forEach((entry) => {
-      const wrapped = wrapCanvasText(context, entry, boxWidth - 28);
-      const itemHeight = (wrapped.length * 34) + 18;
+      const wrapped = wrapCanvasText(context, entry, boxWidth - 34);
+      const itemHeight = (wrapped.length * 40) + 24;
       context.fillStyle = "rgba(124, 199, 255, 0.06)";
       context.strokeStyle = "rgba(124, 199, 255, 0.14)";
       context.lineWidth = 1.5;
@@ -2711,36 +2713,35 @@ async function createServiceInspectionImage(item) {
       context.stroke();
 
       context.fillStyle = "#eef6ff";
-      context.font = "24px Arial";
+      context.font = "28px Arial";
       wrapped.forEach((line, index) => {
-        context.fillText(line, leftX + 14, y + 28 + (index * 32));
+        context.fillText(line, leftX + 18, y + 32 + (index * 36));
       });
       y += itemHeight + 12;
     });
     return y;
   };
 
-  const drawCarbonBrushMatrix = (measurements, equipmentName, explicitPlant, y) => {
-    const startX = padding + 22;
-    const rowLabelWidth = 54;
-    const cellWidth = 112;
-    const cellHeight = 40;
+  const drawCarbonBrushMatrix = (measurements, equipmentName, explicitPlant, y, startX = padding + 30) => {
+    const rowLabelWidth = 60;
+    const cellWidth = 126;
+    const cellHeight = 46;
     const tableWidth = rowLabelWidth + (cellWidth * carbonBrushMeasurementColumns.length);
 
     context.fillStyle = "rgba(124, 199, 255, 0.08)";
-    context.font = "700 20px Arial";
-    context.fillText("Titik", startX + 10, y + 26);
+    context.font = "700 22px Arial";
+    context.fillText("Titik", startX + 10, y + 28);
     carbonBrushMeasurementColumns.forEach((column, index) => {
-      context.fillText(String(column), startX + rowLabelWidth + 18 + (index * cellWidth), y + 26);
+      context.fillText(String(column), startX + rowLabelWidth + 20 + (index * cellWidth), y + 28);
     });
-    y += 36;
+    y += 42;
 
     carbonBrushMeasurementRows.forEach((row) => {
       context.fillStyle = "rgba(255,255,255,0.03)";
       context.fillRect(startX, y, rowLabelWidth, cellHeight);
       context.fillStyle = "#eef6ff";
-      context.font = "700 20px Arial";
-      context.fillText(row, startX + 18, y + 25);
+      context.font = "700 22px Arial";
+      context.fillText(row, startX + 18, y + 30);
 
       carbonBrushMeasurementColumns.forEach((column, index) => {
         const key = `${row}${column}`;
@@ -2756,8 +2757,8 @@ async function createServiceInspectionImage(item) {
         context.strokeStyle = "rgba(124, 199, 255, 0.12)";
         context.strokeRect(startX + rowLabelWidth + (index * cellWidth), y, cellWidth, cellHeight);
         context.fillStyle = "#eef6ff";
-        context.font = "18px Arial";
-        context.fillText(String(value), startX + rowLabelWidth + 12 + (index * cellWidth), y + 25);
+        context.font = "20px Arial";
+        context.fillText(String(value), startX + rowLabelWidth + 12 + (index * cellWidth), y + 30);
       });
       y += cellHeight;
     });
@@ -2767,17 +2768,19 @@ async function createServiceInspectionImage(item) {
     return y;
   };
 
-  let y = 70;
+  let y = 86;
+  context.textAlign = "center";
   context.fillStyle = "#eef6ff";
-  context.font = "700 42px Arial";
+  context.font = "700 54px Arial";
   titleLines.forEach((line) => {
-    context.fillText(line, padding, y);
-    y += 48;
+    context.fillText(line, width / 2, y);
+    y += titleLineHeight;
   });
 
   context.fillStyle = "#9bb0c8";
-  context.font = "24px Arial";
-  context.fillText(`Tanggal inspeksi: ${inspectionDate}`, padding, y);
+  context.font = "30px Arial";
+  context.fillText(`Tanggal inspeksi: ${inspectionDate}`, width / 2, y);
+  context.textAlign = "left";
 
   y += sectionGap;
   y = drawCardSection("Informasi Umum", y, (_ctx, cardY, innerWidth, measuringOnly) => {
@@ -2785,24 +2788,24 @@ async function createServiceInspectionImage(item) {
       let currentY = cardY;
       headerLines.forEach(([, value]) => {
         const wrapped = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
-        currentY += (wrapped.length * 34) + rowGap;
+        currentY += (wrapped.length * bodyLineHeight) + rowGap;
       });
       return currentY;
     }
-    return drawRows(headerLines, cardY, padding + 22, innerWidth, 320);
+    return drawRows(headerLines, cardY, padding + 30, innerWidth, 360);
   });
 
   y += sectionGap;
   y = drawCardSection("Deskripsi Temuan", y, (_ctx, cardY, innerWidth, measuringOnly) => {
     const lines = wrapCanvasText(context, item.description || "-", innerWidth);
     if (measuringOnly) {
-      return cardY + (lines.length * 34);
+      return cardY + (lines.length * bodyLineHeight);
     }
     context.fillStyle = "#eef6ff";
-    context.font = "24px Arial";
+    context.font = "28px Arial";
     lines.forEach((line) => {
-      context.fillText(line, padding + 22, cardY);
-      cardY += 34;
+      context.fillText(line, padding + 30, cardY);
+      cardY += bodyLineHeight;
     });
     return cardY;
   });
@@ -2815,29 +2818,29 @@ async function createServiceInspectionImage(item) {
         generalElectricalRows.forEach(([label, value]) => {
           const wrappedLabel = wrapCanvasText(context, label, defaultLabelWidth - 8);
           const wrappedValue = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
-          currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * 34) + rowGap;
+          currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * bodyLineHeight) + rowGap;
         });
-        currentY += 52 + (Math.ceil(batteryChargeRows.length / 2) * 42) + 42 + (transformerRows.length * 48);
+        currentY += 64 + (Math.ceil(batteryChargeRows.length / 2) * 48) + 56 + (transformerRows.length * (bodyLineHeight + 6));
         if (payload.findingPhotoName) {
-          currentY += 48;
+          currentY += bodyLineHeight + 12;
         }
         return currentY;
       }
-      let currentY = drawRows(generalElectricalRows, cardY, padding + 22, innerWidth);
-      currentY += 10;
+      let currentY = drawRows(generalElectricalRows, cardY, padding + 30, innerWidth);
+      currentY += 16;
       context.fillStyle = "#15b8a6";
-      context.font = "700 24px Arial";
-      context.fillText("Battery Charge", padding + 22, currentY);
-      currentY += 34;
-      currentY = drawBatteryColumns(batteryChargeRows, currentY);
-      currentY += 18;
+      context.font = "700 28px Arial";
+      context.fillText("Battery Charge", padding + 30, currentY);
+      currentY += 42;
+      currentY = drawBatteryColumns(batteryChargeRows, currentY, padding + 30, innerWidth);
+      currentY += 26;
       context.fillStyle = "#15b8a6";
-      context.font = "700 24px Arial";
-      context.fillText("Transformator", padding + 22, currentY);
-      currentY += 34;
-      currentY = drawRows(transformerRows, currentY, padding + 22, innerWidth);
+      context.font = "700 28px Arial";
+      context.fillText("Transformator", padding + 30, currentY);
+      currentY += 42;
+      currentY = drawRows(transformerRows, currentY, padding + 30, innerWidth);
       if (payload.findingPhotoName) {
-        currentY = drawRows([["Foto temuan", payload.findingPhotoName]], currentY + 8, padding + 22, innerWidth);
+        currentY = drawRows([["Foto temuan", payload.findingPhotoName]], currentY + 12, padding + 30, innerWidth);
       }
       return currentY;
     }
@@ -2849,14 +2852,14 @@ async function createServiceInspectionImage(item) {
         summaryRows.forEach(([label, value]) => {
           const wrappedLabel = wrapCanvasText(context, label, defaultLabelWidth - 8);
           const wrappedValue = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
-          currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * 34) + rowGap;
+          currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * bodyLineHeight) + rowGap;
         });
-        currentY += 36 + (carbonBrushMeasurementRows.length * 40) + 42;
+        currentY += 44 + (carbonBrushMeasurementRows.length * 46) + 50;
         return currentY;
       }
-      let currentY = drawRows(summaryRows, cardY, padding + 22, innerWidth);
-      currentY += 18;
-      currentY = drawCarbonBrushMatrix(payload.measurements || {}, item.equipmentName || "", payload.plant || "", currentY);
+      let currentY = drawRows(summaryRows, cardY, padding + 30, innerWidth);
+      currentY += 24;
+      currentY = drawCarbonBrushMatrix(payload.measurements || {}, item.equipmentName || "", payload.plant || "", currentY, padding + 30);
       return currentY;
     }
 
@@ -2865,11 +2868,11 @@ async function createServiceInspectionImage(item) {
       payloadLines.forEach(([label, value]) => {
         const wrappedLabel = wrapCanvasText(context, label, defaultLabelWidth - 8);
         const wrappedValue = wrapCanvasText(context, value, innerWidth - defaultLabelWidth - valueColumnGap);
-        currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * 34) + rowGap;
+        currentY += (Math.max(wrappedLabel.length, wrappedValue.length) * bodyLineHeight) + rowGap;
       });
       return currentY;
     }
-    return drawRows(payloadLines, cardY, padding + 22, innerWidth);
+    return drawRows(payloadLines, cardY, padding + 30, innerWidth);
   });
 
   y += sectionGap;
@@ -2878,11 +2881,11 @@ async function createServiceInspectionImage(item) {
       let currentY = cardY;
       analysisLines.forEach((entry) => {
         const wrapped = wrapCanvasText(context, entry, innerWidth - 28);
-        currentY += (wrapped.length * 36) + 24 + 12;
+        currentY += (wrapped.length * 40) + 24 + 12;
       });
       return currentY;
     }
-    return drawAnalysis(analysisLines, cardY, padding + 22, innerWidth);
+    return drawAnalysis(analysisLines, cardY, padding + 30, innerWidth);
   });
 
   if (photoImages.length > 0) {
@@ -2890,43 +2893,46 @@ async function createServiceInspectionImage(item) {
     y = drawCardSection("Lampiran Foto", y, (_ctx, cardY, innerWidth, measuringOnly) => {
       if (measuringOnly) {
         const columns = photoImages.length === 1 ? 1 : 2;
-        const gap = 18;
+        const gap = 24;
         const photoBoxWidth = (innerWidth - ((columns - 1) * gap)) / columns;
         let currentY = cardY;
         for (let index = 0; index < photoImages.length; index += columns) {
           const rowItems = photoImages.slice(index, index + columns);
           const rowHeight = Math.max(...rowItems.map(({ image }) => {
-            const ratio = Math.min(photoBoxWidth / image.width, 220 / image.height, 1);
-            return (image.height * ratio) + 34;
+            const ratio = Math.min(photoBoxWidth / image.width, 320 / image.height, 1);
+            return (image.height * ratio) + 58;
           }));
           currentY += rowHeight + gap;
         }
         return currentY;
       }
       const columns = photoImages.length === 1 ? 1 : 2;
-      const gap = 18;
+      const gap = 24;
       const photoBoxWidth = (innerWidth - ((columns - 1) * gap)) / columns;
       let currentY = cardY;
 
       for (let index = 0; index < photoImages.length; index += columns) {
         const rowItems = photoImages.slice(index, index + columns);
         const rowHeight = Math.max(...rowItems.map(({ image }) => {
-          const ratio = Math.min(photoBoxWidth / image.width, 220 / image.height, 1);
-          return (image.height * ratio) + 34;
+          const ratio = Math.min(photoBoxWidth / image.width, 320 / image.height, 1);
+          return (image.height * ratio) + 58;
         }));
 
         rowItems.forEach(({ image, name }, columnIndex) => {
-          const ratio = Math.min(photoBoxWidth / image.width, 220 / image.height, 1);
+          const ratio = Math.min(photoBoxWidth / image.width, 320 / image.height, 1);
           const drawWidth = image.width * ratio;
           const drawHeight = image.height * ratio;
-          const drawX = padding + 22 + (columnIndex * (photoBoxWidth + gap));
+          const drawX = padding + 30 + (columnIndex * (photoBoxWidth + gap));
+          const imageX = drawX + ((photoBoxWidth - drawWidth) / 2);
 
           context.fillStyle = "rgba(255,255,255,0.03)";
           context.fillRect(drawX, currentY, photoBoxWidth, rowHeight - 8);
-          context.drawImage(image, drawX, currentY, drawWidth, drawHeight);
+          context.drawImage(image, imageX, currentY, drawWidth, drawHeight);
           context.fillStyle = "#9bb0c8";
-          context.font = "20px Arial";
-          context.fillText(String(name || `Foto ${index + columnIndex + 1}`), drawX, currentY + drawHeight + 24);
+          context.font = "24px Arial";
+          context.textAlign = "center";
+          context.fillText(String(name || `Foto ${index + columnIndex + 1}`), drawX + (photoBoxWidth / 2), currentY + drawHeight + 34);
+          context.textAlign = "left";
         });
 
         currentY += rowHeight + gap;
