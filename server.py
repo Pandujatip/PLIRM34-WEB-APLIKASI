@@ -3422,6 +3422,9 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         if not self._require_edit_access(user, resource_key):
             return
+        if resource_key == "service" and str(user["role"]) == "team":
+            self._send_json({"error": "Role team tidak diizinkan menghapus data service"}, status=HTTPStatus.FORBIDDEN)
+            return
         existing_item = get_item_by_id(resource_key, item_id)
         deleted = delete_item(resource_key, item_id)
         if not deleted:

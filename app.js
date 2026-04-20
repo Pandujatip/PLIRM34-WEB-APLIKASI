@@ -4661,6 +4661,7 @@ function renderServiceCard(item) {
     ...item,
     payload: item.payload || {},
   });
+  const canDeleteService = activeRole !== "team";
   const card = document.createElement("article");
   card.className = "service-list-item";
   card.dataset.openable = "true";
@@ -4695,7 +4696,7 @@ function renderServiceCard(item) {
     <div class="service-list-actions">
       <button class="table-action compact" data-action="send-service" type="button">Kirim</button>
       <button class="table-action compact" data-action="edit-service" type="button">Edit</button>
-      <button class="table-action compact danger" data-action="delete-service" type="button">Hapus</button>
+      ${canDeleteService ? '<button class="table-action compact danger" data-action="delete-service" type="button">Hapus</button>' : ""}
     </div>
   `;
   return card;
