@@ -1504,15 +1504,16 @@
             <button class="btn btn-primary" data-editable-for="admin" data-create-target="spb" type="button">Create New</button>
             <label class="search-field">
               <span>Cari</span>
-              <input type="search" id="search-spb" placeholder="Cari no order, material, atau deskripsi">
+              <input type="search" id="search-spb" placeholder="Cari tahun, order, stock, atau deskripsi">
             </label>
             <label class="search-field compact">
-              <span>Filter status</span>
+              <span>Filter tahun</span>
               <select id="filter-spb-status">
                 <option value="semua">Semua</option>
-                <option value="Belum ada">Belum ada</option>
-                <option value="Proses">Proses</option>
-                <option value="Selesai">Selesai</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
               </select>
             </label>
             <button class="btn btn-secondary export-button" data-export="spb" type="button">Export CSV</button>
@@ -1531,48 +1532,64 @@
             <form class="input-form" data-editable-for="admin" data-form-type="spb">
               <div class="form-grid form-grid-5">
                 <label>
-                  Jenis ajuan
-                  <input type="text" name="requestType" placeholder="Urgent" required>
+                  Tahun
+                  <input type="text" name="year" placeholder="2026" required>
                 </label>
                 <label>
-                  Type ajuan
-                  <input type="text" name="requestSubtype" placeholder="Stock Refill" required>
+                  Quarter
+                  <input type="text" name="quarter" placeholder="TAHUNAN" required>
                 </label>
                 <label>
-                  No notifikasi
-                  <input type="text" name="notificationNo" placeholder="5100921" required>
+                  Type
+                  <input type="text" name="spbType" placeholder="SPB" required>
                 </label>
                 <label>
-                  No order
-                  <input type="text" name="orderNo" placeholder="45008291" required>
+                  Notif
+                  <input type="text" name="notificationNo" placeholder="300001733090">
                 </label>
                 <label>
-                  No reservasi
-                  <input type="text" name="reservationNo" placeholder="3001021" required>
+                  Order
+                  <input type="text" name="orderNo" placeholder="12182809">
                 </label>
                 <label>
-                  No material
-                  <input type="text" name="materialNo" placeholder="10023891" required>
+                  Reservasi
+                  <input type="text" name="reservationNo" placeholder="4925318">
+                </label>
+                <label>
+                  No Stock
+                  <input type="text" name="stockNo" placeholder="SI00037639">
                 </label>
                 <label class="full-span">
                   Deskripsi material
-                  <input type="text" name="materialDescription" placeholder="Motor Fan Cooling" required>
+                  <textarea name="materialDescription" rows="3" placeholder="TRANSMITTER,S-VIB:ST5484E-121;METRIX" required></textarea>
                 </label>
                 <label>
-                  Qty pembelian
+                  Qty
                   <input type="number" name="qty" placeholder="1" required>
                 </label>
                 <label>
-                  Harga ecer
-                  <input type="number" name="price" placeholder="12500000" required>
+                  MRP
+                  <input type="text" name="mrp" placeholder="PD">
                 </label>
                 <label>
-                  Status
-                  <select name="status" required>
-                    <option value="Belum ada">Belum ada</option>
-                    <option value="Proses">Proses</option>
-                    <option value="Selesai">Selesai</option>
-                  </select>
+                  Total ECE
+                  <input type="text" name="totalEce" placeholder="Rp34,000,000">
+                </label>
+                <label class="full-span">
+                  Keterangan
+                  <input type="text" name="note" placeholder="TRANSMITTER PRESSURE 344">
+                </label>
+                <label>
+                  PR
+                  <input type="text" name="prNo" placeholder="2100036576">
+                </label>
+                <label>
+                  PO
+                  <input type="text" name="poNo" placeholder="6010031859">
+                </label>
+                <label>
+                  Deliv Date
+                  <input type="text" name="deliveryDate" placeholder="15.12.2025">
                 </label>
               </div>
               <button class="btn btn-primary" type="submit">Simpan SPB</button>
@@ -1585,79 +1602,83 @@
             <table>
               <thead>
                 <tr>
-                  <th>Jenis Ajuan</th>
-                  <th>Type Ajuan</th>
-                  <th>No Notifikasi</th>
-                  <th>No Order</th>
-                  <th>No Reservasi</th>
-                  <th>No Material</th>
+                  <th>Tahun</th>
+                  <th>Quarter</th>
+                  <th>Type</th>
+                  <th>Notif</th>
+                  <th>Order</th>
+                  <th>Reservasi</th>
+                  <th>No Stock</th>
                   <th>Deskripsi Material</th>
-                  <th>Qty Pembelian</th>
-                  <th>Harga Ecer</th>
-                  <th>Status</th>
+                  <th>Qty</th>
+                  <th>MRP</th>
+                  <th>Total ECE</th>
+                  <th>Keterangan</th>
+                  <th>PR</th>
+                  <th>PO</th>
+                  <th>Deliv Date</th>
                   <th>Aksi</th>
                 </tr>
               </thead>
               <tbody id="spb-body">
                 <tr>
-                  <td>Urgent</td>
-                  <td>Stock Refill</td>
-                  <td>5100921</td>
-                  <td>45008291</td>
-                  <td>3001021</td>
-                  <td>10023891</td>
-                  <td>Motor Fan Cooling</td>
+                  <td>2026</td>
+                  <td>TAHUNAN</td>
+                  <td>SPB</td>
+                  <td>-</td>
+                  <td>12227004</td>
+                  <td>5246957</td>
+                  <td>629-000092</td>
+                  <td>WIRE, FOR :THERMOCOUPLE: TYPE : K; AWG 8; MAT :CHOROMEL+ALUMEL</td>
+                  <td>50</td>
+                  <td>PD</td>
+                  <td>Rp7.225.000</td>
+                  <td>GANTI KAWAT UNTUK THERMOCOUPLE 343RM1</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>2026</td>
+                  <td>TAHUNAN</td>
+                  <td>SPB</td>
+                  <td>-</td>
+                  <td>12227009</td>
+                  <td>5246985</td>
+                  <td>SI00037639</td>
+                  <td>TRANSMITTER,S-VIB:ST5484E-121;METRIX</td>
+                  <td>3</td>
+                  <td>PD</td>
+                  <td>Rp73.200.000</td>
+                  <td>TRANSMITER VIBRATION RAWMILL</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td class="action-cell">
+                    <button class="table-action" type="button">Edit</button>
+                    <button class="table-action danger" type="button">Hapus</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>2026</td>
+                  <td>TAHUNAN</td>
+                  <td>SPB</td>
+                  <td>-</td>
+                  <td>12227010</td>
+                  <td>5246986</td>
+                  <td>631-203221</td>
+                  <td>HMI; PROFACE PFXGP4</td>
                   <td>2</td>
-                  <td>Rp12.500.000</td>
-                  <td><span class="tag tag-neutral">Belum ada</span></td>
-                  <td class="action-cell">
-                    <button class="table-action" type="button">Edit</button>
-                    <button class="table-action danger" type="button">Hapus</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Normal</td>
-                  <td>Corrective</td>
-                  <td>5100933</td>
-                  <td>45008295</td>
-                  <td>3001032</td>
-                  <td>10023900</td>
-                  <td>Solenoid Valve 24VDC</td>
-                  <td>4</td>
-                  <td>Rp2.350.000</td>
-                  <td><span class="tag tag-neutral">Belum ada</span></td>
-                  <td class="action-cell">
-                    <button class="table-action" type="button">Edit</button>
-                    <button class="table-action danger" type="button">Hapus</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Urgent</td>
-                  <td>Critical Equipment</td>
-                  <td>5100952</td>
-                  <td>45008312</td>
-                  <td>3001054</td>
-                  <td>10023945</td>
-                  <td>Power Supply DCS</td>
-                  <td>1</td>
-                  <td>Rp18.900.000</td>
-                  <td><span class="tag tag-neutral">Belum ada</span></td>
-                  <td class="action-cell">
-                    <button class="table-action" type="button">Edit</button>
-                    <button class="table-action danger" type="button">Hapus</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Normal</td>
-                  <td>Preventive</td>
-                  <td>5100964</td>
-                  <td>45008319</td>
-                  <td>3001062</td>
-                  <td>10023982</td>
-                  <td>Bearing Pump 6310 ZZ</td>
-                  <td>6</td>
-                  <td>Rp540.000</td>
-                  <td><span class="tag tag-neutral">Belum ada</span></td>
+                  <td>PD</td>
+                  <td>Rp37.000.000</td>
+                  <td>HMI Proface tuban 4, untuk 494BU01, AN1</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>-</td>
                   <td class="action-cell">
                     <button class="table-action" type="button">Edit</button>
                     <button class="table-action danger" type="button">Hapus</button>

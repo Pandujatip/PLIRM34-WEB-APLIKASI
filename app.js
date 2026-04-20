@@ -1409,6 +1409,27 @@ function normalizeServiceItem(item) {
   };
 }
 
+function normalizeSpbItem(item = {}) {
+  return {
+    id: item.id || createId("spb"),
+    year: String(item.year || extractSpbYear(item) || "").trim() || String(new Date().getFullYear()),
+    quarter: String(item.quarter || "").trim() || "-",
+    spbType: String(item.spbType || item.requestType || "").trim() || "SPB",
+    notificationNo: String(item.notificationNo || "").trim(),
+    orderNo: String(item.orderNo || "").trim(),
+    reservationNo: String(item.reservationNo || "").trim(),
+    stockNo: String(item.stockNo || item.materialNo || "").trim(),
+    materialDescription: String(item.materialDescription || "").trim(),
+    qty: String(item.qty || "").trim(),
+    mrp: String(item.mrp || item.requestSubtype || "").trim(),
+    totalEce: String(item.totalEce || item.price || "").trim(),
+    note: String(item.note || item.status || "").trim(),
+    prNo: String(item.prNo || "").trim(),
+    poNo: String(item.poNo || "").trim(),
+    deliveryDate: String(item.deliveryDate || "").trim(),
+  };
+}
+
 function normalizeDcsPayload(payload = {}, legacyDcsMatch = null) {
   const photoCompatibility = buildFindingPhotoCompatibility(normalizeFindingPhotosPayload(payload));
   return {
@@ -3396,7 +3417,7 @@ async function loadAllDataFromBackend() {
   writeStorage(storageKeys.service, serviceItems.map((item) => normalizeServiceItem(item)));
   writeStorage(storageKeys.bom, bomItems);
   writeStorage(storageKeys.bomMotor, bomMotorItems);
-  writeStorage(storageKeys.spb, spbItems);
+  writeStorage(storageKeys.spb, spbItems.map((item) => normalizeSpbItem(item)));
   loadStoredData();
 }
 
@@ -3406,7 +3427,7 @@ function hydrateBootstrapData(data = {}) {
   writeStorage(storageKeys.service, Array.isArray(data.service) ? data.service.map((item) => normalizeServiceItem(item)) : []);
   writeStorage(storageKeys.bom, Array.isArray(data.bom) ? data.bom : []);
   writeStorage(storageKeys.bomMotor, Array.isArray(data.bom_motor) ? data.bom_motor : []);
-  writeStorage(storageKeys.spb, Array.isArray(data.spb) ? data.spb : []);
+  writeStorage(storageKeys.spb, Array.isArray(data.spb) ? data.spb.map((item) => normalizeSpbItem(item)) : []);
   loadStoredData();
 }
 
@@ -3631,6 +3652,11 @@ function isSameCalendarDate(value, targetDate = new Date()) {
 }
 
 function extractSpbYear(item) {
+  if (item?.year) {
+    const yearText = String(item.year);
+    const directMatch = yearText.match(/\b(20\d{2})\b/);
+    return directMatch ? directMatch[1] : yearText;
+  }
   const text = [
     item.notificationNo,
     item.orderNo,
@@ -3639,6 +3665,16 @@ function extractSpbYear(item) {
   ].map((value) => String(value || "")).join(" ");
   const match = text.match(/\b(20\d{2})\b/);
   return match ? match[1] : String(new Date().getFullYear());
+}
+
+function parseSpbAmount(value) {
+  const digits = String(value || "").replace(/[^\d]/g, "");
+  return Number(digits || "0");
+}
+
+function formatSpbAmount(value) {
+  const numeric = parseSpbAmount(value);
+  return numeric > 0 ? `Rp${numeric.toLocaleString("id-ID")}` : "-";
 }
 
 function formatCompactCurrency(value) {
@@ -3862,7 +3898,7 @@ function updateDashboardStats() {
   const todayServiceItems = serviceItems.filter((item) => isSameCalendarDate(item.payload?.inspectionDate, today));
   const currentYearSpbTotal = spbItems
     .filter((item) => extractSpbYear(item) === currentYear)
-    .reduce((sum, item) => sum + Number(item.price || 0), 0);
+    .reduce((sum, item) => sum + parseSpbAmount(item.totalEce), 0);
   const electricalCount = serviceItems.filter((item) => item.type === "Electrical").length;
   const xpScore = (serviceItems.length * 18) + (sparepartItems.length * 7) + ((bomItems.length + bomMotorItems.length) * 5) + (openNegatifItems.length * 11);
   const level = Math.max(1, Math.floor(xpScore / 120) + 1);
@@ -4020,7 +4056,7 @@ function renderMiniCharts(negatifItems, serviceItems, spbItems) {
 
   const yearlyTotals = [...spbItems.reduce((map, item) => {
     const year = extractSpbYear(item);
-    map.set(year, (map.get(year) || 0) + Number(item.price || 0));
+    map.set(year, (map.get(year) || 0) + parseSpbAmount(item.totalEce));
     return map;
   }, new Map()).entries()]
     .sort((left, right) => left[0].localeCompare(right[0]))
@@ -4062,12 +4098,14 @@ function renderMobileCards(negatifItems, spbItems) {
       card.innerHTML = `
         <strong>${item.materialDescription}</strong>
         <div class="mobile-meta">
-          <span>Jenis Ajuan: ${item.requestType}</span>
+          <span>Tahun: ${item.year}</span>
+          <span>Quarter: ${item.quarter}</span>
+          <span>Type: ${item.spbType}</span>
           <span>No Order: ${item.orderNo}</span>
-          <span>No Material: ${item.materialNo}</span>
+          <span>No Stock: ${item.stockNo}</span>
           <span>Qty: ${item.qty}</span>
-          <span>Harga: Rp${Number(item.price).toLocaleString("id-ID")}</span>
-          <span>Status: ${item.status}</span>
+          <span>Total ECE: ${formatSpbAmount(item.totalEce)}</span>
+          <span>Keterangan: ${item.note || "-"}</span>
         </div>
       `;
       spbMobile.append(card);
@@ -4124,7 +4162,7 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
   if (dashboardSpbPreview) {
     const yearlyTotals = [...spbItems.reduce((map, item) => {
       const year = extractSpbYear(item);
-      map.set(year, (map.get(year) || 0) + Number(item.price || 0));
+      map.set(year, (map.get(year) || 0) + parseSpbAmount(item.totalEce));
       return map;
     }, new Map()).entries()].sort((left, right) => right[0].localeCompare(left[0])).slice(0, 5);
     dashboardSpbPreview.innerHTML = "";
@@ -4360,13 +4398,13 @@ function applyBomFilter() {
 
 function applySpbFilter() {
   const query = searchSpb?.value || "";
-  const status = filterSpbStatus?.value || "semua";
+  const year = filterSpbStatus?.value || "semua";
   [...spbBody.querySelectorAll("tr")].forEach((row) => {
     const rowText = row.textContent || "";
-    const rowStatus = row.children[9]?.textContent.trim() || "";
+    const rowYear = row.children[0]?.textContent.trim() || "";
     const matchesQuery = !query || matchesSearch(rowText, query);
-    const matchesStatus = status === "semua" || rowStatus === status;
-    row.hidden = !(matchesQuery && matchesStatus);
+    const matchesYear = year === "semua" || rowYear === year;
+    row.hidden = !(matchesQuery && matchesYear);
   });
 }
 
@@ -4414,13 +4452,11 @@ function getSparepartConditionTag(condition) {
 }
 
 function getSpbStatusTag(status) {
-  if (status === "Belum ada") {
-    return "tag-neutral";
-  }
-  if (status === "Proses") {
-    return "tag-warning";
-  }
-  return "tag-success";
+  const normalized = String(status || "").toLowerCase();
+  if (normalized.includes("barang datang")) return "tag-success";
+  if (normalized.includes("tidak acc") || normalized.includes("material delete")) return "tag-danger";
+  if (normalized.includes("n/a") || normalized.includes("rencana")) return "tag-warning";
+  return "tag-neutral";
 }
 
 function normalizeNegatifItem(item) {
@@ -4705,19 +4741,25 @@ function renderBomMotorCard(item) {
 }
 
 function renderSpbRow(item) {
+  const normalizedItem = normalizeSpbItem(item);
   const row = document.createElement("tr");
-  row.dataset.id = item.id;
+  row.dataset.id = normalizedItem.id;
   row.innerHTML = `
-    <td>${item.requestType}</td>
-    <td>${item.requestSubtype}</td>
-    <td>${item.notificationNo}</td>
-    <td>${item.orderNo}</td>
-    <td>${item.reservationNo}</td>
-    <td>${item.materialNo}</td>
-    <td>${item.materialDescription}</td>
-    <td>${item.qty}</td>
-    <td>Rp${Number(item.price).toLocaleString("id-ID")}</td>
-    <td><span class="tag ${getSpbStatusTag(item.status)}">${item.status}</span></td>
+    <td>${normalizedItem.year}</td>
+    <td>${normalizedItem.quarter}</td>
+    <td>${normalizedItem.spbType}</td>
+    <td>${normalizedItem.notificationNo || "-"}</td>
+    <td>${normalizedItem.orderNo || "-"}</td>
+    <td>${normalizedItem.reservationNo || "-"}</td>
+    <td>${normalizedItem.stockNo || "-"}</td>
+    <td>${normalizedItem.materialDescription || "-"}</td>
+    <td>${normalizedItem.qty || "-"}</td>
+    <td>${normalizedItem.mrp || "-"}</td>
+    <td>${formatSpbAmount(normalizedItem.totalEce)}</td>
+    <td><span class="tag ${getSpbStatusTag(normalizedItem.note)}">${normalizedItem.note || "-"}</span></td>
+    <td>${normalizedItem.prNo || "-"}</td>
+    <td>${normalizedItem.poNo || "-"}</td>
+    <td>${normalizedItem.deliveryDate || "-"}</td>
     <td class="action-cell">
       <button class="table-action" data-action="edit-spb" type="button">Edit</button>
       <button class="table-action danger" data-action="delete-spb" type="button">Hapus</button>
@@ -4843,17 +4885,22 @@ function getBomMotorItemsFromDom() {
 function getSpbItemsFromDom() {
   return [...spbBody.querySelectorAll("tr")].map((row) => ({
     id: row.dataset.id,
-    requestType: row.children[0].textContent,
-    requestSubtype: row.children[1].textContent,
-    notificationNo: row.children[2].textContent,
-    orderNo: row.children[3].textContent,
-    reservationNo: row.children[4].textContent,
-    materialNo: row.children[5].textContent,
-    materialDescription: row.children[6].textContent,
-    qty: row.children[7].textContent,
-    price: row.children[8].textContent.replace(/[^\d]/g, ""),
-    status: row.children[9].textContent.trim(),
-  }));
+    year: row.children[0].textContent.trim(),
+    quarter: row.children[1].textContent.trim(),
+    spbType: row.children[2].textContent.trim(),
+    notificationNo: row.children[3].textContent.trim(),
+    orderNo: row.children[4].textContent.trim(),
+    reservationNo: row.children[5].textContent.trim(),
+    stockNo: row.children[6].textContent.trim(),
+    materialDescription: row.children[7].textContent.trim(),
+    qty: row.children[8].textContent.trim(),
+    mrp: row.children[9].textContent.trim(),
+    totalEce: row.children[10].textContent.trim(),
+    note: row.children[11].textContent.trim(),
+    prNo: row.children[12].textContent.trim(),
+    poNo: row.children[13].textContent.trim(),
+    deliveryDate: row.children[14].textContent.trim(),
+  })).map((item) => normalizeSpbItem(item));
 }
 
 function loadStoredData() {
@@ -4918,9 +4965,11 @@ function loadStoredData() {
   const storedSpb = readStorage(storageKeys.spb);
   if (storedSpb.length) {
     spbBody.innerHTML = "";
-    storedSpb.forEach((item) => {
+    const normalizedSpb = storedSpb.map((item) => normalizeSpbItem(item));
+    normalizedSpb.forEach((item) => {
       spbBody.append(renderSpbRow(item));
     });
+    writeStorage(storageKeys.spb, normalizedSpb);
   } else {
     spbBody.innerHTML = "";
     persistSpbList();
@@ -5123,17 +5172,23 @@ function hydrateBomMotorForm(item) {
 
 function hydrateSpbForm(item) {
   const form = document.querySelector('[data-form-type="spb"]');
-  form.requestType.value = item.requestType;
-  form.requestSubtype.value = item.requestSubtype;
-  form.notificationNo.value = item.notificationNo;
-  form.orderNo.value = item.orderNo;
-  form.reservationNo.value = item.reservationNo;
-  form.materialNo.value = item.materialNo;
-  form.materialDescription.value = item.materialDescription;
-  form.qty.value = item.qty;
-  form.price.value = item.price;
-  form.status.value = item.status;
-  editingSpbId = item.id;
+  const normalizedItem = normalizeSpbItem(item);
+  form.year.value = normalizedItem.year;
+  form.quarter.value = normalizedItem.quarter;
+  form.spbType.value = normalizedItem.spbType;
+  form.notificationNo.value = normalizedItem.notificationNo;
+  form.orderNo.value = normalizedItem.orderNo;
+  form.reservationNo.value = normalizedItem.reservationNo;
+  form.stockNo.value = normalizedItem.stockNo;
+  form.materialDescription.value = normalizedItem.materialDescription;
+  form.qty.value = normalizedItem.qty;
+  form.mrp.value = normalizedItem.mrp;
+  form.totalEce.value = normalizedItem.totalEce;
+  form.note.value = normalizedItem.note;
+  form.prNo.value = normalizedItem.prNo;
+  form.poNo.value = normalizedItem.poNo;
+  form.deliveryDate.value = normalizedItem.deliveryDate;
+  editingSpbId = normalizedItem.id;
   setSubmitNote(form, "Mode edit aktif untuk SPB.");
 }
 
@@ -6269,19 +6324,24 @@ forms.forEach((form) => {
     }
 
     if (formType === "spb") {
-      const item = {
+      const item = normalizeSpbItem({
         id: editingSpbId || createId("spb"),
-        requestType: String(formData.get("requestType") || "-"),
-        requestSubtype: String(formData.get("requestSubtype") || "-"),
-        notificationNo: String(formData.get("notificationNo") || "-"),
-        orderNo: String(formData.get("orderNo") || "-"),
-        reservationNo: String(formData.get("reservationNo") || "-"),
-        materialNo: String(formData.get("materialNo") || "-"),
-        materialDescription: String(formData.get("materialDescription") || "-"),
-        qty: String(formData.get("qty") || "0"),
-        price: String(formData.get("price") || "0"),
-        status: String(formData.get("status") || "Belum ada"),
-      };
+        year: String(formData.get("year") || ""),
+        quarter: String(formData.get("quarter") || ""),
+        spbType: String(formData.get("spbType") || ""),
+        notificationNo: String(formData.get("notificationNo") || ""),
+        orderNo: String(formData.get("orderNo") || ""),
+        reservationNo: String(formData.get("reservationNo") || ""),
+        stockNo: String(formData.get("stockNo") || ""),
+        materialDescription: String(formData.get("materialDescription") || ""),
+        qty: String(formData.get("qty") || ""),
+        mrp: String(formData.get("mrp") || ""),
+        totalEce: String(formData.get("totalEce") || ""),
+        note: String(formData.get("note") || ""),
+        prNo: String(formData.get("prNo") || ""),
+        poNo: String(formData.get("poNo") || ""),
+        deliveryDate: String(formData.get("deliveryDate") || ""),
+      });
       const savedItem = await saveItemToBackend("spb", item, Boolean(editingSpbId));
       if (editingSpbId) {
         const existing = spbBody.querySelector(`tr[data-id="${editingSpbId}"]`);
@@ -6674,16 +6734,21 @@ spbBody.addEventListener("click", async (event) => {
   if (target.dataset.action === "edit-spb") {
     hydrateSpbForm({
       id: row.dataset.id,
-      requestType: row.children[0].textContent,
-      requestSubtype: row.children[1].textContent,
-      notificationNo: row.children[2].textContent,
-      orderNo: row.children[3].textContent,
-      reservationNo: row.children[4].textContent,
-      materialNo: row.children[5].textContent,
-      materialDescription: row.children[6].textContent,
-      qty: row.children[7].textContent,
-      price: row.children[8].textContent.replace(/[^\d]/g, ""),
-      status: row.children[9].textContent.trim(),
+      year: row.children[0].textContent.trim(),
+      quarter: row.children[1].textContent.trim(),
+      spbType: row.children[2].textContent.trim(),
+      notificationNo: row.children[3].textContent.trim(),
+      orderNo: row.children[4].textContent.trim(),
+      reservationNo: row.children[5].textContent.trim(),
+      stockNo: row.children[6].textContent.trim(),
+      materialDescription: row.children[7].textContent.trim(),
+      qty: row.children[8].textContent.trim(),
+      mrp: row.children[9].textContent.trim(),
+      totalEce: row.children[10].textContent.trim(),
+      note: row.children[11].textContent.trim(),
+      prNo: row.children[12].textContent.trim(),
+      poNo: row.children[13].textContent.trim(),
+      deliveryDate: row.children[14].textContent.trim(),
     });
     openSection("spb");
     openCreatePanel("spb");
@@ -6768,7 +6833,7 @@ exportButtons.forEach((button) => {
 
     if (exportType === "spb") {
       const items = getSpbItemsFromDom();
-      downloadCsv("spb.csv", ["Jenis Ajuan", "Type Ajuan", "No Notifikasi", "No Order", "No Reservasi", "No Material", "Deskripsi", "Qty", "Harga", "Status"], items.map((item) => [item.requestType, item.requestSubtype, item.notificationNo, item.orderNo, item.reservationNo, item.materialNo, item.materialDescription, item.qty, item.price, item.status]));
+      downloadCsv("spb.csv", ["ID", "TAHUN", "QUARTER", "TYPE", "NOTIF", "ORDER", "RESERVASI", "NO STOCK", "DESKRIPSI MATERIAL", "QTY", "MRP", "TOTAL ECE", "KETERANGAN", "PR", "PO", "DELIV DATE"], items.map((item) => [item.id, item.year, item.quarter, item.spbType, item.notificationNo, item.orderNo, item.reservationNo, item.stockNo, item.materialDescription, item.qty, item.mrp, item.totalEce, item.note, item.prNo, item.poNo, item.deliveryDate]));
       showToast("Export", "SPB berhasil diexport ke CSV.");
     }
   });

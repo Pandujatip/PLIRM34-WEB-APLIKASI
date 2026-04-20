@@ -170,29 +170,39 @@ RESOURCE_TABLES = {
         "table": "spb_items",
         "columns": [
             "id",
-            "request_type",
-            "request_subtype",
+            "year_label",
+            "quarter_label",
+            "spb_type",
             "notification_no",
             "order_no",
             "reservation_no",
-            "material_no",
+            "stock_no",
             "material_description",
             "qty",
-            "price",
-            "status",
+            "mrp",
+            "total_ece",
+            "note",
+            "pr_no",
+            "po_no",
+            "delivery_date",
         ],
         "payload_keys": [
             "id",
-            "requestType",
-            "requestSubtype",
+            "year",
+            "quarter",
+            "spbType",
             "notificationNo",
             "orderNo",
             "reservationNo",
-            "materialNo",
+            "stockNo",
             "materialDescription",
             "qty",
-            "price",
-            "status",
+            "mrp",
+            "totalEce",
+            "note",
+            "prNo",
+            "poNo",
+            "deliveryDate",
         ],
     },
 }
@@ -258,16 +268,21 @@ IMPORT_FIELD_ALIASES = {
     },
     "spb": {
         "id": ["id"],
-        "requestType": ["requestType", "jenisAjuan", "jenis ajuan"],
-        "requestSubtype": ["requestSubtype", "typeAjuan", "type ajuan"],
-        "notificationNo": ["notificationNo", "noNotifikasi", "no notifikasi"],
-        "orderNo": ["orderNo", "noOrder", "no order"],
-        "reservationNo": ["reservationNo", "noReservasi", "no reservasi"],
-        "materialNo": ["materialNo", "noMaterial", "no material"],
+        "year": ["year", "tahun", "TAHUN"],
+        "quarter": ["quarter", "QUARTER"],
+        "spbType": ["spbType", "type", "TYPE", "requestType", "jenisAjuan", "jenis ajuan"],
+        "notificationNo": ["notificationNo", "notif", "NOTIF", "noNotifikasi", "no notifikasi"],
+        "orderNo": ["orderNo", "order", "ORDER", "noOrder", "no order"],
+        "reservationNo": ["reservationNo", "reservasi", "RESERVASI", "noReservasi", "no reservasi"],
+        "stockNo": ["stockNo", "noStock", "no stock", "NO STOCK", "materialNo", "noMaterial", "no material"],
         "materialDescription": ["materialDescription", "deskripsiMaterial", "deskripsi material"],
         "qty": ["qty", "qtyPembelian", "qty pembelian"],
-        "price": ["price", "hargaEcer", "harga ecer"],
-        "status": ["status"],
+        "mrp": ["mrp", "MRP", "requestSubtype", "typeAjuan", "type ajuan"],
+        "totalEce": ["totalEce", "total ece", "TOTAL ECE", "price", "hargaEcer", "harga ecer"],
+        "note": ["note", "keterangan", "KETERANGAN", "status"],
+        "prNo": ["prNo", "pr", "PR"],
+        "poNo": ["poNo", "po", "PO"],
+        "deliveryDate": ["deliveryDate", "delivDate", "deliv date", "DELIV DATE"],
     },
 }
 
@@ -902,16 +917,21 @@ def init_db() -> None:
 
             CREATE TABLE IF NOT EXISTS spb_items (
                 id TEXT PRIMARY KEY,
-                request_type TEXT NOT NULL,
-                request_subtype TEXT NOT NULL,
+                year_label TEXT NOT NULL,
+                quarter_label TEXT NOT NULL,
+                spb_type TEXT NOT NULL,
                 notification_no TEXT NOT NULL,
                 order_no TEXT NOT NULL,
                 reservation_no TEXT NOT NULL,
-                material_no TEXT NOT NULL,
+                stock_no TEXT NOT NULL,
                 material_description TEXT NOT NULL,
                 qty TEXT NOT NULL,
-                price TEXT NOT NULL,
-                status TEXT NOT NULL,
+                mrp TEXT NOT NULL,
+                total_ece TEXT NOT NULL,
+                note TEXT NOT NULL,
+                pr_no TEXT NOT NULL,
+                po_no TEXT NOT NULL,
+                delivery_date TEXT NOT NULL,
                 created_by_user_id INTEGER,
                 updated_by_user_id INTEGER,
                 updated_at TEXT NOT NULL
@@ -944,9 +964,10 @@ def init_db() -> None:
             )
 
         seed_master_data(connection)
-        migrate_snapshot_state(connection)
         ensure_audit_columns(connection)
         ensure_bom_columns(connection)
+        ensure_spb_columns(connection)
+        migrate_snapshot_state(connection)
 
 
 def get_user_by_username(username: str) -> sqlite3.Row | None:
@@ -1602,16 +1623,21 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
     if resource_key == "spb":
         return (
             str(item.get("id", "")),
-            str(item.get("requestType", "")),
-            str(item.get("requestSubtype", "")),
+            str(item.get("year", "")),
+            str(item.get("quarter", "")),
+            str(item.get("spbType", item.get("requestType", ""))),
             str(item.get("notificationNo", "")),
             str(item.get("orderNo", "")),
             str(item.get("reservationNo", "")),
-            str(item.get("materialNo", "")),
+            str(item.get("stockNo", item.get("materialNo", ""))),
             str(item.get("materialDescription", "")),
             str(item.get("qty", "")),
-            str(item.get("price", "")),
-            str(item.get("status", "")),
+            str(item.get("mrp", item.get("requestSubtype", ""))),
+            str(item.get("totalEce", item.get("price", ""))),
+            str(item.get("note", item.get("status", ""))),
+            str(item.get("prNo", "")),
+            str(item.get("poNo", "")),
+            str(item.get("deliveryDate", "")),
         )
 
     raise ValueError(f"Resource tidak dikenal: {resource_key}")
@@ -1695,16 +1721,21 @@ def deserialize_resource_item(resource_key: str, row: sqlite3.Row, *, include_me
     if resource_key == "spb":
         return {
             "id": row["id"],
-            "requestType": row["request_type"],
-            "requestSubtype": row["request_subtype"],
+            "year": row["year_label"] if "year_label" in row.keys() else "",
+            "quarter": row["quarter_label"] if "quarter_label" in row.keys() else "",
+            "spbType": row["spb_type"] if "spb_type" in row.keys() else "",
             "notificationNo": row["notification_no"],
             "orderNo": row["order_no"],
             "reservationNo": row["reservation_no"],
-            "materialNo": row["material_no"],
+            "stockNo": row["stock_no"] if "stock_no" in row.keys() else (row["material_no"] if "material_no" in row.keys() else ""),
             "materialDescription": row["material_description"],
             "qty": row["qty"],
-            "price": row["price"],
-            "status": row["status"],
+            "mrp": row["mrp"] if "mrp" in row.keys() else "",
+            "totalEce": row["total_ece"] if "total_ece" in row.keys() else (row["price"] if "price" in row.keys() else ""),
+            "note": row["note"] if "note" in row.keys() else (row["status"] if "status" in row.keys() else ""),
+            "prNo": row["pr_no"] if "pr_no" in row.keys() else "",
+            "poNo": row["po_no"] if "po_no" in row.keys() else "",
+            "deliveryDate": row["delivery_date"] if "delivery_date" in row.keys() else "",
         }
 
     raise ValueError(f"Resource tidak dikenal: {resource_key}")
@@ -1786,6 +1817,28 @@ def ensure_bom_columns(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE bom_items ADD COLUMN long_text TEXT NOT NULL DEFAULT ''")
     if "qty" not in columns:
         connection.execute("ALTER TABLE bom_items ADD COLUMN qty TEXT NOT NULL DEFAULT ''")
+
+
+def ensure_spb_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(spb_items)").fetchall()
+    }
+    required_columns = {
+        "year_label": "TEXT NOT NULL DEFAULT ''",
+        "quarter_label": "TEXT NOT NULL DEFAULT ''",
+        "spb_type": "TEXT NOT NULL DEFAULT ''",
+        "stock_no": "TEXT NOT NULL DEFAULT ''",
+        "mrp": "TEXT NOT NULL DEFAULT ''",
+        "total_ece": "TEXT NOT NULL DEFAULT ''",
+        "note": "TEXT NOT NULL DEFAULT ''",
+        "pr_no": "TEXT NOT NULL DEFAULT ''",
+        "po_no": "TEXT NOT NULL DEFAULT ''",
+        "delivery_date": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column_name, column_definition in required_columns.items():
+        if column_name not in columns:
+            connection.execute(f"ALTER TABLE spb_items ADD COLUMN {column_name} {column_definition}")
 
 
 def can_edit_resource(role: str, resource_key: str) -> bool:
@@ -2645,9 +2698,9 @@ def export_resource_csv(resource_key: str) -> str:
         return buffer.getvalue()
     if resource_key == "spb":
         writer = csv.writer(buffer)
-        writer.writerow(["Jenis Ajuan", "Type Ajuan", "No Notifikasi", "No Order", "No Reservasi", "No Material", "Deskripsi", "Qty", "Harga", "Status"])
+        writer.writerow(["ID", "TAHUN", "QUARTER", "TYPE", "NOTIF", "ORDER", "RESERVASI", "NO STOCK", "DESKRIPSI MATERIAL", "QTY", "MRP", "TOTAL ECE", "KETERANGAN", "PR", "PO", "DELIV DATE"])
         for item in items:
-            writer.writerow([item["requestType"], item["requestSubtype"], item["notificationNo"], item["orderNo"], item["reservationNo"], item["materialNo"], item["materialDescription"], item["qty"], item["price"], item["status"]])
+            writer.writerow([item["id"], item["year"], item["quarter"], item["spbType"], item["notificationNo"], item["orderNo"], item["reservationNo"], item["stockNo"], item["materialDescription"], item["qty"], item["mrp"], item["totalEce"], item["note"], item["prNo"], item["poNo"], item["deliveryDate"]])
         return buffer.getvalue()
     raise ValueError("Resource export tidak dikenal")
 
