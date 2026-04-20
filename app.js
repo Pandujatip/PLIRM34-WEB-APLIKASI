@@ -2561,6 +2561,10 @@ function analyzeCarbonBrushMeggerTrend(history, meggerMinimum = 100) {
   if (numericHistory.length < 2) {
     return {
       numericHistory,
+      firstValue: numericHistory[0]?.numericValue ?? null,
+      latestValue: numericHistory[0]?.numericValue ?? null,
+      intervals: Math.max(numericHistory.length - 1, 0),
+      totalDays: null,
       totalDrop: null,
       avgDropPerService: null,
       avgDropPerMonth: null,
@@ -2600,6 +2604,10 @@ function analyzeCarbonBrushMeggerTrend(history, meggerMinimum = 100) {
 
   return {
     numericHistory,
+    firstValue: first.numericValue,
+    latestValue: latest.numericValue,
+    intervals: totalServices,
+    totalDays,
     totalDrop,
     avgDropPerService,
     avgDropPerMonth,
@@ -2608,6 +2616,78 @@ function analyzeCarbonBrushMeggerTrend(history, meggerMinimum = 100) {
     estimatedThresholdDateLabel,
     status,
   };
+}
+
+function buildCarbonBrushMeggerAuditHtml(item, history, meggerTrend, meggerMinimum = 100) {
+  const rows = history.length
+    ? history.map((entry, index, array) => {
+      const prev = index > 0 ? array[index - 1] : null;
+      const daysGap = prev?.inspectionDate ? getDaysBetweenDates(prev.inspectionDate, entry.inspectionDate) : null;
+      const delta = prev?.numericValue !== null && entry.numericValue !== null
+        ? entry.numericValue - prev.numericValue
+        : null;
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(entry.inspectionDateLabel)}</td>
+          <td>${escapeHtml(entry.rawValue || "-")}</td>
+          <td>${entry.numericValue ?? "-"}</td>
+          <td>${escapeHtml(entry.pic || "-")}</td>
+          <td>${daysGap !== null ? `${daysGap} hari` : "-"}</td>
+          <td>${delta !== null ? `${delta > 0 ? "+" : ""}${delta.toFixed(2)}` : "-"}</td>
+          <td>${entry.numericValue !== null ? (entry.numericValue < meggerMinimum ? "Masuk hitung | di bawah batas" : "Masuk hitung") : "Tidak dihitung"}</td>
+        </tr>
+      `;
+    }).join("")
+    : `
+      <tr>
+        <td colspan="8">Belum ada histori megger untuk equipment ini.</td>
+      </tr>
+    `;
+
+  const formulaService = meggerTrend.avgDropPerService !== null
+    ? `(${meggerTrend.firstValue} - ${meggerTrend.latestValue}) / ${meggerTrend.intervals} = ${meggerTrend.avgDropPerService.toFixed(2)} Mohm per service`
+    : "-";
+  const formulaMonth = meggerTrend.avgDropPerMonth !== null && meggerTrend.totalDays
+    ? `(${meggerTrend.firstValue} - ${meggerTrend.latestValue}) / (${meggerTrend.totalDays} / 30) = ${meggerTrend.avgDropPerMonth.toFixed(2)} Mohm per bulan`
+    : "-";
+
+  return `
+    <section class="detail-card">
+      <h4>Audit Perhitungan Megger</h4>
+      <div class="detail-analysis">
+        <div class="detail-analysis-item">
+          <strong>Filter data yang dipakai</strong>
+          <span>Form harus <strong>Motor MV Carbon Brush</strong>, nama equipment harus persis <strong>${escapeHtml(item.equipmentName || "-")}</strong>, tanggal inspeksi valid, dan nilai megger harus numerik.</span>
+        </div>
+        <div class="detail-analysis-item">
+          <strong>Rumus rata-rata turun per service</strong>
+          <span>${escapeHtml(formulaService)}</span>
+        </div>
+        <div class="detail-analysis-item">
+          <strong>Rumus rata-rata turun per bulan</strong>
+          <span>${escapeHtml(formulaMonth)}</span>
+        </div>
+      </div>
+      <div class="audit-table-wrap">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Tanggal</th>
+              <th>Raw Megger</th>
+              <th>Numeric</th>
+              <th>PIC</th>
+              <th>Jeda</th>
+              <th>Delta</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
 }
 
 function detectCarbonBrushReplacementEvents(history, thresholdHigh) {
@@ -2898,6 +2978,7 @@ function buildCarbonBrushMeggerTrendHtml(item) {
           `;
         }).join("")}
       </div>
+      ${buildCarbonBrushMeggerAuditHtml(item, history, meggerTrend, meggerMinimum)}
     </section>
   `;
 }
