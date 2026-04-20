@@ -1633,6 +1633,37 @@ function formatCarbonBrushPayloadLines(item) {
   ];
 }
 
+function buildCarbonBrushPayloadDetailHtml(item) {
+  const payload = item.payload || {};
+  const meta = decodeCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
+  const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
+  const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
+  const photoSummary = buildFindingPhotoCompatibility(getInspectionPhotoEntries(payload)).findingPhotoName;
+  const meggerValue = String(payload.megger || "-").trim() || "-";
+  const rows = [
+    ["Plant", escapeHtml(payload.plant || meta.plant || "-")],
+    ["Lokasi", escapeHtml(payload.location || meta.location || "-")],
+    ["Kategori", escapeHtml(payload.category || meta.category || "-")],
+    ["PIC", escapeHtml(payload.pic || "-")],
+    ["Merah", escapeHtml(`${stats.low || 0} titik`)],
+    ["Kuning", escapeHtml(`${stats.medium || 0} titik`)],
+    ["Hijau", escapeHtml(`${stats.high || 0} titik`)],
+    ["Terendah", escapeHtml(stats.min ?? "-")],
+    ["Replacement", escapeHtml(payload.replacement || "-")],
+    ["Megger", `<button class="detail-item-action" type="button" data-action="open-carbon-brush-megger-trend">${escapeHtml(meggerValue)} <span>Lihat chart</span></button>`],
+    ["Titik diganti", escapeHtml(replacedPoints.length ? replacedPoints.join(", ") : "-")],
+    ["Titik perhatian", escapeHtml(stats.attentionPoints?.length ? stats.attentionPoints.join(", ") : "-")],
+    ["Foto temuan", escapeHtml(photoSummary)],
+  ];
+
+  return rows.map(([label, value]) => `
+    <div class="detail-item">
+      <span>${escapeHtml(label)}</span>
+      <strong>${value}</strong>
+    </div>
+  `).join("");
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -1988,9 +2019,9 @@ function openServiceDetail(item) {
         <button class="table-action" type="button" data-action="toggle-carbon-brush-replacement-mode">Tandai Titik Diganti</button>
         <button class="table-action" type="button" data-action="save-carbon-brush-replacements">Simpan Titik Diganti</button>
       </div>
-      <div class="detail-grid">${buildDetailGridRows(formatCarbonBrushPayloadLines(item))}</div>
+      <div class="detail-grid">${buildCarbonBrushPayloadDetailHtml(item)}</div>
       ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "", carbonBrushReplacementDraft)}
-      <div id="carbon-brush-point-trend-slot"></div>
+      <div id="carbon-brush-analysis-slot"></div>
     `;
   }
 
@@ -2502,6 +2533,29 @@ function getCarbonBrushPointHistory(item, pointKey) {
     .sort((left, right) => left.inspectionDate - right.inspectionDate);
 }
 
+function getCarbonBrushMeggerHistory(item) {
+  return getServiceItemsFromDom()
+    .filter((entry) =>
+      entry.formType === "service-motor-mv-carbon-brush"
+      && entry.equipmentName === item.equipmentName)
+    .map((entry) => {
+      const payload = entry.payload || {};
+      const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
+      const rawValue = String(payload.megger || "").trim();
+      const numericValue = parseCarbonBrushNumericValue(rawValue);
+      return {
+        id: entry.id,
+        inspectionDate,
+        inspectionDateLabel: formatInspectionDate(payload.inspectionDate),
+        rawValue,
+        numericValue,
+        pic: payload.pic || "-",
+      };
+    })
+    .filter((entry) => entry.inspectionDate)
+    .sort((left, right) => left.inspectionDate - right.inspectionDate);
+}
+
 function detectCarbonBrushReplacementEvents(history, thresholdHigh) {
   const events = [];
   history.forEach((entry, index) => {
@@ -2648,6 +2702,114 @@ function buildCarbonBrushTrendHtml(item, pointKey) {
             <span>${escapeHtml(event.reason)}${event.confirmed ? " | terkonfirmasi" : ""}${event.daysSincePrevious !== null ? ` | interval ${event.daysSincePrevious} hari` : ""}</span>
           </div>
         `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function buildCarbonBrushMeggerTrendSvg(history) {
+  const width = 860;
+  const height = 260;
+  const padding = { top: 24, right: 24, bottom: 40, left: 54 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const numericPoints = history.filter((entry) => entry.numericValue !== null);
+  if (!numericPoints.length) {
+    return '<div class="trend-empty">Belum ada histori megger numerik untuk ditampilkan.</div>';
+  }
+
+  const values = numericPoints.map((entry) => entry.numericValue);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const paddingValue = Math.max((maxValue - minValue) * 0.12, 0.2);
+  const domainMin = Math.max(0, minValue - paddingValue);
+  const domainMax = maxValue + paddingValue;
+  const xStep = numericPoints.length > 1 ? chartWidth / (numericPoints.length - 1) : chartWidth / 2;
+  const valueToY = (value) => padding.top + ((domainMax - value) / (domainMax - domainMin || 1)) * chartHeight;
+  const points = numericPoints.map((entry, index) => ({
+    x: padding.left + (numericPoints.length > 1 ? index * xStep : chartWidth / 2),
+    y: valueToY(entry.numericValue),
+    value: entry.numericValue,
+    label: entry.inspectionDateLabel,
+  }));
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const latest = numericPoints[numericPoints.length - 1];
+  const previous = numericPoints.length > 1 ? numericPoints[numericPoints.length - 2] : null;
+  const trendStroke = previous && latest.numericValue < previous.numericValue
+    ? "rgba(255,107,120,0.95)"
+    : "rgba(124,199,255,0.95)";
+
+  return `
+    <svg class="trend-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafik tren megger carbon brush">
+      <rect x="${padding.left}" y="${padding.top}" width="${chartWidth}" height="${chartHeight}" rx="14" fill="rgba(255,255,255,0.02)"></rect>
+      <polyline fill="none" stroke="${trendStroke}" stroke-width="3" points="${polyline}"></polyline>
+      ${points.map((point) => `
+        <g>
+          <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point"></circle>
+          <text x="${point.x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.label)}</text>
+          <text x="${point.x}" y="${point.y - 10}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.value)}</text>
+        </g>
+      `).join("")}
+      <text x="${padding.left}" y="${padding.top - 6}" class="trend-threshold high">Megger (sesuai satuan input)</text>
+    </svg>
+  `;
+}
+
+function buildCarbonBrushMeggerTrendHtml(item) {
+  const history = getCarbonBrushMeggerHistory(item);
+  const numericHistory = history.filter((entry) => entry.numericValue !== null);
+  const latest = numericHistory.length ? numericHistory[numericHistory.length - 1] : null;
+  const previous = numericHistory.length > 1 ? numericHistory[numericHistory.length - 2] : null;
+  const delta = latest && previous ? latest.numericValue - previous.numericValue : null;
+  const trendDirection = delta === null
+    ? "Belum cukup histori"
+    : delta < 0
+      ? "Turun"
+      : delta > 0
+        ? "Naik"
+        : "Tetap";
+  const lowest = numericHistory.length ? Math.min(...numericHistory.map((entry) => entry.numericValue)) : null;
+  const highest = numericHistory.length ? Math.max(...numericHistory.map((entry) => entry.numericValue)) : null;
+
+  return `
+    <section class="detail-card carbon-brush-trend-card">
+      <div class="detail-modal-head compact-trend-head">
+        <div>
+          <h4>Tren Megger - ${escapeHtml(item.equipmentName || "-")}</h4>
+          <p>Riwayat nilai megger tiap service untuk melihat kecenderungan penurunan isolasi equipment.</p>
+        </div>
+      </div>
+      ${buildCarbonBrushMeggerTrendSvg(history)}
+      <div class="detail-grid trend-summary-grid">
+        ${buildDetailGridRows([
+          ["Total histori", `${history.length} inspeksi`],
+          ["Megger terbaru", latest?.rawValue || "-"],
+          ["Megger sebelumnya", previous?.rawValue || "-"],
+          ["Tren terbaru", delta === null ? trendDirection : `${trendDirection} ${Math.abs(delta).toFixed(2)}`],
+          ["Megger terendah", lowest ?? "-"],
+          ["Megger tertinggi", highest ?? "-"],
+        ])}
+      </div>
+      <div class="detail-analysis trend-event-list">
+        ${(history.length ? history : [{ inspectionDateLabel: "-", rawValue: "-", pic: "-" }]).map((entry, index, array) => {
+          const prev = index > 0 ? array[index - 1] : null;
+          const currentNumeric = entry.numericValue;
+          const previousNumeric = prev?.numericValue ?? null;
+          const entryDelta = currentNumeric !== null && previousNumeric !== null ? currentNumeric - previousNumeric : null;
+          const note = entryDelta === null
+            ? "Baseline histori megger."
+            : entryDelta < 0
+              ? `Turun ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`
+              : entryDelta > 0
+                ? `Naik ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`
+                : "Nilai tetap dibanding service sebelumnya.";
+          return `
+            <div class="detail-analysis-item">
+              <strong>${escapeHtml(entry.inspectionDateLabel)}</strong>
+              <span>Megger ${escapeHtml(entry.rawValue || "-")} | PIC ${escapeHtml(entry.pic || "-")} | ${escapeHtml(note)}</span>
+            </div>
+          `;
+        }).join("")}
       </div>
     </section>
   `;
@@ -6893,6 +7055,15 @@ serviceDetailContent?.addEventListener("click", (event) => {
       });
     return;
   }
+  const meggerButton = target.closest('[data-action="open-carbon-brush-megger-trend"]');
+  if (meggerButton instanceof HTMLElement && activeServiceDetailItem?.formType === "service-motor-mv-carbon-brush") {
+    const slot = serviceDetailContent.querySelector("#carbon-brush-analysis-slot");
+    if (slot) {
+      slot.innerHTML = buildCarbonBrushMeggerTrendHtml(activeServiceDetailItem);
+      slot.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    return;
+  }
   const pointButton = target.closest('[data-action="open-carbon-brush-point"]');
   if (pointButton instanceof HTMLElement && activeServiceDetailItem?.formType === "service-motor-mv-carbon-brush") {
     if (carbonBrushReplacementEditMode) {
@@ -6909,7 +7080,7 @@ serviceDetailContent?.addEventListener("click", (event) => {
       }
       return;
     }
-    const slot = serviceDetailContent.querySelector("#carbon-brush-point-trend-slot");
+    const slot = serviceDetailContent.querySelector("#carbon-brush-analysis-slot");
     if (slot) {
       slot.innerHTML = buildCarbonBrushTrendHtml(activeServiceDetailItem, pointButton.dataset.pointKey || "");
       slot.scrollIntoView({ behavior: "smooth", block: "start" });
