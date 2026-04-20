@@ -1144,11 +1144,38 @@ def get_user_from_session(token: str | None) -> dict | None:
     }
 
 
+def build_service_list_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+
+    compact_payload: dict[str, object] = {}
+    for key, value in payload.items():
+        if key == "findingPhotoData":
+            compact_payload[key] = ""
+            continue
+        if key == "findingPhotos":
+            if isinstance(value, list):
+                compact_payload[key] = [
+                    {
+                        "name": str(entry.get("name", "") or "").strip(),
+                        "data": "",
+                    }
+                    for entry in value
+                    if isinstance(entry, dict) and str(entry.get("name", "") or "").strip()
+                ]
+            else:
+                compact_payload[key] = []
+            continue
+        compact_payload[key] = value
+
+    return compact_payload
+
+
 def get_state_snapshot() -> dict:
     return {
         "negatif_list": load_resource_items("negatif-list"),
         "sparepart": load_resource_items("sparepart"),
-        "service": load_resource_items("service"),
+        "service": load_resource_items("service", include_media=False),
         "bom": load_resource_items("bom"),
         "bom_motor": load_resource_items("bom-motor"),
         "spb": load_resource_items("spb"),
@@ -1186,7 +1213,7 @@ def get_item_by_id(resource_key: str, item_id: str) -> dict | None:
 
 
 def list_items(resource_key: str) -> list[dict]:
-    return load_resource_items(resource_key)
+    return load_resource_items(resource_key, include_media=(resource_key != "service"))
 
 
 def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
@@ -1590,12 +1617,14 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
     raise ValueError(f"Resource tidak dikenal: {resource_key}")
 
 
-def deserialize_resource_item(resource_key: str, row: sqlite3.Row) -> dict:
+def deserialize_resource_item(resource_key: str, row: sqlite3.Row, *, include_media: bool = True) -> dict:
     if resource_key == "service":
         try:
             payload = json.loads(row["payload_json"])
         except json.JSONDecodeError:
             payload = {}
+        if not include_media:
+            payload = build_service_list_payload(payload)
         return {
             "id": row["id"],
             "type": row["type"],
@@ -1699,13 +1728,13 @@ def replace_resource_items(connection: sqlite3.Connection, resource_key: str, it
     )
 
 
-def load_resource_items(resource_key: str) -> list[dict]:
+def load_resource_items(resource_key: str, *, include_media: bool = True) -> list[dict]:
     resource_config = RESOURCE_TABLES[resource_key]
     with get_connection() as connection:
         rows = connection.execute(
             f"SELECT * FROM {resource_config['table']} ORDER BY updated_at DESC, rowid DESC"
         ).fetchall()
-    return [deserialize_resource_item(resource_key, row) for row in rows]
+    return [deserialize_resource_item(resource_key, row, include_media=include_media) for row in rows]
 
 
 def migrate_snapshot_state(connection: sqlite3.Connection) -> None:

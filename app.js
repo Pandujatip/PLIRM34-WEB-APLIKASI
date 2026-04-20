@@ -3068,14 +3068,12 @@ function readStorage(key) {
 }
 
 function writeStorage(key, value) {
-  const snapshot = JSON.parse(JSON.stringify(value));
-  volatileStorage.set(key, snapshot);
-
   const shouldUseVolatileOnly = backendState.available
     && backendState.sessionActive
     && resourceStorageKeys.has(key);
 
   if (shouldUseVolatileOnly) {
+    volatileStorage.set(key, value);
     try {
       window.localStorage.removeItem(key);
     } catch {
@@ -3084,6 +3082,8 @@ function writeStorage(key, value) {
     return;
   }
 
+  const snapshot = JSON.parse(JSON.stringify(value));
+  volatileStorage.set(key, snapshot);
   try {
     window.localStorage.setItem(key, JSON.stringify(snapshot));
   } catch (error) {
@@ -3216,12 +3216,35 @@ async function deleteItemFromBackend(resourceKey, itemId) {
   return true;
 }
 
+async function fetchItemByIdFromBackend(resourceKey, itemId) {
+  if (!backendState.available || !backendState.sessionActive || !itemId) {
+    return null;
+  }
+  const result = await apiRequest(`/items/${resourceKey}/${encodeURIComponent(itemId)}`);
+  return result.item || null;
+}
+
 async function fetchItemsFromBackend(resourceKey) {
   if (!backendState.available || !backendState.sessionActive) {
     return [];
   }
   const result = await apiRequest(`/items/${resourceKey}`);
   return Array.isArray(result.items) ? result.items : [];
+}
+
+function runPostLoginBackgroundTasks(role = "") {
+  const tasks = [
+    loadMastersFromBackend(),
+  ];
+
+  if (role === "admin") {
+    tasks.push(refreshAdminMasters());
+    tasks.push(refreshActivityLogs());
+  }
+
+  Promise.allSettled(tasks).then(() => {
+    renderUserManagementTable();
+  });
 }
 
 async function loadMastersFromBackend(sourceGroup = "") {
@@ -3403,12 +3426,7 @@ async function hydrateFromBackendAfterLogin() {
     loginWithUser(bootstrap.user);
   }
   hydrateBootstrapData(bootstrap.data || {});
-  await loadMastersFromBackend();
-  renderUserManagementTable();
-  if (bootstrap.user?.role === "admin") {
-    await refreshAdminMasters();
-    await refreshActivityLogs();
-  }
+  runPostLoginBackgroundTasks(bootstrap.user?.role || "");
 }
 
 async function restoreBackendSession() {
@@ -3430,11 +3448,7 @@ async function restoreBackendSession() {
     }
     loginWithUser(bootstrap.user);
     hydrateBootstrapData(bootstrap.data || {});
-    await loadMastersFromBackend();
-    if (bootstrap.user?.role === "admin") {
-      await refreshAdminMasters();
-      await refreshActivityLogs();
-    }
+    runPostLoginBackgroundTasks(bootstrap.user?.role || "");
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
     return true;
@@ -3771,6 +3785,38 @@ function getServiceItemById(itemId) {
   return serviceItemCache.get(itemId)
     || readStorage(storageKeys.service).find((item) => item.id === itemId)
     || null;
+}
+
+function updateStoredServiceItem(item) {
+  if (!item?.id) {
+    return;
+  }
+  serviceItemCache.set(item.id, item);
+  const storedItems = readStorage(storageKeys.service);
+  if (!Array.isArray(storedItems) || !storedItems.length) {
+    return;
+  }
+  const nextItems = storedItems.map((entry) => (entry.id === item.id ? item : entry));
+  writeStorage(storageKeys.service, nextItems);
+}
+
+async function resolveServiceItem(itemId) {
+  const cachedItem = getServiceItemById(itemId);
+  if (!backendState.available || !backendState.sessionActive || !itemId) {
+    return cachedItem;
+  }
+
+  try {
+    const fetchedItem = await fetchItemByIdFromBackend("service", itemId);
+    if (!fetchedItem?.id) {
+      return cachedItem;
+    }
+    const normalizedItem = normalizeServiceItem(fetchedItem);
+    updateStoredServiceItem(normalizedItem);
+    return normalizedItem;
+  } catch {
+    return cachedItem;
+  }
 }
 
 function persistNegatifList() {
@@ -6361,9 +6407,7 @@ serviceCardList.addEventListener("click", async (event) => {
     return;
   }
 
-  const item = {
-    ...getServiceItemById(card.dataset.id || ""),
-  };
+  const item = await resolveServiceItem(card.dataset.id || "");
   if (!item?.id) {
     return;
   }
@@ -6408,7 +6452,7 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 });
 
-serviceCardList.addEventListener("keydown", (event) => {
+serviceCardList.addEventListener("keydown", async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement) || !(event.key === "Enter" || event.key === " ")) {
     return;
@@ -6420,7 +6464,7 @@ serviceCardList.addEventListener("keydown", (event) => {
   }
 
   event.preventDefault();
-  const item = getServiceItemById(card.dataset.id || "");
+  const item = await resolveServiceItem(card.dataset.id || "");
   if (item) {
     openServiceDetail(item);
   }
