@@ -4511,47 +4511,27 @@ function applySparepartFilter() {
 function applyServiceFilter() {
   const query = searchService?.value || "";
   const type = filterServiceType?.value || "semua";
-  [...serviceCardList.querySelectorAll(".service-list-item")].forEach((card) => {
-    const cardText = card.textContent || "";
-    const cardType = card.dataset.type || "";
-    const matchesQuery = !query || matchesSearch(cardText, query);
-    const matchesType = type === "semua" || cardType === type;
-    const isVisible = matchesQuery && matchesType;
-    card.hidden = !isVisible;
-    card.classList.toggle("is-filtered-out", !isVisible);
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const allItems = getServiceItemsFromDom();
+  const filteredItems = allItems.filter((item) => {
+    const searchableText = [
+      item.equipmentName || "",
+      item.type || "",
+      item.subtype || "",
+      item.description || "",
+      item.detail || "",
+    ].join(" ").toLowerCase();
+    const matchesQuery = !normalizedQuery || searchableText.includes(normalizedQuery);
+    const matchesType = type === "semua" || item.type === type;
+    return matchesQuery && matchesType;
   });
+  const isFiltered = Boolean(normalizedQuery) || type !== "semua";
 
-  [...serviceCardList.querySelectorAll(".service-subgroup")].forEach((section) => {
-    const visibleItems = [...section.querySelectorAll(".service-list-item")].filter((card) => !card.hidden);
-    const emptyState = section.querySelector(".service-list-empty");
-    section.classList.toggle("is-filtered-out", visibleItems.length === 0 && !emptyState);
-    if (emptyState) {
-      emptyState.classList.toggle("is-filtered-out", visibleItems.length > 0);
-    }
-    const countLabel = section.querySelector(".service-subgroup-head span");
-    if (countLabel) {
-      countLabel.textContent = `${visibleItems.length} item`;
-    }
+  renderServiceBoard(filteredItems, {
+    syncCache: false,
+    previewLimit: isFiltered ? Number.MAX_SAFE_INTEGER : 5,
   });
-
-  let visibleColumnCount = 0;
-  [...serviceCardList.querySelectorAll(".service-column")].forEach((column) => {
-    const groupKey = column.dataset.serviceGroup || "";
-    const matchesType = type === "semua" || groupKey === type;
-    const visibleItems = [...column.querySelectorAll(".service-list-item")].filter((card) => !card.hidden);
-    const visibleSubgroups = [...column.querySelectorAll(".service-subgroup")].filter((section) => !section.classList.contains("is-filtered-out"));
-    const shouldShow = matchesType && (visibleItems.length > 0 || visibleSubgroups.length > 0);
-    column.classList.toggle("is-filtered-out", !shouldShow);
-    if (shouldShow) {
-      visibleColumnCount += 1;
-    }
-    const countLabel = column.querySelector(".service-column-title span");
-    if (countLabel) {
-      countLabel.textContent = `${visibleItems.length} item`;
-    }
-  });
-
-  serviceCardList.classList.toggle("single-focus", visibleColumnCount <= 1);
+  serviceCardList.classList.toggle("single-focus", (type !== "semua") || (isFiltered && [...new Set(filteredItems.map((item) => item.type))].length <= 1));
 }
 
 function applyBomFilter() {
@@ -4729,10 +4709,12 @@ function getSortedServiceItems(items) {
   });
 }
 
-function renderServiceBoard(items) {
+function renderServiceBoard(items, options = {}) {
   if (!serviceCardList) {
     return;
   }
+  const previewLimit = Number.isFinite(options.previewLimit) ? options.previewLimit : 5;
+  const syncCache = options.syncCache !== false;
 
   const groups = [
     {
@@ -4751,23 +4733,25 @@ function renderServiceBoard(items) {
   ];
 
   serviceCardList.innerHTML = "";
-  serviceItemCache.clear();
-  items.forEach((item) => {
-    if (!item?.id) {
-      return;
-    }
-    serviceItemCache.set(item.id, {
-      ...item,
-      payload: item.payload || {},
+  if (syncCache) {
+    serviceItemCache.clear();
+    items.forEach((item) => {
+      if (!item?.id) {
+        return;
+      }
+      serviceItemCache.set(item.id, {
+        ...item,
+        payload: item.payload || {},
+      });
     });
-  });
+  }
 
   groups.forEach((group) => {
     const column = document.createElement("section");
     column.className = "service-column";
     column.dataset.serviceGroup = group.key;
     const groupItems = items.filter((item) => item.type === group.key);
-    const previewGroupItems = getSortedServiceItems(groupItems).slice(0, 5);
+    const previewGroupItems = getSortedServiceItems(groupItems).slice(0, previewLimit);
     column.innerHTML = `
       <div class="service-column-head">
         <div class="service-column-title">
@@ -4783,7 +4767,7 @@ function renderServiceBoard(items) {
     if (group.key === "Electrical") {
       group.sections.forEach((section) => {
         const sectionItems = groupItems.filter((item) => (item.formType || "") === section.key);
-        const previewSectionItems = getSortedServiceItems(sectionItems).slice(0, 5);
+        const previewSectionItems = getSortedServiceItems(sectionItems).slice(0, previewLimit);
         const wrapper = document.createElement("section");
         wrapper.className = "service-subgroup";
         wrapper.dataset.sectionKey = section.key;
