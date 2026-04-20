@@ -3399,6 +3399,9 @@ async function hydrateFromBackendAfterLogin() {
   if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
     cacheUsers(bootstrap.users);
   }
+  if (bootstrap.user) {
+    loginWithUser(bootstrap.user);
+  }
   hydrateBootstrapData(bootstrap.data || {});
   await loadMastersFromBackend();
   renderUserManagementTable();
@@ -3425,9 +3428,9 @@ async function restoreBackendSession() {
     if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
       cacheUsers(bootstrap.users);
     }
+    loginWithUser(bootstrap.user);
     hydrateBootstrapData(bootstrap.data || {});
     await loadMastersFromBackend();
-    loginWithUser(bootstrap.user);
     if (bootstrap.user?.role === "admin") {
       await refreshAdminMasters();
       await refreshActivityLogs();
@@ -4462,6 +4465,14 @@ function renderServiceCard(item) {
   return card;
 }
 
+function getSortedServiceItems(items) {
+  return [...items].sort((left, right) => {
+    const leftTime = new Date(left?.payload?.inspectionDate || left?.inspectionDate || 0).getTime() || 0;
+    const rightTime = new Date(right?.payload?.inspectionDate || right?.inspectionDate || 0).getTime() || 0;
+    return rightTime - leftTime;
+  });
+}
+
 function renderServiceBoard(items) {
   if (!serviceCardList) {
     return;
@@ -4490,6 +4501,7 @@ function renderServiceBoard(items) {
     column.className = "service-column";
     column.dataset.serviceGroup = group.key;
     const groupItems = items.filter((item) => item.type === group.key);
+    const previewGroupItems = getSortedServiceItems(groupItems).slice(0, 5);
     column.innerHTML = `
       <div class="service-column-head">
         <div class="service-column-title">
@@ -4505,6 +4517,7 @@ function renderServiceBoard(items) {
     if (group.key === "Electrical") {
       group.sections.forEach((section) => {
         const sectionItems = groupItems.filter((item) => (item.formType || "") === section.key);
+        const previewSectionItems = getSortedServiceItems(sectionItems).slice(0, 5);
         const wrapper = document.createElement("section");
         wrapper.className = "service-subgroup";
         wrapper.dataset.sectionKey = section.key;
@@ -4516,8 +4529,8 @@ function renderServiceBoard(items) {
         `;
         const sectionBody = document.createElement("div");
         sectionBody.className = "service-subgroup-body";
-        if (sectionItems.length) {
-          sectionItems.forEach((entry) => sectionBody.append(renderServiceCard(entry)));
+        if (previewSectionItems.length) {
+          previewSectionItems.forEach((entry) => sectionBody.append(renderServiceCard(entry)));
         } else {
           const empty = document.createElement("div");
           empty.className = "service-list-empty";
@@ -4527,8 +4540,8 @@ function renderServiceBoard(items) {
         wrapper.append(sectionBody);
         body.append(wrapper);
       });
-    } else if (groupItems.length) {
-      groupItems.forEach((entry) => body.append(renderServiceCard(entry)));
+    } else if (previewGroupItems.length) {
+      previewGroupItems.forEach((entry) => body.append(renderServiceCard(entry)));
     } else {
       const empty = document.createElement("div");
       empty.className = "service-list-empty";
