@@ -128,6 +128,10 @@ const heroXpRing = document.getElementById("hero-xp-ring");
 const heroXpPercent = document.getElementById("hero-xp-percent");
 const heroXpCaption = document.getElementById("hero-xp-caption");
 const heroRankName = document.getElementById("hero-rank-name");
+const dashboardSlideshow = document.getElementById("dashboard-slideshow");
+const dashboardSlideshowImage = document.getElementById("dashboard-slideshow-image");
+const dashboardSlideshowTitle = document.getElementById("dashboard-slideshow-title");
+const dashboardSlideshowDots = document.getElementById("dashboard-slideshow-dots");
 const chartNegatif = document.getElementById("chart-negatif");
 const chartService = document.getElementById("chart-service");
 const chartSpb = document.getElementById("chart-spb");
@@ -164,6 +168,36 @@ const EQUIPMENT_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-
 const DCS_EQUIPMENT_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4f9-NuVnXVz24mPVlXP_b7rEbVGbutbSnspudmS8qztvXBEMY-Jw6moGdWWNEAHkYS68ohM2jM1E_/pub?gid=1968615039&single=true&output=csv";
 const DEFAULT_ELECTRICAL_ROOM_REFERENCES = ["ER17", "ER23C", "ER24"];
 const CARBON_BRUSH_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv";
+const DASHBOARD_SLIDESHOW_FILENAMES = [
+  "WhatsApp Image 2026-04-20 at 13.37.17.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.37.18 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.37.18.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.37.19.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.37.21.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.15 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.15.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.16 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.16 (2).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.16.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.17 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.17 (2).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.17.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.18 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.18 (2).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.18.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.19 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.19.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.20 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.20 (2).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.20 (3).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.20.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.21.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.22.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.23.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.24 (1).jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.24.jpeg",
+  "WhatsApp Image 2026-04-20 at 13.38.25.jpeg",
+];
 const carbonBrushMeasurementRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
 const carbonBrushMeasurementColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const carbonBrushMeasurementKeys = carbonBrushMeasurementRows.flatMap((row) => carbonBrushMeasurementColumns.map((column) => `${row}${column}`));
@@ -236,6 +270,8 @@ let dashboardInspectionSchedule = {
   today: [],
   tomorrow: [],
 };
+let dashboardSlideshowIndex = 0;
+let dashboardSlideshowTimer = null;
 let idleLogoutTimer = null;
 
 const roleLabels = {
@@ -3636,6 +3672,7 @@ async function restoreBackendSession() {
 
 async function initializeApplication() {
   const backendReady = await detectBackendAvailability();
+  startDashboardSlideshow();
   renderCarbonBrushMeasurementGrid();
   renderElectricalRoomReferenceOptions();
   openBomPane("general");
@@ -4412,6 +4449,53 @@ function renderInspectionScheduleCard(container, items, emptyTitle) {
 
 function matchesSearch(text, query) {
   return text.toLowerCase().includes(query.trim().toLowerCase());
+}
+
+function buildDashboardSlideshowImagePath(filename) {
+  return `/slideshow-images/${encodeURIComponent(String(filename || "").trim())}`;
+}
+
+function renderDashboardSlideshowDots(activeIndex) {
+  if (!dashboardSlideshowDots) {
+    return;
+  }
+  dashboardSlideshowDots.innerHTML = DASHBOARD_SLIDESHOW_FILENAMES.map((_, index) => `
+    <span class="dashboard-slideshow-dot ${index === activeIndex ? "is-active" : ""}"></span>
+  `).join("");
+}
+
+function showDashboardSlide(index) {
+  if (!dashboardSlideshow || !dashboardSlideshowImage || !DASHBOARD_SLIDESHOW_FILENAMES.length) {
+    return;
+  }
+  const normalizedIndex = ((index % DASHBOARD_SLIDESHOW_FILENAMES.length) + DASHBOARD_SLIDESHOW_FILENAMES.length) % DASHBOARD_SLIDESHOW_FILENAMES.length;
+  const filename = DASHBOARD_SLIDESHOW_FILENAMES[normalizedIndex];
+  dashboardSlideshowIndex = normalizedIndex;
+  dashboardSlideshow.classList.remove("is-ready");
+  dashboardSlideshowImage.onload = () => {
+    dashboardSlideshow?.classList.add("is-ready");
+  };
+  dashboardSlideshowImage.onerror = () => {
+    dashboardSlideshow?.classList.remove("is-ready");
+  };
+  dashboardSlideshowImage.src = buildDashboardSlideshowImagePath(filename);
+  if (dashboardSlideshowTitle) {
+    dashboardSlideshowTitle.textContent = `Dokumentasi unit kerja PLIRM34 • ${normalizedIndex + 1}/${DASHBOARD_SLIDESHOW_FILENAMES.length}`;
+  }
+  renderDashboardSlideshowDots(normalizedIndex);
+}
+
+function startDashboardSlideshow() {
+  if (!dashboardSlideshow || !dashboardSlideshowImage || !DASHBOARD_SLIDESHOW_FILENAMES.length) {
+    return;
+  }
+  if (dashboardSlideshowTimer) {
+    window.clearInterval(dashboardSlideshowTimer);
+  }
+  showDashboardSlide(0);
+  dashboardSlideshowTimer = window.setInterval(() => {
+    showDashboardSlide(dashboardSlideshowIndex + 1);
+  }, 5000);
 }
 
 function getModuleRankLabel(score) {
