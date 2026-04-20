@@ -246,7 +246,7 @@ const roleLabels = {
 
 const roleAccessSummary = {
   admin: "Akses penuh seluruh modul",
-  organik: "Lihat semua modul, edit negatif list",
+  organik: "Lihat semua menu kecuali log dan manajemen user, input/edit negatif list dan service",
   team: "Lihat semua modul, edit service",
 };
 
@@ -264,7 +264,7 @@ const roleSections = {
 
 const roleEditable = {
   admin: ["negatif-list", "sparepart", "service", "bom", "spb", "user-management"],
-  organik: ["negatif-list"],
+  organik: ["negatif-list", "service"],
   team: ["service"],
 };
 

@@ -706,7 +706,7 @@
             Pusat input inspeksi, review hasil temuan, analisa, dan distribusi laporan service lapangan.
           </div>
           <div class="toolbar">
-            <button class="btn btn-primary" data-editable-for="admin,team" data-create-target="service" type="button">Create New</button>
+            <button class="btn btn-primary" data-editable-for="admin,organik,team" data-create-target="service" type="button">Create New</button>
             <label class="search-field">
               <span>Cari</span>
               <input type="search" id="search-service" placeholder="Cari equipment, tipe, sub menu, atau deskripsi">
@@ -731,8 +731,8 @@
               </div>
               <button class="btn btn-secondary" data-close-panel="service" type="button">Tutup</button>
             </div>
-            <div class="permission-banner" data-editable-for="admin,team">
-              Form service aktif untuk role `admin` dan `team`.
+            <div class="permission-banner" data-editable-for="admin,organik,team">
+              Form service aktif untuk role `admin`, `organik`, dan `team`.
             </div>
             <div class="service-tab-bar">
               <button class="chip-button service-tab active" data-service-tab="electrical" type="button">Electrical</button>
@@ -748,7 +748,7 @@
                 <button class="chip-button service-subtab" data-electrical-tab="ehca" type="button">EH/CA</button>
               </div>
               <div class="service-form-grid service-form-grid-single">
-              <form class="input-form electrical-pane visible" data-editable-for="admin,team" data-electrical-pane="electrical-room" data-form-type="service-electrical-room">
+              <form class="input-form electrical-pane visible" data-editable-for="admin,organik,team" data-electrical-pane="electrical-room" data-form-type="service-electrical-room">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Electrical Room</p>
                   <h3>Inspeksi electrical room</h3>
@@ -928,7 +928,7 @@
                 <button class="btn btn-primary" type="submit">Simpan Electrical Room</button>
               </form>
 
-              <form class="input-form electrical-pane" data-editable-for="admin,team" data-electrical-pane="motor-mv" data-form-type="service-motor-mv">
+              <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mv" data-form-type="service-motor-mv">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Motor MV</p>
                   <h3>Inspeksi motor MV</h3>
@@ -970,7 +970,7 @@
                 <button class="btn btn-primary" type="submit">Simpan Motor MV</button>
               </form>
 
-              <form class="input-form electrical-pane" data-editable-for="admin,team" data-electrical-pane="motor-mv-carbon-brush" data-form-type="service-motor-mv-carbon-brush">
+              <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mv-carbon-brush" data-form-type="service-motor-mv-carbon-brush">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Motor MV Carbon Brush</p>
                   <h3>Inspeksi motor MV carbon brush</h3>
@@ -1050,7 +1050,7 @@
                 <button class="btn btn-primary" type="submit">Simpan Motor MV Carbon Brush</button>
               </form>
 
-              <form class="input-form electrical-pane" data-editable-for="admin,team" data-electrical-pane="mcc" data-form-type="service-mcc">
+              <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="mcc" data-form-type="service-mcc">
                 <div class="card-head compact-head">
                   <p class="eyebrow">MCC</p>
                   <h3>Inspeksi MCC</h3>
@@ -1124,7 +1124,7 @@
                 <button class="btn btn-primary" type="submit">Simpan MCC</button>
               </form>
 
-              <form class="input-form electrical-pane" data-editable-for="admin,team" data-electrical-pane="ehca" data-form-type="service-ehca">
+              <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="ehca" data-form-type="service-ehca">
                 <div class="card-head compact-head">
                   <p class="eyebrow">EH/CA</p>
                   <h3>Inspeksi EH/CA</h3>
@@ -1170,7 +1170,7 @@
 
             <div class="service-pane" data-service-pane="instrument">
               <div class="service-form-grid service-form-grid-single">
-              <form class="input-form" data-editable-for="admin,team" data-form-type="service-instrument">
+              <form class="input-form" data-editable-for="admin,organik,team" data-form-type="service-instrument">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Instrument</p>
                   <h3>Input inspeksi instrument</h3>
@@ -1200,7 +1200,7 @@
 
             <div class="service-pane" data-service-pane="dcs">
               <div class="service-form-grid service-form-grid-single">
-              <form class="input-form" data-editable-for="admin,team" data-form-type="service-dcs">
+              <form class="input-form" data-editable-for="admin,organik,team" data-form-type="service-dcs">
                 <div class="card-head compact-head">
                   <p class="eyebrow">DCS</p>
                   <h3>Input inspeksi DCS</h3>

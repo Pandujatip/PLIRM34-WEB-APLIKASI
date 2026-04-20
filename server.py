@@ -299,7 +299,7 @@ DEFAULT_USERS = [
 
 ROLE_EDITABLE = {
     "admin": {"negatif-list", "sparepart", "service", "bom", "bom-motor", "spb", "users"},
-    "organik": {"negatif-list"},
+    "organik": {"negatif-list", "service"},
     "team": {"service"},
 }
 
