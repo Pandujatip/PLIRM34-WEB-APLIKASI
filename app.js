@@ -225,6 +225,7 @@ let editingServiceId = null;
 let editingBomId = null;
 let editingBomMotorId = null;
 let editingSpbId = null;
+let activeServiceGroupDetailType = "";
 let activeServiceDetailItem = null;
 let carbonBrushReplacementEditMode = false;
 let carbonBrushReplacementDraft = [];
@@ -2132,11 +2133,58 @@ function openServiceGroupDetail(serviceType) {
     return;
   }
 
+  activeServiceGroupDetailType = serviceType;
+  serviceDetailTitle.textContent = `Detail ${serviceType}`;
+  serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${serviceType}. Gunakan pencarian dan filter langsung di halaman ini.`;
+
+  renderServiceGroupDetailContent(serviceType);
+
+  serviceDetailModal.classList.remove("hidden");
+  serviceDetailModal.setAttribute("aria-hidden", "false");
+}
+
+function renderServiceGroupDetailContent(serviceType, searchTerm = "", subtypeFilter = "") {
+  if (!serviceDetailContent) {
+    return;
+  }
+  const normalizedQuery = String(searchTerm || "").trim().toLowerCase();
+  const normalizedSubtype = String(subtypeFilter || "").trim();
   const items = getServiceItemsFromDom()
     .filter((item) => item.type === serviceType);
+  const subtypeOptions = [...new Set(items.map((item) => String(item.subtype || item.type || "").trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
+  const filteredItems = items.filter((item) => {
+    const equipmentName = String(item.equipmentName || "").toLowerCase();
+    const description = String(item.description || "").toLowerCase();
+    const detail = String(item.detail || "").toLowerCase();
+    const subtype = String(item.subtype || item.type || "").trim();
+    const matchesSubtype = !normalizedSubtype || subtype === normalizedSubtype;
+    const matchesQuery = !normalizedQuery
+      || equipmentName.includes(normalizedQuery)
+      || description.includes(normalizedQuery)
+      || detail.includes(normalizedQuery)
+      || subtype.toLowerCase().includes(normalizedQuery);
+    return matchesSubtype && matchesQuery;
+  });
 
-  serviceDetailTitle.textContent = `Detail ${serviceType}`;
-  serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${serviceType}. Klik item untuk membuka detail inspeksi.`;
+  const filterToolbar = `
+    <div class="service-group-filter-bar">
+      <label class="service-group-filter-field">
+        <span>Cari equipment / catatan</span>
+        <input type="search" data-service-group-search value="${escapeHtml(searchTerm)}" placeholder="Ketik equipment, subtype, atau catatan inspeksi">
+      </label>
+      <label class="service-group-filter-field">
+        <span>Filter subtype</span>
+        <select data-service-group-subtype>
+          <option value="">Semua subtype</option>
+          ${subtypeOptions.map((option) => `<option value="${escapeHtml(option)}"${option === normalizedSubtype ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+        </select>
+      </label>
+      <div class="service-group-filter-summary">
+        <strong>${filteredItems.length}</strong>
+        <span>dari ${items.length} item</span>
+      </div>
+    </div>
+  `;
 
   if (!items.length) {
     serviceDetailContent.innerHTML = `
@@ -2146,33 +2194,37 @@ function openServiceGroupDetail(serviceType) {
         </div>
       </section>
     `;
-  } else {
-    serviceDetailContent.innerHTML = `
-      <section class="detail-card">
-        <h4>Daftar Hasil Inspeksi</h4>
-        <div class="service-group-detail-list">
-          ${items.map((item) => `
-            <button class="service-group-detail-item" type="button" data-action="open-service-item-detail" data-id="${escapeHtml(item.id || "")}">
-              <div>
-                <strong>${escapeHtml(item.equipmentName || "-")}</strong>
-                <span>${escapeHtml(item.subtype || item.type || "-")}</span>
-              </div>
-              <small>${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</small>
-            </button>
-          `).join("")}
-        </div>
-      </section>
-    `;
+    return;
   }
 
-  serviceDetailModal.classList.remove("hidden");
-  serviceDetailModal.setAttribute("aria-hidden", "false");
+  serviceDetailContent.innerHTML = `
+    <section class="detail-card">
+      <h4>Daftar Hasil Inspeksi</h4>
+      ${filterToolbar}
+      <div class="service-group-detail-list">
+        ${
+          filteredItems.length
+            ? filteredItems.map((item) => `
+              <button class="service-group-detail-item" type="button" data-action="open-service-item-detail" data-id="${escapeHtml(item.id || "")}">
+                <div>
+                  <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+                  <span>${escapeHtml(item.subtype || item.type || "-")}</span>
+                </div>
+                <small>${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</small>
+              </button>
+            `).join("")
+            : `<div class="service-list-empty">Tidak ada hasil inspeksi yang cocok dengan pencarian/filter saat ini.</div>`
+        }
+      </div>
+    </section>
+  `;
 }
 
 function closeServiceDetail() {
   if (!serviceDetailModal) {
     return;
   }
+  activeServiceGroupDetailType = "";
   activeServiceDetailItem = null;
   carbonBrushReplacementEditMode = false;
   carbonBrushReplacementDraft = [];
@@ -6777,6 +6829,38 @@ serviceDetailContent?.addEventListener("click", (event) => {
   const item = getServiceItemsFromDom().find((entry) => entry.id === button.dataset.id);
   if (item) {
     openServiceDetail(item);
+  }
+});
+
+serviceDetailContent?.addEventListener("input", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !activeServiceGroupDetailType) {
+    return;
+  }
+  if (target.matches("[data-service-group-search]")) {
+    const searchInput = serviceDetailContent.querySelector("[data-service-group-search]");
+    const subtypeSelect = serviceDetailContent.querySelector("[data-service-group-subtype]");
+    renderServiceGroupDetailContent(
+      activeServiceGroupDetailType,
+      searchInput instanceof HTMLInputElement ? searchInput.value : "",
+      subtypeSelect instanceof HTMLSelectElement ? subtypeSelect.value : "",
+    );
+  }
+});
+
+serviceDetailContent?.addEventListener("change", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !activeServiceGroupDetailType) {
+    return;
+  }
+  if (target.matches("[data-service-group-subtype]")) {
+    const searchInput = serviceDetailContent.querySelector("[data-service-group-search]");
+    const subtypeSelect = serviceDetailContent.querySelector("[data-service-group-subtype]");
+    renderServiceGroupDetailContent(
+      activeServiceGroupDetailType,
+      searchInput instanceof HTMLInputElement ? searchInput.value : "",
+      subtypeSelect instanceof HTMLSelectElement ? subtypeSelect.value : "",
+    );
   }
 });
 
