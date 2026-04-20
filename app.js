@@ -4700,6 +4700,15 @@ function renderServiceBoard(items) {
 
   serviceCardList.innerHTML = "";
   serviceItemCache.clear();
+  items.forEach((item) => {
+    if (!item?.id) {
+      return;
+    }
+    serviceItemCache.set(item.id, {
+      ...item,
+      payload: item.payload || {},
+    });
+  });
 
   groups.forEach((group) => {
     const column = document.createElement("section");
