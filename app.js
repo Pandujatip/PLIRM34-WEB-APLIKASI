@@ -4506,8 +4506,8 @@ function renderNegatifRow(item) {
     <td>${item.category}</td>
     <td>${item.area}</td>
     <td class="action-cell">
-      <button class="table-action" data-action="edit-negatif" type="button">Edit</button>
-      <button class="table-action danger" data-action="delete-negatif" type="button">Hapus</button>
+      <button class="table-action icon-action" data-action="edit-negatif" type="button" title="Edit" aria-label="Edit">&#9998;</button>
+      <button class="table-action danger icon-action" data-action="delete-negatif" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
     </td>
   `;
   return row;
@@ -4772,8 +4772,8 @@ function renderSpbRow(item) {
     <td>${normalizedItem.poNo || "-"}</td>
     <td>${normalizedItem.deliveryDate || "-"}</td>
     <td class="action-cell">
-      <button class="table-action" data-action="edit-spb" type="button">Edit</button>
-      <button class="table-action danger" data-action="delete-spb" type="button">Hapus</button>
+      <button class="table-action icon-action" data-action="edit-spb" type="button" title="Edit" aria-label="Edit">&#9998;</button>
+      <button class="table-action danger icon-action" data-action="delete-spb" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
     </td>
   `;
   return row;
