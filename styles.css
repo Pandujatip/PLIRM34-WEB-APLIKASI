@@ -2201,6 +2201,35 @@ th {
   color: #ffe5b0;
 }
 
+.carbon-brush-type-help {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.carbon-brush-type-help.is-active {
+  border-color: rgba(124, 199, 255, 0.32);
+  background: linear-gradient(135deg, rgba(124, 199, 255, 0.12), rgba(255, 122, 24, 0.08));
+  color: #eef7ff;
+}
+
+.carbon-brush-type-help.is-warning {
+  border-color: rgba(255, 194, 102, 0.35);
+  background: rgba(255, 194, 102, 0.12);
+  color: #ffe5b0;
+}
+
+.carbon-brush-type-help strong {
+  color: var(--text);
+}
+
 .carbon-brush-legend {
   display: flex;
   flex-wrap: wrap;

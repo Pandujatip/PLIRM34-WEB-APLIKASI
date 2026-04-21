@@ -37,6 +37,7 @@ const carbonBrushEquipmentInput = document.getElementById("carbon-brush-equipmen
 const carbonBrushEquipmentResults = document.getElementById("carbon-brush-equipment-results");
 const carbonBrushEquipmentStatus = document.getElementById("carbon-brush-equipment-status");
 const carbonBrushEquipmentMeta = document.getElementById("carbon-brush-equipment-meta");
+const carbonBrushTypeHelp = document.getElementById("carbon-brush-type-help");
 const carbonBrushMeasurementGrid = document.getElementById("carbon-brush-measurement-grid");
 const carbonBrushStats = document.getElementById("carbon-brush-stats");
 const serviceElectricalCarbonBrushForm = document.querySelector('[data-form-type="service-motor-mv-carbon-brush"]');
@@ -657,21 +658,39 @@ function normalizeCarbonBrushEquipmentForType(value) {
   return String(value || "")
     .trim()
     .toUpperCase()
+    .replace(/\([^)]*\)/g, "")
     .replace(/\s+/g, "");
 }
 
+function getCarbonBrushEquipmentMatchKeys(value) {
+  const normalized = normalizeCarbonBrushEquipmentForType(value);
+  if (!normalized) {
+    return [];
+  }
+  const keys = new Set([normalized]);
+  const equipmentCode = normalized.match(/\d{3}[A-Z]+\d+(?:M\d+)?/)?.[0] || "";
+  if (equipmentCode) {
+    keys.add(equipmentCode);
+    const baseCode = equipmentCode.match(/\d{3}[A-Z]+\d+/)?.[0] || "";
+    if (baseCode) {
+      keys.add(baseCode);
+    }
+  }
+  return [...keys].filter(Boolean);
+}
+
 function getCarbonBrushTypeMatches(equipmentName) {
-  const normalizedEquipment = normalizeCarbonBrushEquipmentForType(equipmentName);
-  if (!normalizedEquipment) {
+  const equipmentKeys = getCarbonBrushEquipmentMatchKeys(equipmentName);
+  if (!equipmentKeys.length) {
     return [];
   }
 
   return carbonBrushTypeReferences.filter((reference) => {
     const normalizedUseItems = String(reference.use || "")
       .split(/,|\bdan\b/i)
-      .map((item) => normalizeCarbonBrushEquipmentForType(item.split("-")[0]))
+      .flatMap((item) => getCarbonBrushEquipmentMatchKeys(item.split("-")[0]))
       .filter(Boolean);
-    return normalizedUseItems.some((item) => item === normalizedEquipment || normalizedEquipment.startsWith(item) || item.startsWith(normalizedEquipment));
+    return normalizedUseItems.some((item) => equipmentKeys.some((key) => item === key || key.startsWith(item) || item.startsWith(key)));
   });
 }
 
@@ -689,6 +708,30 @@ function renderCarbonBrushTypeSummary(equipmentName) {
   `).join("");
 }
 
+function updateCarbonBrushTypeHelp(equipmentName) {
+  if (!carbonBrushTypeHelp) {
+    return;
+  }
+  const matches = getCarbonBrushTypeMatches(equipmentName);
+  if (!equipmentName) {
+    carbonBrushTypeHelp.className = "carbon-brush-type-help";
+    carbonBrushTypeHelp.textContent = "Pilih equipment untuk menampilkan jenis/type carbon brush.";
+    return;
+  }
+  if (!matches.length) {
+    carbonBrushTypeHelp.className = "carbon-brush-type-help is-warning";
+    carbonBrushTypeHelp.textContent = `Belum ada referensi type carbon brush untuk ${equipmentName}.`;
+    return;
+  }
+  carbonBrushTypeHelp.className = "carbon-brush-type-help is-active";
+  carbonBrushTypeHelp.innerHTML = `
+    <strong>Type Carbon Brush untuk ${escapeHtml(equipmentName)}</strong>
+    ${matches.map((item) => `
+      <span>${escapeHtml(item.name)} | ${escapeHtml(item.sapNo)} | ${escapeHtml(item.use)}</span>
+    `).join("")}
+  `;
+}
+
 function updateCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
   if (!carbonBrushEquipmentMeta) {
     return;
@@ -702,6 +745,7 @@ function updateCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
     <span class="summary-pill">Batas: ${meta.thresholdLegend}</span>
     ${renderCarbonBrushTypeSummary(equipmentName)}
   `;
+  updateCarbonBrushTypeHelp(equipmentName);
 }
 
 function renderEquipmentReferenceResults(query) {
