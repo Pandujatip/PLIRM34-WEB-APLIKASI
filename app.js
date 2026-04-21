@@ -206,12 +206,27 @@ const carbonBrushTypeReferences = [
   {
     sapNo: "SI00028389",
     name: "RC53 50X32X25",
-    use: "344RM1M01 - ABB dan 344FN3M01 - ABB",
+    use: "344RM1M01 - ABB",
+  },
+  {
+    sapNo: "SI00028389",
+    name: "RC53 50X32X25",
+    use: "344FN3M01 - ABB",
   },
   {
     sapNo: "SI00005550",
     name: "RC73/MR7 50X32X25",
-    use: "343RM1M01, 343FN4M01 - SIEMENS, 343FN5M01",
+    use: "343RM1M01 - SIEMENS",
+  },
+  {
+    sapNo: "SI00005550",
+    name: "RC73/MR7 50X32X25",
+    use: "343FN4M01 - SIEMENS",
+  },
+  {
+    sapNo: "SI00005550",
+    name: "RC73/MR7 50X32X25",
+    use: "343FN5M01 - SIEMENS",
   },
   {
     sapNo: "SI00028394",
