@@ -201,6 +201,28 @@ const DASHBOARD_SLIDESHOW_FILENAMES = [
 const carbonBrushMeasurementRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
 const carbonBrushMeasurementColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const carbonBrushMeasurementKeys = carbonBrushMeasurementRows.flatMap((row) => carbonBrushMeasurementColumns.map((column) => `${row}${column}`));
+const carbonBrushTypeReferences = [
+  {
+    sapNo: "SI00028389",
+    name: "RC53 50X32X25",
+    use: "344RM1M01 - ABB dan 344FN3M01 - SIEMENS",
+  },
+  {
+    sapNo: "SI00005550",
+    name: "RC73/MR7 50X32X25",
+    use: "343RM1M01, 343FN4M01 - SIEMENS, 343FN5M01",
+  },
+  {
+    sapNo: "SI00028394",
+    name: "RC67 50X32X25",
+    use: "344RM1M01",
+  },
+  {
+    sapNo: "SI00005549",
+    name: "RC73 50X32X20",
+    use: "343RM1M01 - ABB",
+  },
+];
 let equipmentReferenceList = [];
 let selectedEquipmentReference = "";
 let dcsEquipmentReferenceItems = [];
@@ -631,6 +653,42 @@ function decodeCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
   };
 }
 
+function normalizeCarbonBrushEquipmentForType(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
+function getCarbonBrushTypeMatches(equipmentName) {
+  const normalizedEquipment = normalizeCarbonBrushEquipmentForType(equipmentName);
+  if (!normalizedEquipment) {
+    return [];
+  }
+
+  return carbonBrushTypeReferences.filter((reference) => {
+    const normalizedUseItems = String(reference.use || "")
+      .split(/,|\bdan\b/i)
+      .map((item) => normalizeCarbonBrushEquipmentForType(item.split("-")[0]))
+      .filter(Boolean);
+    return normalizedUseItems.some((item) => item === normalizedEquipment || normalizedEquipment.startsWith(item) || item.startsWith(normalizedEquipment));
+  });
+}
+
+function renderCarbonBrushTypeSummary(equipmentName) {
+  const matches = getCarbonBrushTypeMatches(equipmentName);
+  if (!equipmentName) {
+    return '<span class="summary-pill">Type CB: pilih equipment</span>';
+  }
+  if (!matches.length) {
+    return '<span class="summary-pill warning">Type CB: belum ada referensi</span>';
+  }
+
+  return matches.map((item) => `
+    <span class="summary-pill cb-type">Type CB: ${escapeHtml(item.name)} | ${escapeHtml(item.sapNo)} | ${escapeHtml(item.use)}</span>
+  `).join("");
+}
+
 function updateCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
   if (!carbonBrushEquipmentMeta) {
     return;
@@ -642,6 +700,7 @@ function updateCarbonBrushEquipmentMeta(equipmentName, explicitPlant = "") {
     <span class="summary-pill">Kategori: ${meta.category}</span>
     <span class="summary-pill">Plant: ${meta.plant}</span>
     <span class="summary-pill">Batas: ${meta.thresholdLegend}</span>
+    ${renderCarbonBrushTypeSummary(equipmentName)}
   `;
 }
 

@@ -2186,6 +2186,21 @@ th {
   color: #d7ffef;
 }
 
+.summary-pill.cb-type {
+  flex-basis: min(100%, 760px);
+  border-color: rgba(124, 199, 255, 0.32);
+  background: linear-gradient(135deg, rgba(124, 199, 255, 0.12), rgba(255, 122, 24, 0.08));
+  color: #eef7ff;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.summary-pill.warning {
+  border-color: rgba(255, 194, 102, 0.35);
+  background: rgba(255, 194, 102, 0.12);
+  color: #ffe5b0;
+}
+
 .carbon-brush-legend {
   display: flex;
   flex-wrap: wrap;
