@@ -206,7 +206,7 @@ const carbonBrushTypeReferences = [
   {
     sapNo: "SI00028389",
     name: "RC53 50X32X25",
-    use: "344RM1M01 - ABB",
+    use: "344RM01M01 - ABB",
   },
   {
     sapNo: "SI00028389",
@@ -231,7 +231,7 @@ const carbonBrushTypeReferences = [
   {
     sapNo: "SI00028394",
     name: "RC67 50X32X25",
-    use: "344RM1M01",
+    use: "344RM01M01",
   },
   {
     sapNo: "SI00005549",
