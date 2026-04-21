@@ -709,22 +709,23 @@ function renderCarbonBrushTypeSummary(equipmentName) {
 }
 
 function updateCarbonBrushTypeHelp(equipmentName) {
-  if (!carbonBrushTypeHelp) {
+  const typeHelpElement = carbonBrushTypeHelp || document.getElementById("carbon-brush-type-help");
+  if (!typeHelpElement) {
     return;
   }
   const matches = getCarbonBrushTypeMatches(equipmentName);
   if (!equipmentName) {
-    carbonBrushTypeHelp.className = "carbon-brush-type-help";
-    carbonBrushTypeHelp.textContent = "Pilih equipment untuk menampilkan jenis/type carbon brush.";
+    typeHelpElement.className = "carbon-brush-type-help";
+    typeHelpElement.textContent = "Pilih equipment untuk menampilkan jenis/type carbon brush.";
     return;
   }
   if (!matches.length) {
-    carbonBrushTypeHelp.className = "carbon-brush-type-help is-warning";
-    carbonBrushTypeHelp.textContent = `Belum ada referensi type carbon brush untuk ${equipmentName}.`;
+    typeHelpElement.className = "carbon-brush-type-help is-warning";
+    typeHelpElement.textContent = `Belum ada referensi type carbon brush untuk ${equipmentName}.`;
     return;
   }
-  carbonBrushTypeHelp.className = "carbon-brush-type-help is-active";
-  carbonBrushTypeHelp.innerHTML = `
+  typeHelpElement.className = "carbon-brush-type-help is-active";
+  typeHelpElement.innerHTML = `
     <strong>Type Carbon Brush untuk ${escapeHtml(equipmentName)}</strong>
     ${matches.map((item) => `
       <span>${escapeHtml(item.name)} | ${escapeHtml(item.sapNo)} | ${escapeHtml(item.use)}</span>
