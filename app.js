@@ -1425,6 +1425,9 @@ function resetCreatePanelState(sectionName) {
   if (sectionName === "service") {
     editingServiceId = null;
     selectedCarbonBrushEquipmentReference = "";
+    if (serviceElectricalCarbonBrushForm?.inspectionDate) {
+      serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
+    }
     updateCarbonBrushEquipmentMeta("");
     updateCarbonBrushMeasurementColors();
     openServicePane("electrical");
@@ -4004,6 +4007,9 @@ async function initializeApplication() {
   const backendReady = await detectBackendAvailability();
   startDashboardSlideshow();
   renderCarbonBrushMeasurementGrid();
+  if (serviceElectricalCarbonBrushForm?.inspectionDate && !serviceElectricalCarbonBrushForm.inspectionDate.value) {
+    serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
+  }
   renderElectricalRoomReferenceOptions();
   openBomPane("general");
   ["negatif-list", "sparepart", "service", "bom", "spb"].forEach(placeCreatePanelNearToolbar);
@@ -5663,6 +5669,7 @@ function hydrateServiceForm(item) {
 
   if (item.formType === "service-motor-mv-carbon-brush") {
     selectedCarbonBrushEquipmentReference = item.equipmentName || "";
+    form.inspectionDate.value = String(payload.inspectionDate || "").slice(0, 10);
     form.replacement.value = payload.replacement || "";
     form.megger.value = payload.megger || "";
     form.pic.value = payload.pic || "";
@@ -6645,6 +6652,7 @@ forms.forEach((form) => {
       const measurements = collectCarbonBrushMeasurements(form);
       const meta = decodeCarbonBrushEquipmentMeta(selectedEquipment);
       const stats = computeCarbonBrushStats(measurements, selectedEquipment, meta.plant);
+      const inspectionDateValue = String(formData.get("inspectionDate") || "").trim() || new Date().toISOString().slice(0, 10);
       const existingPayload = editingServiceId
         ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
         : {};
@@ -6658,7 +6666,7 @@ forms.forEach((form) => {
         description: String(formData.get("description") || "-"),
         detail: `Merah: ${stats.low} | Kuning: ${stats.medium} | Hijau: ${stats.high} | Terendah: ${stats.min ?? "-"}`,
         payload: {
-          inspectionDate: existingPayload.inspectionDate || new Date().toISOString(),
+          inspectionDate: inspectionDateValue,
           plant: meta.plant,
           location: meta.location,
           category: meta.category,
@@ -7029,6 +7037,9 @@ forms.forEach((form) => {
     form.reset();
     if (formType === "service-motor-mv-carbon-brush") {
       selectedCarbonBrushEquipmentReference = "";
+      if (form.inspectionDate) {
+        form.inspectionDate.value = new Date().toISOString().slice(0, 10);
+      }
       updateCarbonBrushEquipmentMeta("");
       updateCarbonBrushMeasurementColors();
     }
