@@ -4125,6 +4125,7 @@ function renderUserManagementTable() {
       </td>
       <td class="action-cell">
         <button class="table-action" data-action="save-user-role" type="button">Simpan Role</button>
+        <button class="table-action danger" data-action="delete-user-role" type="button">Hapus Role</button>
       </td>
     `;
     userManagementBody.append(row);
@@ -6062,7 +6063,7 @@ forgotPasswordButton?.addEventListener("click", () => {
 
 userManagementBody?.addEventListener("click", async (event) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement) || target.dataset.action !== "save-user-role") {
+  if (!(target instanceof HTMLElement) || !["save-user-role", "delete-user-role"].includes(target.dataset.action || "")) {
     return;
   }
 
@@ -6077,7 +6078,12 @@ userManagementBody?.addEventListener("click", async (event) => {
     return;
   }
 
-  const nextRole = roleSelect.value;
+  const isDeleteRole = target.dataset.action === "delete-user-role";
+  const nextRole = isDeleteRole ? "team" : roleSelect.value;
+  if (isDeleteRole && !confirmDeleteAction(`role user ${username}; role akan kembali ke Team`)) {
+    return;
+  }
+
   if (backendState.available) {
     try {
       const result = await apiRequest(`/users/${encodeURIComponent(username)}/role`, {
@@ -6099,9 +6105,11 @@ userManagementBody?.addEventListener("click", async (event) => {
         }
       }
 
-      showToast("Manajemen User", `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
+      showToast("Manajemen User", isDeleteRole
+        ? `Role ${username} berhasil dihapus. User kembali menjadi Team.`
+        : `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
     } catch (error) {
-      showToast("Manajemen User", error.message || "Gagal mengubah role user.");
+      showToast("Manajemen User", error.message || (isDeleteRole ? "Gagal menghapus role user." : "Gagal mengubah role user."));
       renderUserManagementTable();
     }
     return;
@@ -6129,7 +6137,9 @@ userManagementBody?.addEventListener("click", async (event) => {
     }
   }
 
-  showToast("Manajemen User", `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
+  showToast("Manajemen User", isDeleteRole
+    ? `Role ${username} berhasil dihapus. User kembali menjadi Team.`
+    : `Role ${username} berhasil diubah menjadi ${roleLabels[nextRole]}.`);
 });
 
 adminBackupButton?.addEventListener("click", async () => {
