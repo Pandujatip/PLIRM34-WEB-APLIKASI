@@ -1764,6 +1764,29 @@ th {
   white-space: nowrap;
 }
 
+.master-equipment-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 220px) auto auto;
+  gap: 10px;
+  align-items: end;
+  margin: 12px 0;
+}
+
+.master-equipment-filter-bar label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.master-equipment-filter-bar span {
+  align-self: center;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .inspection-history-card .inspection-schedule-item {
   padding: 12px 13px;
   border-color: rgba(0, 255, 178, 0.16);
@@ -2885,6 +2908,10 @@ th {
 
   .service-group-filter-summary {
     text-align: left;
+  }
+
+  .master-equipment-filter-bar {
+    grid-template-columns: 1fr;
   }
 
   .detail-photo-grid {

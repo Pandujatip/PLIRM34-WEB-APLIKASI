@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260422-03">
+  <link rel="stylesheet" href="styles.css?v=20260422-04">
 </head>
 <body>
   <div class="app-shell">
@@ -2069,6 +2069,20 @@
                   <button class="btn btn-secondary" type="button" id="admin-equipment-cancel-edit">Reset</button>
                 </div>
               </form>
+              <div class="master-equipment-filter-bar">
+                <label>
+                  Search
+                  <input type="search" id="search-admin-equipment" placeholder="Cari source, code, equipment, kategori, area, plant">
+                </label>
+                <label>
+                  Source
+                  <select id="filter-admin-equipment-source">
+                    <option value="semua">Semua source</option>
+                  </select>
+                </label>
+                <button class="btn btn-secondary" type="button" id="reset-admin-equipment-filter">Reset Filter</button>
+                <span id="admin-equipment-filter-summary">0 equipment</span>
+              </div>
               <div class="table-wrap compact-table master-equipment-table-wrap">
                 <table>
                   <thead>
@@ -2222,6 +2236,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260422-02"></script>
+  <script src="app.js?v=20260422-03"></script>
 </body>
 </html>

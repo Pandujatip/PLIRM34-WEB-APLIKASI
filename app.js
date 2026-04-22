@@ -76,6 +76,10 @@ const adminElectricalRoomThresholdHint = document.getElementById("admin-electric
 const adminElectricalRoomForm = document.getElementById("admin-electrical-room-form");
 const adminEquipmentForm = document.getElementById("admin-equipment-form");
 const adminEquipmentCancelEditButton = document.getElementById("admin-equipment-cancel-edit");
+const searchAdminEquipment = document.getElementById("search-admin-equipment");
+const filterAdminEquipmentSource = document.getElementById("filter-admin-equipment-source");
+const resetAdminEquipmentFilterButton = document.getElementById("reset-admin-equipment-filter");
+const adminEquipmentFilterSummary = document.getElementById("admin-equipment-filter-summary");
 const adminTemplateForm = document.getElementById("admin-template-form");
 const adminAreasBody = document.getElementById("admin-areas-body");
 const adminElectricalRoomBody = document.getElementById("admin-electrical-room-body");
@@ -4200,6 +4204,47 @@ function renderAdminEquipmentTable(items) {
   });
 }
 
+function renderAdminEquipmentSourceFilter(items) {
+  if (!filterAdminEquipmentSource) {
+    return;
+  }
+  const currentValue = filterAdminEquipmentSource.value || "semua";
+  const sources = [...new Set(
+    (Array.isArray(items) ? items : [])
+      .map((item) => String(item.sourceGroup || "").trim())
+      .filter(Boolean),
+  )].sort((left, right) => left.localeCompare(right, "id"));
+  filterAdminEquipmentSource.innerHTML = `
+    <option value="semua">Semua source</option>
+    ${sources.map((source) => `<option value="${escapeHtml(source)}">${escapeHtml(source)}</option>`).join("")}
+  `;
+  filterAdminEquipmentSource.value = sources.includes(currentValue) ? currentValue : "semua";
+}
+
+function applyAdminEquipmentFilter() {
+  const items = Array.isArray(backendState.masters.equipmentReferences)
+    ? backendState.masters.equipmentReferences
+    : [];
+  const query = String(searchAdminEquipment?.value || "").trim().toLowerCase();
+  const source = String(filterAdminEquipmentSource?.value || "semua");
+  const filteredItems = items.filter((item) => {
+    const isSourceMatch = source === "semua" || item.sourceGroup === source;
+    const searchText = [
+      item.sourceGroup,
+      item.equipmentCode,
+      item.equipmentName,
+      item.category,
+      item.area,
+      item.plant,
+    ].join(" ").toLowerCase();
+    return isSourceMatch && (!query || searchText.includes(query));
+  });
+  renderAdminEquipmentTable(filteredItems);
+  if (adminEquipmentFilterSummary) {
+    adminEquipmentFilterSummary.textContent = `${filteredItems.length} dari ${items.length} equipment`;
+  }
+}
+
 function resetAdminEquipmentForm() {
   if (!adminEquipmentForm) {
     return;
@@ -4419,7 +4464,8 @@ async function refreshAdminMasters() {
     backendState.masters.inspectionTemplates = templates;
     renderAdminAreasTable(areas);
     renderAdminElectricalRoomTable();
-    renderAdminEquipmentTable(equipmentReferences);
+    renderAdminEquipmentSourceFilter(equipmentReferences);
+    applyAdminEquipmentFilter();
     renderAdminTemplatesTable(templates);
     hydrateCarbonBrushThresholdForm();
     hydrateElectricalRoomThresholdForm();
@@ -6300,6 +6346,18 @@ adminEquipmentForm?.addEventListener("submit", async (event) => {
 
 adminEquipmentCancelEditButton?.addEventListener("click", () => {
   resetAdminEquipmentForm();
+});
+
+searchAdminEquipment?.addEventListener("input", applyAdminEquipmentFilter);
+filterAdminEquipmentSource?.addEventListener("change", applyAdminEquipmentFilter);
+resetAdminEquipmentFilterButton?.addEventListener("click", () => {
+  if (searchAdminEquipment) {
+    searchAdminEquipment.value = "";
+  }
+  if (filterAdminEquipmentSource) {
+    filterAdminEquipmentSource.value = "semua";
+  }
+  applyAdminEquipmentFilter();
 });
 
 adminTemplateForm?.addEventListener("submit", async (event) => {
