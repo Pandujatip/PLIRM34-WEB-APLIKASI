@@ -3244,8 +3244,40 @@ h3,
 
 .topbar-title-block {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
+}
+
+.topbar-title-block h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.5vw, 2.15rem);
+  letter-spacing: -0.04em;
+}
+
+.dashboard-panel-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-panel-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 140, 66, 0.22);
+  background: linear-gradient(135deg, rgba(255, 106, 0, 0.18), rgba(255, 140, 66, 0.08));
+  color: #fff1e4;
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+
+.dashboard-panel-meta small {
+  color: #cbb8aa;
+  line-height: 1.45;
 }
 
 .player-hud {
@@ -3489,6 +3521,116 @@ h3,
   width: 28px;
   background: linear-gradient(90deg, #ff6a00, #ff9b54);
   box-shadow: 0 0 16px rgba(255, 106, 0, 0.34);
+}
+
+.dashboard-stat-card {
+  min-height: 118px;
+}
+
+.dashboard-schedule-grid,
+.dashboard-overview-grid {
+  gap: 14px;
+}
+
+.dashboard-schedule-card,
+.dashboard-overview-card,
+.dashboard-chart-card,
+.dashboard-reward-card,
+.dashboard-metric-card {
+  border-radius: 24px;
+}
+
+.dashboard-schedule-card {
+  padding: 18px 18px 20px;
+  background:
+    linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(12, 12, 12, 0.96)),
+    linear-gradient(135deg, rgba(58, 134, 255, 0.06), transparent 42%);
+}
+
+.dashboard-history-card {
+  background:
+    linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(12, 12, 12, 0.96)),
+    linear-gradient(135deg, rgba(162, 89, 255, 0.08), transparent 48%);
+}
+
+.dashboard-schedule-card .card-head,
+.dashboard-overview-card .card-head,
+.dashboard-chart-card .card-head,
+.dashboard-reward-card .card-head {
+  margin-bottom: 12px;
+}
+
+.dashboard-schedule-card .card-head h3,
+.dashboard-overview-card .card-head h3,
+.dashboard-chart-card .card-head h3,
+.dashboard-reward-card .card-head h3 {
+  margin: 0;
+}
+
+.dashboard-metric-grid {
+  gap: 12px;
+}
+
+.dashboard-metric-card {
+  min-height: 132px;
+  padding: 16px 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
+    linear-gradient(135deg, rgba(58, 134, 255, 0.09), transparent 58%);
+}
+
+.dashboard-metric-card:nth-child(2) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
+    linear-gradient(135deg, rgba(162, 89, 255, 0.1), transparent 58%);
+}
+
+.dashboard-metric-card:nth-child(3) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
+    linear-gradient(135deg, rgba(255, 106, 0, 0.11), transparent 58%);
+}
+
+.dashboard-metric-card:nth-child(4) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
+    linear-gradient(135deg, rgba(0, 255, 178, 0.1), transparent 58%);
+}
+
+.dashboard-reward-grid,
+.dashboard-chart-grid {
+  gap: 14px;
+}
+
+.dashboard-reward-card {
+  padding: 18px;
+  min-height: 198px;
+}
+
+.dashboard-chart-card {
+  padding: 18px;
+  min-height: 220px;
+  background:
+    linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(10, 10, 10, 0.96)),
+    linear-gradient(135deg, rgba(255, 106, 0, 0.06), transparent 42%);
+}
+
+.dashboard-overview-card {
+  padding: 18px;
+  min-height: 280px;
+  background:
+    linear-gradient(180deg, rgba(19, 19, 19, 0.98), rgba(11, 11, 11, 0.95)),
+    linear-gradient(135deg, rgba(255, 140, 66, 0.08), transparent 46%);
+}
+
+.dashboard-overview-card .table-wrap,
+.dashboard-overview-card .status-list {
+  margin-top: 2px;
+}
+
+.dashboard-overview-card .chip-button,
+.dashboard-schedule-card .chip-button {
+  box-shadow: none;
 }
 
 .hero-hud-grid {
@@ -3745,6 +3887,14 @@ h3,
   .dashboard-slideshow-overlay {
     padding: 20px 22px;
   }
+
+  .dashboard-metric-grid,
+  .dashboard-reward-grid,
+  .dashboard-chart-grid,
+  .dashboard-overview-grid,
+  .dashboard-schedule-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 820px) {
@@ -3798,6 +3948,26 @@ h3,
   .dashboard-slideshow-dots {
     justify-content: flex-start;
   }
+
+  .dashboard-panel-meta {
+    align-items: flex-start;
+  }
+
+  .dashboard-metric-grid,
+  .dashboard-reward-grid,
+  .dashboard-chart-grid,
+  .dashboard-overview-grid,
+  .dashboard-schedule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-reward-card,
+  .dashboard-chart-card,
+  .dashboard-overview-card,
+  .dashboard-schedule-card {
+    min-height: 0;
+    padding: 16px;
+  }
 }
 
 @media (max-width: 520px) {
@@ -3809,6 +3979,16 @@ h3,
 
   .hero-ring-meta {
     text-align: center;
+  }
+
+  .dashboard-panel-badge {
+    min-height: 26px;
+    padding: 0 10px;
+    font-size: 0.66rem;
+  }
+
+  .dashboard-panel-meta small {
+    font-size: 0.82rem;
   }
 }
 

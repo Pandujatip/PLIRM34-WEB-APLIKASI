@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260422-09">
+  <link rel="stylesheet" href="styles.css?v=20260422-10">
 </head>
 <body>
   <div class="app-shell">
@@ -94,6 +94,10 @@
           <div class="topbar-title-block">
             <p class="eyebrow">Dashboard Control Panel</p>
             <h2 id="page-title">Dashboard</h2>
+            <div class="dashboard-panel-meta">
+              <span class="dashboard-panel-badge">CORE PANEL</span>
+              <small>Ringkasan prioritas operasional, jadwal inspeksi, dan status modul utama.</small>
+            </div>
           </div>
           <div class="topbar-meta player-hud">
             <div class="topbar-status-group">
@@ -125,7 +129,7 @@
         </header>
 
         <section class="panel-section visible" data-panel="dashboard">
-          <div class="hero-banner">
+          <div class="hero-banner dashboard-hero">
             <div class="dashboard-slideshow" id="dashboard-slideshow">
               <div class="dashboard-slideshow-frame">
                 <img id="dashboard-slideshow-image" alt="Slideshow dashboard PLIRM34" loading="eager">
@@ -138,18 +142,18 @@
                 </div>
               </div>
             </div>
-            <div class="banner-stats">
-              <article>
+            <div class="banner-stats dashboard-banner-stats">
+              <article class="dashboard-stat-card">
                 <span>Quest Alert</span>
                 <strong id="stat-negatif">0 item</strong>
                 <small>Negatif list open</small>
               </article>
-              <article>
+              <article class="dashboard-stat-card">
                 <span>Daily Mission</span>
                 <strong id="stat-service">0 item</strong>
                 <small>Service hari ini</small>
               </article>
-              <article>
+              <article class="dashboard-stat-card">
                 <span>Resource Score</span>
                 <strong id="stat-spb-belum-ada">Rp0</strong>
                 <small>SPB tahun ini</small>
@@ -157,8 +161,8 @@
             </div>
           </div>
 
-          <div class="dashboard-grid">
-            <section class="content-card">
+          <div class="dashboard-grid dashboard-schedule-grid">
+            <section class="content-card dashboard-schedule-card">
               <div class="card-head inline">
                 <div>
                   <p class="eyebrow">Kalender Inspeksi</p>
@@ -174,7 +178,7 @@
               </div>
             </section>
 
-            <section class="content-card">
+            <section class="content-card dashboard-schedule-card">
               <div class="card-head inline">
                 <div>
                   <p class="eyebrow">Kalender Inspeksi</p>
@@ -190,7 +194,7 @@
               </div>
             </section>
 
-            <section class="content-card inspection-history-card">
+            <section class="content-card inspection-history-card dashboard-schedule-card dashboard-history-card">
               <div class="card-head inline">
                 <div>
                   <p class="eyebrow">History Kalender</p>
@@ -207,31 +211,31 @@
             </section>
           </div>
 
-          <div class="metric-grid">
-            <article class="metric-card">
+          <div class="metric-grid dashboard-metric-grid">
+            <article class="metric-card dashboard-metric-card">
               <span>Inventory XP</span>
               <strong id="metric-sparepart-total">0</strong>
               <small>Sparepart active</small>
             </article>
-            <article class="metric-card">
+            <article class="metric-card dashboard-metric-card">
               <span>Blueprint Archive</span>
               <strong id="metric-bom-total">0 mesin</strong>
               <small>BOM unlocked</small>
             </article>
-            <article class="metric-card">
+            <article class="metric-card dashboard-metric-card">
               <span>Electrical Mastery</span>
               <strong id="metric-service-electrical">0 temuan</strong>
               <small>Service electrical</small>
             </article>
-            <article class="metric-card">
+            <article class="metric-card dashboard-metric-card">
               <span>Annual Resource</span>
               <strong id="metric-spb-total">Rp0</strong>
               <small>Biaya ajuan</small>
             </article>
           </div>
 
-          <div class="reward-grid">
-            <section class="content-card achievement-card">
+          <div class="reward-grid dashboard-reward-grid">
+            <section class="content-card dashboard-reward-card achievement-card">
               <div class="card-head compact-head">
                 <p class="eyebrow">Achievement</p>
                 <h3 id="achievement-title">No achievement yet</h3>
@@ -241,7 +245,7 @@
                 <p id="achievement-desc">Lengkapi aktivitas harian untuk membuka badge pertama.</p>
               </div>
             </section>
-            <section class="content-card mission-card">
+            <section class="content-card dashboard-reward-card mission-card">
               <div class="card-head compact-head">
                 <p class="eyebrow">Mission</p>
                 <h3 id="mission-title">Stabilize Daily Operations</h3>
@@ -254,7 +258,7 @@
                 <p id="mission-desc">Selesaikan target inspeksi dan kurangi pending item.</p>
               </div>
             </section>
-            <section class="content-card streak-card">
+            <section class="content-card dashboard-reward-card streak-card">
               <div class="card-head compact-head">
                 <p class="eyebrow">Daily Streak</p>
                 <h3 id="streak-title">0 hari</h3>
@@ -266,22 +270,22 @@
             </section>
           </div>
 
-          <div class="chart-grid">
-            <section class="content-card">
+          <div class="chart-grid dashboard-chart-grid">
+            <section class="content-card dashboard-chart-card">
               <div class="card-head compact-head">
                 <p class="eyebrow">Chart Negatif List</p>
                 <h3>Pending per prioritas</h3>
               </div>
               <div class="mini-chart" id="chart-negatif"></div>
             </section>
-            <section class="content-card">
+            <section class="content-card dashboard-chart-card">
               <div class="card-head compact-head">
                 <p class="eyebrow">Chart Service</p>
                 <h3>Distribusi per tipe service</h3>
               </div>
               <div class="mini-chart" id="chart-service"></div>
             </section>
-            <section class="content-card">
+            <section class="content-card dashboard-chart-card">
               <div class="card-head compact-head">
                 <p class="eyebrow">Chart SPB</p>
                 <h3>Biaya ajuan per tahun</h3>
@@ -290,8 +294,8 @@
             </section>
           </div>
 
-          <div class="dashboard-grid">
-            <section class="content-card">
+          <div class="dashboard-grid dashboard-overview-grid">
+            <section class="content-card dashboard-overview-card">
               <div class="card-head inline">
                 <div>
                   <p class="eyebrow">Negatif List</p>
@@ -318,7 +322,7 @@
               </div>
             </section>
 
-            <section class="content-card">
+            <section class="content-card dashboard-overview-card">
               <div class="card-head inline">
                 <div>
                   <p class="eyebrow">Service</p>
@@ -335,7 +339,7 @@
               </div>
             </section>
 
-            <section class="content-card">
+            <section class="content-card dashboard-overview-card">
               <div class="card-head inline">
                 <div>
                   <p class="eyebrow">SPB</p>
