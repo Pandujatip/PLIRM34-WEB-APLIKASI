@@ -5335,18 +5335,54 @@ function normalizeNegatifItem(item) {
   };
 }
 
+function getNegatifStatusTagClass(value) {
+  return String(value || "").toLowerCase() === "close" ? "tag-neutral" : "tag-danger";
+}
+
+function getNegatifMarkTagClass(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized.includes("material")) return "tag-warning";
+  if (normalized.includes("rawmill")) return "tag-blue";
+  if (normalized.includes("ovh")) return "tag-purple";
+  return "tag-neutral";
+}
+
+function getNegatifCategoryTagClass(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized === "electrical") return "tag-blue";
+  if (normalized === "instrument") return "tag-success";
+  if (normalized === "dcs") return "tag-purple";
+  return "tag-neutral";
+}
+
+function getNegatifAreaTagClass(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized.includes("34")) return "tag-purple";
+  if (normalized.includes("4")) return "tag-success";
+  if (normalized.includes("3")) return "tag-blue";
+  return "tag-neutral";
+}
+
 function renderNegatifRow(item) {
   const row = document.createElement("tr");
   row.dataset.id = item.id;
   row.innerHTML = `
-    <td>${item.equipment}</td>
-    <td>${item.damageDescription}</td>
-    <td>${item.followUpPlan}</td>
-    <td>${item.foundDate}</td>
-    <td>${item.pendingMark || "-"}</td>
-    <td>${item.workStatus || "-"}</td>
-    <td>${item.category}</td>
-    <td>${item.area}</td>
+    <td>
+      <div class="negative-cell-main">
+        <strong>${escapeHtml(item.equipment || "-")}</strong>
+      </div>
+    </td>
+    <td>
+      <div class="negative-text-clamp" title="${escapeHtml(item.damageDescription || "-")}">${escapeHtml(item.damageDescription || "-")}</div>
+    </td>
+    <td>
+      <div class="negative-text-clamp" title="${escapeHtml(item.followUpPlan || "-")}">${escapeHtml(item.followUpPlan || "-")}</div>
+    </td>
+    <td><span class="negative-date-pill">${escapeHtml(item.foundDate || "-")}</span></td>
+    <td><span class="tag ${getNegatifMarkTagClass(item.pendingMark)}">${escapeHtml(item.pendingMark || "-")}</span></td>
+    <td><span class="tag ${getNegatifStatusTagClass(item.workStatus)}">${escapeHtml(item.workStatus || "-")}</span></td>
+    <td><span class="tag ${getNegatifCategoryTagClass(item.category)}">${escapeHtml(item.category || "-")}</span></td>
+    <td><span class="tag ${getNegatifAreaTagClass(item.area)}">${escapeHtml(item.area || "-")}</span></td>
     <td class="action-cell">
       <button class="table-action icon-action" data-action="edit-negatif" type="button" title="Edit" aria-label="Edit">&#9998;</button>
       <button class="table-action danger icon-action" data-action="delete-negatif" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
