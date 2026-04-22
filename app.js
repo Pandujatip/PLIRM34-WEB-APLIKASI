@@ -4247,6 +4247,92 @@ function applyAdminEquipmentFilter() {
   }
 }
 
+function normalizeTableSortValue(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return { type: "empty", value: "" };
+  }
+
+  const parsedDate = Date.parse(text);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text) && !Number.isNaN(parsedDate)) {
+    return { type: "date", value: parsedDate };
+  }
+
+  const numericText = text
+    .replace(/\s+/g, "")
+    .replace(/^Rp/i, "")
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+  const numericValue = Number(numericText);
+  if (numericText && !Number.isNaN(numericValue) && /\d/.test(numericText)) {
+    return { type: "number", value: numericValue };
+  }
+
+  return { type: "text", value: text.toLowerCase() };
+}
+
+function sortTableByColumn(table, columnIndex, direction) {
+  const tbody = table.tBodies?.[0];
+  if (!tbody) {
+    return;
+  }
+  const rows = [...tbody.rows];
+  rows.sort((leftRow, rightRow) => {
+    const left = normalizeTableSortValue(leftRow.cells[columnIndex]?.textContent || "");
+    const right = normalizeTableSortValue(rightRow.cells[columnIndex]?.textContent || "");
+    if (left.type === "empty" && right.type !== "empty") return 1;
+    if (right.type === "empty" && left.type !== "empty") return -1;
+    if (left.type === "number" && right.type === "number") {
+      return direction === "asc" ? left.value - right.value : right.value - left.value;
+    }
+    if (left.type === "date" && right.type === "date") {
+      return direction === "asc" ? left.value - right.value : right.value - left.value;
+    }
+    return direction === "asc"
+      ? String(left.value).localeCompare(String(right.value), "id", { numeric: true })
+      : String(right.value).localeCompare(String(left.value), "id", { numeric: true });
+  });
+  tbody.replaceChildren(...rows);
+}
+
+function updateSortableHeaderState(table, activeHeader, direction) {
+  table.querySelectorAll("th").forEach((header) => {
+    header.classList.remove("sort-asc", "sort-desc");
+    header.removeAttribute("aria-sort");
+  });
+  activeHeader.classList.add(direction === "asc" ? "sort-asc" : "sort-desc");
+  activeHeader.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
+}
+
+function handleSortableTableHeaderClick(event) {
+  const header = event.target instanceof HTMLElement ? event.target.closest("th") : null;
+  if (!header || header.dataset.sortDisabled === "true") {
+    return;
+  }
+  const table = header.closest("table");
+  const headerRow = header.parentElement;
+  if (!table || !headerRow || !table.tBodies?.[0]) {
+    return;
+  }
+  const headerText = String(header.textContent || "").trim().toLowerCase();
+  if (!headerText || headerText === "aksi" || headerText === "ubah role") {
+    header.dataset.sortDisabled = "true";
+    return;
+  }
+  const columnIndex = [...headerRow.children].indexOf(header);
+  if (columnIndex < 0) {
+    return;
+  }
+  const nextDirection = table.dataset.sortColumn === String(columnIndex) && table.dataset.sortDirection === "asc"
+    ? "desc"
+    : "asc";
+  table.dataset.sortColumn = String(columnIndex);
+  table.dataset.sortDirection = nextDirection;
+  sortTableByColumn(table, columnIndex, nextDirection);
+  updateSortableHeaderState(table, header, nextDirection);
+}
+
 function resetAdminEquipmentForm() {
   if (!adminEquipmentForm) {
     return;
@@ -7836,6 +7922,8 @@ if (refreshButton) {
     }
   });
 }
+
+document.addEventListener("click", handleSortableTableHeaderClick);
 
 if (mobileMenuToggle) {
   mobileMenuToggle.addEventListener("click", () => {

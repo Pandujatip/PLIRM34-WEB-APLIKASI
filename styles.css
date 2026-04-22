@@ -1636,6 +1636,28 @@ th {
   background: rgba(255, 255, 255, 0.02);
 }
 
+th:not([data-sort-disabled="true"]) {
+  cursor: pointer;
+  user-select: none;
+}
+
+th:not([data-sort-disabled="true"])::after {
+  content: "↕";
+  margin-left: 6px;
+  color: rgba(255, 215, 188, 0.44);
+  font-size: 0.68rem;
+}
+
+th.sort-asc::after {
+  content: "↑";
+  color: var(--accent);
+}
+
+th.sort-desc::after {
+  content: "↓";
+  color: var(--accent);
+}
+
 .tag {
   display: inline-flex;
   align-items: center;
