@@ -1548,6 +1548,18 @@ select:focus {
   font-size: 1rem;
 }
 
+.mobile-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.mobile-card-header strong {
+  margin-bottom: 0;
+}
+
 .mobile-data-card .mobile-meta {
   display: grid;
   gap: 8px;
@@ -1568,15 +1580,23 @@ select:focus {
 }
 
 #negatif-list-mobile .mobile-meta {
-  gap: 10px;
+  gap: 7px;
   color: #e8dbcf;
 }
 
 #negatif-list-mobile .mobile-meta span {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.035);
+}
+
+.single-line-cell {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .action-cell,

@@ -2545,6 +2545,14 @@ function formatInspectionDate(value) {
   return parsed.toLocaleDateString("id-ID");
 }
 
+function getFirstDisplayLine(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "-";
+  }
+  return text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "-";
+}
+
 function parseInspectionDateValue(value) {
   if (!value) {
     return null;
@@ -4866,15 +4874,15 @@ function renderMobileCards(negatifItems, spbItems) {
       const card = document.createElement("article");
       card.className = "mobile-data-card";
       card.innerHTML = `
-        <strong>${item.equipment}</strong>
+        <div class="mobile-card-header">
+          <strong>${escapeHtml(item.equipment)}</strong>
+          <span class="tag tag-blue">${escapeHtml(item.foundDate || "-")}</span>
+        </div>
         <div class="mobile-meta">
-          <span>Kerusakan: ${item.damageDescription}</span>
-          <span>Tindak lanjut: ${item.followUpPlan}</span>
-          <span>Tanggal temuan: ${item.foundDate}</span>
-          <span>Mark: ${item.pendingMark || "-"}</span>
-          <span>Status: ${item.workStatus || "-"}</span>
-          <span>Kategori: ${item.category}</span>
-          <span>Area: ${item.area}</span>
+          <span>Status: ${escapeHtml(item.workStatus || "-")} | Mark: ${escapeHtml(item.pendingMark || "-")}</span>
+          <span>Kerusakan: ${escapeHtml(item.damageDescription)}</span>
+          <span>Tindak lanjut: ${escapeHtml(item.followUpPlan)}</span>
+          <span>Kategori: ${escapeHtml(item.category)} | Area: ${escapeHtml(item.area)}</span>
         </div>
       `;
       negatifListMobile.append(card);
@@ -4886,8 +4894,9 @@ function renderMobileCards(negatifItems, spbItems) {
     spbItems.forEach((item) => {
       const card = document.createElement("article");
       card.className = "mobile-data-card";
+      const materialFirstLine = getFirstDisplayLine(item.materialDescription);
       card.innerHTML = `
-        <strong>${item.materialDescription}</strong>
+        <strong class="single-line-cell" title="${escapeHtml(item.materialDescription || "-")}">${escapeHtml(materialFirstLine)}</strong>
         <div class="mobile-meta">
           <span>Tahun: ${item.year}</span>
           <span>Quarter: ${item.quarter}</span>
@@ -4911,15 +4920,16 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
       .slice(0, 5);
     dashboardNegatifPreview.innerHTML = "";
     if (!previewItems.length) {
-      dashboardNegatifPreview.innerHTML = `<tr><td colspan="4">Tidak ada negatif list open.</td></tr>`;
+      dashboardNegatifPreview.innerHTML = `<tr><td colspan="5">Tidak ada negatif list open.</td></tr>`;
     }
     previewItems.forEach((item) => {
       const row = document.createElement("tr");
       row.innerHTML = `
-        <td>${item.equipment}</td>
-        <td>${item.pendingMark || "-"}</td>
-        <td>${item.area}</td>
-        <td>${item.category}</td>
+        <td>${escapeHtml(item.equipment)}</td>
+        <td>${escapeHtml(item.foundDate || "-")}</td>
+        <td>${escapeHtml(item.pendingMark || "-")}</td>
+        <td>${escapeHtml(item.area)}</td>
+        <td>${escapeHtml(item.category)}</td>
       `;
       dashboardNegatifPreview.append(row);
     });
@@ -5586,6 +5596,7 @@ function renderBomMotorCard(item) {
 
 function renderSpbRow(item) {
   const normalizedItem = normalizeSpbItem(item);
+  const materialFirstLine = getFirstDisplayLine(normalizedItem.materialDescription);
   const row = document.createElement("tr");
   row.dataset.id = normalizedItem.id;
   row.innerHTML = `
@@ -5596,7 +5607,7 @@ function renderSpbRow(item) {
     <td>${normalizedItem.orderNo || "-"}</td>
     <td>${normalizedItem.reservationNo || "-"}</td>
     <td>${normalizedItem.stockNo || "-"}</td>
-    <td>${normalizedItem.materialDescription || "-"}</td>
+    <td><span class="single-line-cell" title="${escapeHtml(normalizedItem.materialDescription || "-")}">${escapeHtml(materialFirstLine)}</span></td>
     <td>${normalizedItem.qty || "-"}</td>
     <td>${normalizedItem.mrp || "-"}</td>
     <td>${formatSpbAmount(normalizedItem.totalEce)}</td>
