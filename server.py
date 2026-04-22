@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import hmac
+import html
 import io
 import json
 import os
@@ -2777,39 +2778,57 @@ def restore_backup_payload(payload: dict) -> None:
                 refresh_snapshot(connection, resource_key)
 
 
-def export_resource_csv(resource_key: str) -> str:
+def build_excel_table(title: str, headers: list[str], rows: list[list[object]]) -> str:
+    header_html = "".join(f"<th>{html.escape(str(header))}</th>" for header in headers)
+    body_html = "\n".join(
+        "<tr>" + "".join(f"<td>{html.escape(str(cell or ''))}</td>" for cell in row) + "</tr>"
+        for row in rows
+    )
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+table {{ border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; }}
+caption {{ font-size: 14pt; font-weight: bold; margin-bottom: 10px; text-align: left; }}
+th {{ background: #ff6a00; color: #ffffff; font-weight: bold; }}
+th, td {{ border: 1px solid #999999; padding: 6px 8px; vertical-align: top; mso-number-format: "\\@"; }}
+</style>
+</head>
+<body>
+<table>
+<caption>{html.escape(title)}</caption>
+<thead><tr>{header_html}</tr></thead>
+<tbody>
+{body_html}
+</tbody>
+</table>
+</body>
+</html>"""
+
+
+def export_resource_excel(resource_key: str) -> str:
     items = list_items(resource_key)
-    buffer = io.StringIO()
     if resource_key == "negatif-list":
-        writer = csv.writer(buffer)
-        writer.writerow(["Equipment", "Deskripsi Kerusakan", "Rencana Tindak Lanjut", "Tanggal Temuan", "Mark", "Status", "Kategori", "Area"])
-        for item in items:
-            writer.writerow([item["equipment"], item["damageDescription"], item["followUpPlan"], item["foundDate"], item["pendingMark"], item["workStatus"], item["category"], item["area"]])
-        return buffer.getvalue()
+        headers = ["Equipment", "Deskripsi Kerusakan", "Rencana Tindak Lanjut", "Tanggal Temuan", "Mark", "Status", "Kategori", "Area"]
+        rows = [[item["equipment"], item["damageDescription"], item["followUpPlan"], item["foundDate"], item["pendingMark"], item["workStatus"], item["category"], item["area"]] for item in items]
+        return build_excel_table("Negatif List", headers, rows)
     if resource_key == "sparepart":
-        writer = csv.writer(buffer)
-        writer.writerow(["Kode", "Nama", "Kategori", "Lokasi", "Qty", "Kondisi"])
-        for item in items:
-            writer.writerow([item["code"], item["name"], item["category"], item["location"], item["qty"], item["condition"]])
-        return buffer.getvalue()
+        headers = ["Kode", "Nama", "Kategori", "Lokasi", "Qty", "Kondisi"]
+        rows = [[item["code"], item["name"], item["category"], item["location"], item["qty"], item["condition"]] for item in items]
+        return build_excel_table("Sparepart", headers, rows)
     if resource_key == "service":
-        writer = csv.writer(buffer)
-        writer.writerow(["Tipe", "Sub Menu", "Form", "Equipment", "Deskripsi", "Detail"])
-        for item in items:
-            writer.writerow([item["type"], item["subtype"], item["formType"], item["equipmentName"], item["description"], item["detail"]])
-        return buffer.getvalue()
+        headers = ["Tipe", "Sub Menu", "Form", "Equipment", "Deskripsi", "Detail"]
+        rows = [[item["type"], item["subtype"], item["formType"], item["equipmentName"], item["description"], item["detail"]] for item in items]
+        return build_excel_table("Service", headers, rows)
     if resource_key == "bom":
-        writer = csv.writer(buffer)
-        writer.writerow(["Nama", "Deskripsi", "Meta", "Foto Barang", "Foto Nameplate"])
-        for item in items:
-            writer.writerow([item["name"], item["description"], item["meta"], item["itemPhoto"], item["nameplatePhoto"]])
-        return buffer.getvalue()
+        headers = ["Nama", "Deskripsi", "Meta", "Foto Barang", "Foto Nameplate"]
+        rows = [[item["name"], item["description"], item["meta"], item["itemPhoto"], item["nameplatePhoto"]] for item in items]
+        return build_excel_table("BOM", headers, rows)
     if resource_key == "spb":
-        writer = csv.writer(buffer)
-        writer.writerow(["ID", "TAHUN", "QUARTER", "TYPE", "NOTIF", "ORDER", "RESERVASI", "NO STOCK", "DESKRIPSI MATERIAL", "QTY", "MRP", "TOTAL ECE", "KETERANGAN", "PR", "PO", "DELIV DATE"])
-        for item in items:
-            writer.writerow([item["id"], item["year"], item["quarter"], item["spbType"], item["notificationNo"], item["orderNo"], item["reservationNo"], item["stockNo"], item["materialDescription"], item["qty"], item["mrp"], item["totalEce"], item["note"], item["prNo"], item["poNo"], item["deliveryDate"]])
-        return buffer.getvalue()
+        headers = ["ID", "TAHUN", "QUARTER", "TYPE", "NOTIF", "ORDER", "RESERVASI", "NO STOCK", "DESKRIPSI MATERIAL", "QTY", "MRP", "TOTAL ECE", "KETERANGAN", "PR", "PO", "DELIV DATE"]
+        rows = [[item["id"], item["year"], item["quarter"], item["spbType"], item["notificationNo"], item["orderNo"], item["reservationNo"], item["stockNo"], item["materialDescription"], item["qty"], item["mrp"], item["totalEce"], item["note"], item["prNo"], item["poNo"], item["deliveryDate"]] for item in items]
+        return build_excel_table("SPB", headers, rows)
     raise ValueError("Resource export tidak dikenal")
 
 
@@ -3133,11 +3152,11 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         if resource_key not in RESOURCE_TABLES:
             self._send_json({"error": "Resource export tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
             return
-        csv_text = export_resource_csv(resource_key)
+        excel_text = export_resource_excel(resource_key)
         self._send_text(
-            csv_text,
-            content_type="text/csv; charset=utf-8",
-            extra_headers={"Content-Disposition": f'attachment; filename="{resource_key}.csv"'},
+            excel_text,
+            content_type="application/vnd.ms-excel; charset=utf-8",
+            extra_headers={"Content-Disposition": f'attachment; filename="{resource_key}.xls"'},
         )
 
     def _handle_service_summary_get(self):

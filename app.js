@@ -3927,7 +3927,7 @@ async function downloadBackendExport(resourceName) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${resourceName}.csv`;
+  link.download = `${resourceName}.xls`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -5252,16 +5252,42 @@ function resetFilters() {
   if (filterSpbStatus) filterSpbStatus.value = "semua";
 }
 
-function downloadCsv(filename, headers, rows) {
-  const csvContent = [
-    headers.join(","),
-    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
-  ].join("\n");
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+function escapeExcelCell(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function downloadExcel(filename, headers, rows, sheetTitle = "PLIRM34 Export") {
+  const tableHtml = `
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; }
+          th { background: #ff6a00; color: #ffffff; font-weight: bold; }
+          th, td { border: 1px solid #999999; padding: 6px 8px; vertical-align: top; mso-number-format:"\\@"; }
+          caption { font-size: 14pt; font-weight: bold; margin-bottom: 10px; text-align: left; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <caption>${escapeExcelCell(sheetTitle)}</caption>
+          <thead><tr>${headers.map((header) => `<th>${escapeExcelCell(header)}</th>`).join("")}</tr></thead>
+          <tbody>
+            ${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeExcelCell(cell)}</td>`).join("")}</tr>`).join("")}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+  const blob = new Blob([tableHtml], { type: "application/vnd.ms-excel;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = filename;
+  link.download = filename.replace(/\.csv$/i, ".xls");
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -7841,8 +7867,8 @@ exportButtons.forEach((button) => {
 
     if (exportType === "negatif-list") {
       const items = getNegatifItemsFromDom();
-      downloadCsv(
-        "negatif-list.csv",
+      downloadExcel(
+        "negatif-list.xls",
         ["Equipment", "Deskripsi Kerusakan", "Rencana Tindak Lanjut", "Tanggal Temuan", "Mark", "Status", "Kategori", "Area"],
         items.map((item) => [
           item.equipment,
@@ -7855,45 +7881,45 @@ exportButtons.forEach((button) => {
           item.area,
         ]),
       );
-      showToast("Export", "Negatif List berhasil diexport ke CSV.");
+      showToast("Export", "Negatif List berhasil diexport ke Excel.");
     }
 
     if (exportType === "sparepart") {
       const items = getSparepartItemsFromDom();
-      downloadCsv("sparepart.csv", ["Kode", "Nama", "Kategori", "Lokasi", "Qty", "Kondisi"], items.map((item) => [item.code, item.name, item.category, item.location, item.qty, item.condition]));
-      showToast("Export", "Sparepart berhasil diexport ke CSV.");
+      downloadExcel("sparepart.xls", ["Kode", "Nama", "Kategori", "Lokasi", "Qty", "Kondisi"], items.map((item) => [item.code, item.name, item.category, item.location, item.qty, item.condition]));
+      showToast("Export", "Sparepart berhasil diexport ke Excel.");
     }
 
       if (exportType === "service") {
         const items = getServiceItemsFromDom();
-        downloadCsv("service.csv", ["Tipe", "Sub Menu", "Equipment", "Deskripsi", "Detail"], items.map((item) => [item.type, item.subtype, item.equipmentName, item.description, item.detail]));
-        showToast("Export", "Service berhasil diexport ke CSV.");
+        downloadExcel("service.xls", ["Tipe", "Sub Menu", "Equipment", "Deskripsi", "Detail"], items.map((item) => [item.type, item.subtype, item.equipmentName, item.description, item.detail]));
+        showToast("Export", "Service berhasil diexport ke Excel.");
       }
 
     if (exportType === "bom") {
       if (activeBomPane === "motor") {
         const items = getBomMotorItemsFromDom();
-        downloadCsv(
-          "bom-motor.csv",
+        downloadExcel(
+          "bom-motor.xls",
           ["Tanggal", "Equipment", "Manufacture", "Power", "Ampere", "Voltage", "Speed", "Frame", "Serial Nr.", "Keterangan", "Long Text", "Foto Nameplate", "Foto Koneksi", "Foto Motor"],
           items.map((item) => [item.inspectionDate, item.equipment, item.manufacture, item.power, item.ampere, item.voltage, item.speed, item.frame, item.serialNumber, item.note, item.longText, item.nameplatePhoto, item.connectionPhoto, item.motorPhoto]),
         );
-        showToast("Export", "BOM Motor berhasil diexport ke CSV.");
+        showToast("Export", "BOM Motor berhasil diexport ke Excel.");
       } else {
         const items = getBomItemsFromDom();
-        downloadCsv(
-          "bom.csv",
+        downloadExcel(
+          "bom.xls",
           ["Equipment", "Part", "Jumlah", "Keterangan", "Long Text", "Foto Barang", "Foto Nameplate", "Foto Lain"],
           items.map((item) => [item.equipment, item.part, item.qty, item.note, item.longText, item.itemPhoto, item.nameplatePhoto, item.extraPhoto]),
         );
-        showToast("Export", "BOM berhasil diexport ke CSV.");
+        showToast("Export", "BOM berhasil diexport ke Excel.");
       }
     }
 
     if (exportType === "spb") {
       const items = getSpbItemsFromDom();
-      downloadCsv("spb.csv", ["ID", "TAHUN", "QUARTER", "TYPE", "NOTIF", "ORDER", "RESERVASI", "NO STOCK", "DESKRIPSI MATERIAL", "QTY", "MRP", "TOTAL ECE", "KETERANGAN", "PR", "PO", "DELIV DATE"], items.map((item) => [item.id, item.year, item.quarter, item.spbType, item.notificationNo, item.orderNo, item.reservationNo, item.stockNo, item.materialDescription, item.qty, item.mrp, item.totalEce, item.note, item.prNo, item.poNo, item.deliveryDate]));
-      showToast("Export", "SPB berhasil diexport ke CSV.");
+      downloadExcel("spb.xls", ["ID", "TAHUN", "QUARTER", "TYPE", "NOTIF", "ORDER", "RESERVASI", "NO STOCK", "DESKRIPSI MATERIAL", "QTY", "MRP", "TOTAL ECE", "KETERANGAN", "PR", "PO", "DELIV DATE"], items.map((item) => [item.id, item.year, item.quarter, item.spbType, item.notificationNo, item.orderNo, item.reservationNo, item.stockNo, item.materialDescription, item.qty, item.mrp, item.totalEce, item.note, item.prNo, item.poNo, item.deliveryDate]));
+      showToast("Export", "SPB berhasil diexport ke Excel.");
     }
   });
 });
