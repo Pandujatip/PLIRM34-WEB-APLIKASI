@@ -3344,7 +3344,7 @@ h3,
 }
 
 .hero-banner {
-  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 0.75fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.55fr);
   gap: 18px;
   align-items: stretch;
   padding: 18px;
@@ -3359,7 +3359,6 @@ h3,
   position: relative;
   width: 100%;
   min-width: 0;
-  grid-row: span 2;
 }
 
 .dashboard-slideshow-frame {
