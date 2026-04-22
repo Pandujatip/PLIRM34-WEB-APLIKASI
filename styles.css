@@ -1719,12 +1719,30 @@ th {
 }
 
 .schedule-history-list {
-  max-height: 310px;
+  max-height: 220px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 6px;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(255, 122, 24, 0.7) rgba(255, 255, 255, 0.06);
+  scrollbar-width: thin;
+}
+
+.schedule-history-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.schedule-history-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+
+.schedule-history-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 122, 24, 0.92), rgba(0, 255, 178, 0.52));
+  border-radius: 999px;
 }
 
 .inspection-history-card .inspection-schedule-item {
+  padding: 12px 13px;
   border-color: rgba(0, 255, 178, 0.16);
   background:
     linear-gradient(180deg, rgba(0, 255, 178, 0.07), rgba(255, 122, 24, 0.035)),
