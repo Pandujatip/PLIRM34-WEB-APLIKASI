@@ -5653,21 +5653,21 @@ function renderSpbRow(item) {
   const row = document.createElement("tr");
   row.dataset.id = normalizedItem.id;
   row.innerHTML = `
-    <td>${normalizedItem.year}</td>
-    <td>${normalizedItem.quarter}</td>
-    <td>${normalizedItem.spbType}</td>
-    <td>${normalizedItem.notificationNo || "-"}</td>
-    <td>${normalizedItem.orderNo || "-"}</td>
-    <td>${normalizedItem.reservationNo || "-"}</td>
-    <td>${normalizedItem.stockNo || "-"}</td>
-    <td>${normalizedItem.materialDescription || "-"}</td>
-    <td>${normalizedItem.qty || "-"}</td>
-    <td>${normalizedItem.mrp || "-"}</td>
-    <td>${formatSpbAmount(normalizedItem.totalEce)}</td>
-    <td><span class="tag ${getSpbStatusTag(normalizedItem.note)}">${normalizedItem.note || "-"}</span></td>
-    <td>${normalizedItem.prNo || "-"}</td>
-    <td>${normalizedItem.poNo || "-"}</td>
-    <td>${normalizedItem.deliveryDate || "-"}</td>
+    <td><span class="tag tag-neutral">${escapeHtml(normalizedItem.year || "-")}</span></td>
+    <td><span class="tag tag-neutral">${escapeHtml(normalizedItem.quarter || "-")}</span></td>
+    <td><span class="tag tag-blue">${escapeHtml(normalizedItem.spbType || "-")}</span></td>
+    <td>${escapeHtml(normalizedItem.notificationNo || "-")}</td>
+    <td><strong class="spb-code-cell">${escapeHtml(normalizedItem.orderNo || "-")}</strong></td>
+    <td>${escapeHtml(normalizedItem.reservationNo || "-")}</td>
+    <td><strong class="spb-code-cell">${escapeHtml(normalizedItem.stockNo || "-")}</strong></td>
+    <td><div class="spb-text-clamp" title="${escapeHtml(normalizedItem.materialDescription || "-")}">${escapeHtml(normalizedItem.materialDescription || "-")}</div></td>
+    <td><span class="spb-number-pill">${escapeHtml(normalizedItem.qty || "-")}</span></td>
+    <td><span class="tag tag-neutral">${escapeHtml(normalizedItem.mrp || "-")}</span></td>
+    <td><span class="spb-amount-pill">${escapeHtml(formatSpbAmount(normalizedItem.totalEce))}</span></td>
+    <td><span class="tag ${getSpbStatusTag(normalizedItem.note)}">${escapeHtml(normalizedItem.note || "-")}</span></td>
+    <td>${escapeHtml(normalizedItem.prNo || "-")}</td>
+    <td>${escapeHtml(normalizedItem.poNo || "-")}</td>
+    <td><span class="spb-date-pill">${escapeHtml(normalizedItem.deliveryDate || "-")}</span></td>
     <td class="action-cell">
       <button class="table-action icon-action" data-action="edit-spb" type="button" title="Edit" aria-label="Edit">&#9998;</button>
       <button class="table-action danger icon-action" data-action="delete-spb" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
