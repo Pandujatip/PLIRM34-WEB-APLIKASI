@@ -1747,6 +1747,23 @@ th {
   border-radius: 999px;
 }
 
+.master-equipment-table-wrap {
+  max-height: 430px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.master-equipment-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.master-equipment-table-wrap td,
+.master-equipment-table-wrap th {
+  white-space: nowrap;
+}
+
 .inspection-history-card .inspection-schedule-item {
   padding: 12px 13px;
   border-color: rgba(0, 255, 178, 0.16);

@@ -75,6 +75,7 @@ const adminElectricalRoomThresholdForm = document.getElementById("admin-electric
 const adminElectricalRoomThresholdHint = document.getElementById("admin-electrical-room-threshold-hint");
 const adminElectricalRoomForm = document.getElementById("admin-electrical-room-form");
 const adminEquipmentForm = document.getElementById("admin-equipment-form");
+const adminEquipmentCancelEditButton = document.getElementById("admin-equipment-cancel-edit");
 const adminTemplateForm = document.getElementById("admin-template-form");
 const adminAreasBody = document.getElementById("admin-areas-body");
 const adminElectricalRoomBody = document.getElementById("admin-electrical-room-body");
@@ -519,6 +520,28 @@ function getAppSetting(settingKey) {
   return backendState.masters.appSettings.find((item) => item.settingKey === settingKey)?.value || null;
 }
 
+function getMasterEquipmentReferences(sourceGroups = []) {
+  const groups = Array.isArray(sourceGroups) ? sourceGroups : [sourceGroups];
+  const normalizedGroups = groups.map((item) => String(item || "").trim()).filter(Boolean);
+  const references = Array.isArray(backendState.masters.equipmentReferences)
+    ? backendState.masters.equipmentReferences
+    : [];
+  return references.filter((item) => {
+    if (!normalizedGroups.length) {
+      return true;
+    }
+    return normalizedGroups.includes(String(item.sourceGroup || "").trim());
+  });
+}
+
+function getMasterEquipmentNames(sourceGroups = []) {
+  return [...new Set(
+    getMasterEquipmentReferences(sourceGroups)
+      .map((item) => String(item.equipmentName || "").trim())
+      .filter(Boolean),
+  )].sort((left, right) => left.localeCompare(right, "id"));
+}
+
 function getElectricalRoomReferenceConfig() {
   const settings = getAppSetting("electrical_room_references") || {};
   return settings && typeof settings === "object" ? settings : {};
@@ -539,6 +562,10 @@ function getElectricalRoomThresholdConfig() {
 }
 
 function getElectricalRoomReferenceList() {
+  const masterItems = getMasterEquipmentNames("electrical-room");
+  if (masterItems.length) {
+    return masterItems;
+  }
   const config = getElectricalRoomReferenceConfig();
   const sourceItems = Array.isArray(config.items) ? config.items : DEFAULT_ELECTRICAL_ROOM_REFERENCES;
   return [...new Set(sourceItems.map((item) => String(item || "").trim()).filter(Boolean))];
@@ -563,6 +590,10 @@ function renderElectricalRoomReferenceOptions() {
 }
 
 function getMccEquipmentReferenceList() {
+  const masterItems = getMasterEquipmentNames("service-mcc");
+  if (masterItems.length) {
+    return masterItems;
+  }
   const serviceItems = getServiceItemsFromDom()
     .filter((item) => item.formType === "service-mcc")
     .map((item) => String(item.equipmentName || "").trim().toUpperCase())
@@ -907,7 +938,7 @@ async function loadEquipmentReference() {
 
   try {
     if (backendState.available && backendState.sessionActive) {
-      const result = await loadMastersFromBackend("negatif-list");
+      const result = await apiRequest("/masters?source_group=negatif-list");
       const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
       equipmentReferenceList = [...new Set(
         references
@@ -929,52 +960,14 @@ async function loadEquipmentReference() {
       return;
     }
 
-    const response = await fetch(EQUIPMENT_REFERENCE_URL, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const csvText = await response.text();
-    const rows = csvText
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map(parseCsvRow);
-
-    if (rows.length === 0) {
-      throw new Error("CSV kosong");
-    }
-
-    const headerRow = rows[0];
-    const dataRows = rows.slice(1);
-    const equipmentColumnIndex = detectEquipmentColumnIndex(headerRow);
-
-    equipmentReferenceList = [...new Set(
-      dataRows
-        .map((row) => row[equipmentColumnIndex]?.trim() || "")
-        .filter(Boolean),
-    )].sort((left, right) => left.localeCompare(right, "id"));
-
-    if (equipmentReferenceList.length === 0) {
-      throw new Error("Kolom equipment tidak ditemukan atau tidak berisi data");
-    }
-
-    equipmentReferenceInput.disabled = false;
-    equipmentReferenceInput.placeholder = "Ketik minimal 1 huruf untuk mencari equipment";
-    if (selectedEquipmentReference && equipmentReferenceList.includes(selectedEquipmentReference)) {
-      equipmentReferenceInput.value = selectedEquipmentReference;
-    } else {
-      equipmentReferenceInput.value = "";
-      selectedEquipmentReference = "";
-    }
-    updateEquipmentReferenceStatus(`Referensi equipment aktif: ${equipmentReferenceList.length} item dari spreadsheet.`);
+    throw new Error("Backend master equipment belum aktif");
   } catch (error) {
     equipmentReferenceList = [];
     equipmentReferenceInput.disabled = true;
     equipmentReferenceInput.value = "";
     selectedEquipmentReference = "";
     hideEquipmentReferenceResults();
-    updateEquipmentReferenceStatus("Gagal memuat referensi equipment. Form Negatif List dikunci sampai referensi berhasil dibaca.", true);
+    updateEquipmentReferenceStatus("Gagal memuat referensi equipment dari Master Equipment. Tambahkan source group negatif-list di menu admin.", true);
   }
 }
 
@@ -988,7 +981,7 @@ async function loadCarbonBrushEquipmentReference() {
 
   try {
     if (backendState.available && backendState.sessionActive) {
-      const result = await loadMastersFromBackend("carbon-brush");
+      const result = await apiRequest("/masters?source_group=carbon-brush");
       const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
       carbonBrushEquipmentReferenceList = [...new Set(
         references
@@ -1010,55 +1003,14 @@ async function loadCarbonBrushEquipmentReference() {
       return;
     }
 
-    const response = await fetch(CARBON_BRUSH_REFERENCE_URL, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const csvText = await response.text();
-    const rows = csvText
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map(parseCsvRow);
-
-    if (rows.length === 0) {
-      throw new Error("CSV kosong");
-    }
-
-    const headers = rows[0];
-    const dataRows = rows.slice(1);
-    const equipmentIndex = headers.findIndex((header) => header.toUpperCase() === "EQUIPMENT");
-    if (equipmentIndex < 0) {
-      throw new Error("Kolom EQUIPMENT tidak ditemukan");
-    }
-
-    carbonBrushEquipmentReferenceList = [...new Set(
-      dataRows
-        .map((row) => row[equipmentIndex]?.trim() || "")
-        .filter(Boolean),
-    )].sort((left, right) => left.localeCompare(right, "id"));
-
-    if (!carbonBrushEquipmentReferenceList.length) {
-      throw new Error("Data equipment carbon brush kosong");
-    }
-
-    carbonBrushEquipmentInput.disabled = false;
-    carbonBrushEquipmentInput.placeholder = "Ketik kode equipment, misal 343RM1";
-    if (selectedCarbonBrushEquipmentReference && carbonBrushEquipmentReferenceList.includes(selectedCarbonBrushEquipmentReference)) {
-      carbonBrushEquipmentInput.value = selectedCarbonBrushEquipmentReference;
-    } else {
-      carbonBrushEquipmentInput.value = "";
-      selectedCarbonBrushEquipmentReference = "";
-    }
-    updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari spreadsheet.`);
+    throw new Error("Backend master equipment belum aktif");
   } catch {
     carbonBrushEquipmentReferenceList = [];
     carbonBrushEquipmentInput.disabled = true;
     carbonBrushEquipmentInput.value = "";
     selectedCarbonBrushEquipmentReference = "";
     hideCarbonBrushEquipmentResults();
-    updateCarbonBrushEquipmentStatus("Gagal memuat referensi carbon brush. Form ini dikunci sampai referensi berhasil dibaca.", true);
+    updateCarbonBrushEquipmentStatus("Gagal memuat referensi carbon brush dari Master Equipment. Tambahkan source group carbon-brush di menu admin.", true);
   }
 }
 
@@ -1098,31 +1050,7 @@ async function loadDcsEquipmentReference(options = {}) {
       }
 
       if (!dcsEquipmentReferenceItems.length) {
-        const response = await fetch(DCS_EQUIPMENT_REFERENCE_URL, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const csvText = await response.text();
-        const rows = csvText
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .map(parseCsvRow);
-
-        dcsEquipmentReferenceItems = rows
-          .slice(1)
-          .map((row) => ({
-            equipmentName: normalizeDcsEquipmentCode(row[0] || ""),
-            description: normalizeDcsEquipmentDescription(row[1] || ""),
-          }))
-          .filter((item) => item.equipmentName)
-          .filter((item, index, array) => array.findIndex((entry) => entry.equipmentName === item.equipmentName) === index)
-          .sort((left, right) => left.equipmentName.localeCompare(right.equipmentName, "id"));
-      }
-
-      if (!dcsEquipmentReferenceItems.length) {
-        throw new Error("Referensi DCS kosong");
+        throw new Error("Referensi DCS kosong di Master Equipment");
       }
 
       dcsEquipmentReferenceLoadedAt = Date.now();
@@ -1144,7 +1072,7 @@ async function loadDcsEquipmentReference(options = {}) {
       setDcsEquipmentReferenceValue("", "");
       selectedDcsEquipmentReference = "";
       hideDcsEquipmentResults();
-      updateDcsEquipmentReferenceStatus("Gagal memuat referensi equipment DCS. Form DCS dikunci sampai referensi berhasil dibaca.", true);
+      updateDcsEquipmentReferenceStatus("Gagal memuat referensi DCS dari Master Equipment. Tambahkan source group dcs-service di menu admin.", true);
       throw error;
     } finally {
       dcsEquipmentReferencePromise = null;
@@ -3920,12 +3848,21 @@ async function loadMastersFromBackend(sourceGroup = "") {
   }
   const suffix = sourceGroup ? `?source_group=${encodeURIComponent(sourceGroup)}` : "";
   const result = await apiRequest(`/masters${suffix}`);
-  backendState.masters = {
-    areas: Array.isArray(result.areas) ? result.areas : [],
-    inspectionTemplates: Array.isArray(result.inspectionTemplates) ? result.inspectionTemplates : [],
-    equipmentReferences: Array.isArray(result.equipmentReferences) ? result.equipmentReferences : [],
-    appSettings: Array.isArray(result.appSettings) ? result.appSettings : [],
-  };
+  if (sourceGroup) {
+    backendState.masters = {
+      areas: Array.isArray(result.areas) ? result.areas : backendState.masters.areas,
+      inspectionTemplates: Array.isArray(result.inspectionTemplates) ? result.inspectionTemplates : backendState.masters.inspectionTemplates,
+      equipmentReferences: backendState.masters.equipmentReferences,
+      appSettings: Array.isArray(result.appSettings) ? result.appSettings : backendState.masters.appSettings,
+    };
+  } else {
+    backendState.masters = {
+      areas: Array.isArray(result.areas) ? result.areas : [],
+      inspectionTemplates: Array.isArray(result.inspectionTemplates) ? result.inspectionTemplates : [],
+      equipmentReferences: Array.isArray(result.equipmentReferences) ? result.equipmentReferences : [],
+      appSettings: Array.isArray(result.appSettings) ? result.appSettings : [],
+    };
+  }
   renderElectricalRoomReferenceOptions();
   return result;
 }
@@ -4237,19 +4174,60 @@ function renderAdminEquipmentTable(items) {
   adminEquipmentBody.innerHTML = "";
   items.slice(0, 200).forEach((item) => {
     const row = document.createElement("tr");
-    row.dataset.identifier = item.equipmentName;
+    const identifier = item.id
+      ? String(item.id)
+      : `${item.sourceGroup || ""}|${item.equipmentCode || ""}|${item.equipmentName || ""}`;
+    row.dataset.identifier = identifier;
+    row.dataset.sourceGroup = item.sourceGroup || "";
+    row.dataset.equipmentCode = item.equipmentCode || "";
+    row.dataset.equipmentName = item.equipmentName || "";
+    row.dataset.category = item.category || "";
+    row.dataset.area = item.area || "";
+    row.dataset.plant = item.plant || "";
     row.innerHTML = `
-      <td>${item.sourceGroup}</td>
-      <td>${item.equipmentCode || "-"}</td>
-      <td>${item.equipmentName}</td>
-      <td>${item.area || "-"}</td>
-      <td>${item.plant || "-"}</td>
+      <td>${escapeHtml(item.sourceGroup || "-")}</td>
+      <td>${escapeHtml(item.equipmentCode || "-")}</td>
+      <td>${escapeHtml(item.equipmentName || "-")}</td>
+      <td>${escapeHtml(item.category || "-")}</td>
+      <td>${escapeHtml(item.area || "-")}</td>
+      <td>${escapeHtml(item.plant || "-")}</td>
       <td class="action-cell">
-        <button class="table-action danger" data-action="delete-equipment-master" type="button">Hapus</button>
+        <button class="table-action" data-action="edit-equipment-master" type="button" title="Edit">Edit</button>
+        <button class="table-action danger" data-action="delete-equipment-master" type="button" title="Hapus">Hapus</button>
       </td>
     `;
     adminEquipmentBody.append(row);
   });
+}
+
+function resetAdminEquipmentForm() {
+  if (!adminEquipmentForm) {
+    return;
+  }
+  adminEquipmentForm.reset();
+  adminEquipmentForm.elements.originalIdentifier.value = "";
+  const submitButton = adminEquipmentForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.textContent = "Simpan Equipment";
+  }
+}
+
+function fillAdminEquipmentFormFromRow(row) {
+  if (!adminEquipmentForm || !row) {
+    return;
+  }
+  adminEquipmentForm.elements.sourceGroup.value = row.dataset.sourceGroup || "negatif-list";
+  adminEquipmentForm.elements.equipmentCode.value = row.dataset.equipmentCode || "";
+  adminEquipmentForm.elements.equipmentName.value = row.dataset.equipmentName || "";
+  adminEquipmentForm.elements.category.value = row.dataset.category || "";
+  adminEquipmentForm.elements.area.value = row.dataset.area || "";
+  adminEquipmentForm.elements.plant.value = row.dataset.plant || "";
+  adminEquipmentForm.elements.originalIdentifier.value = row.dataset.identifier || "";
+  const submitButton = adminEquipmentForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.textContent = "Update Equipment";
+  }
+  adminEquipmentForm.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function renderAdminTemplatesTable(items) {
@@ -4436,6 +4414,9 @@ async function refreshAdminMasters() {
       fetchAdminMaster("equipment-references"),
       fetchAdminMaster("inspection-templates"),
     ]);
+    backendState.masters.areas = areas;
+    backendState.masters.equipmentReferences = equipmentReferences;
+    backendState.masters.inspectionTemplates = templates;
     renderAdminAreasTable(areas);
     renderAdminElectricalRoomTable();
     renderAdminEquipmentTable(equipmentReferences);
@@ -4443,6 +4424,7 @@ async function refreshAdminMasters() {
     hydrateCarbonBrushThresholdForm();
     hydrateElectricalRoomThresholdForm();
     renderElectricalRoomReferenceOptions();
+    renderMccReferenceOptions();
   } catch (error) {
     console.error("Gagal memuat master admin:", error);
   }
@@ -6284,7 +6266,16 @@ adminElectricalRoomForm?.addEventListener("submit", async (event) => {
 adminEquipmentForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(adminEquipmentForm);
+  const originalIdentifier = String(formData.get("originalIdentifier") || "").trim();
+  const nextIdentifier = [
+    String(formData.get("sourceGroup") || "").trim(),
+    String(formData.get("equipmentCode") || "").trim() || String(formData.get("equipmentName") || "").trim().split(" ")[0],
+    String(formData.get("equipmentName") || "").trim(),
+  ].join("|");
   try {
+    if (originalIdentifier && originalIdentifier !== nextIdentifier) {
+      await deleteAdminMaster("equipment-references", originalIdentifier);
+    }
     await saveAdminMaster("equipment-references", {
       sourceGroup: String(formData.get("sourceGroup") || "").trim(),
       equipmentCode: String(formData.get("equipmentCode") || "").trim(),
@@ -6293,16 +6284,22 @@ adminEquipmentForm?.addEventListener("submit", async (event) => {
       area: String(formData.get("area") || "").trim(),
       plant: String(formData.get("plant") || "").trim(),
     });
-    adminEquipmentForm.reset();
+    resetAdminEquipmentForm();
     await refreshAdminMasters();
     await Promise.allSettled([
       loadEquipmentReference(),
       loadCarbonBrushEquipmentReference(),
+      loadDcsEquipmentReference({ force: true }),
     ]);
+    renderMccReferenceOptions();
     showToast("Master Equipment", "Equipment reference berhasil disimpan.");
   } catch (error) {
     showToast("Master Equipment", error.message || "Gagal menyimpan equipment reference.");
   }
+});
+
+adminEquipmentCancelEditButton?.addEventListener("click", () => {
+  resetAdminEquipmentForm();
 });
 
 adminTemplateForm?.addEventListener("submit", async (event) => {
@@ -6346,13 +6343,20 @@ adminAreasBody?.addEventListener("click", async (event) => {
 
 adminEquipmentBody?.addEventListener("click", async (event) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement) || target.dataset.action !== "delete-equipment-master") {
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const row = target.closest("tr");
+  if (target.dataset.action === "edit-equipment-master") {
+    fillAdminEquipmentFormFromRow(row);
+    return;
+  }
+  if (target.dataset.action !== "delete-equipment-master") {
     return;
   }
   if (!confirmDeleteAction("referensi equipment ini")) {
     return;
   }
-  const row = target.closest("tr");
   const identifier = row?.dataset.identifier || "";
   try {
     await deleteAdminMaster("equipment-references", identifier);
@@ -6360,7 +6364,9 @@ adminEquipmentBody?.addEventListener("click", async (event) => {
     await Promise.allSettled([
       loadEquipmentReference(),
       loadCarbonBrushEquipmentReference(),
+      loadDcsEquipmentReference({ force: true }),
     ]);
+    renderMccReferenceOptions();
     showToast("Master Equipment", "Equipment reference berhasil dihapus.");
   } catch (error) {
     showToast("Master Equipment", error.message || "Gagal menghapus equipment reference.");

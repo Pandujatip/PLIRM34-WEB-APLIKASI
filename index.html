@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260422-02">
+  <link rel="stylesheet" href="styles.css?v=20260422-03">
 </head>
 <body>
   <div class="app-shell">
@@ -2031,7 +2031,15 @@
                     Source Group
                     <select name="sourceGroup" required>
                       <option value="negatif-list">negatif-list</option>
+                      <option value="negatif-list-import">negatif-list-import</option>
+                      <option value="electrical-room">electrical-room</option>
                       <option value="carbon-brush">carbon-brush</option>
+                      <option value="dcs-service">dcs-service</option>
+                      <option value="service-mcc">service-mcc</option>
+                      <option value="service-electrical">service-electrical</option>
+                      <option value="service-instrument">service-instrument</option>
+                      <option value="bom">bom</option>
+                      <option value="bom-motor">bom-motor</option>
                     </select>
                   </label>
                   <label>
@@ -2055,15 +2063,20 @@
                     <input name="plant" type="text" placeholder="Tuban 3">
                   </label>
                 </div>
-                <button class="btn btn-primary" type="submit">Simpan Equipment</button>
+                <input name="originalIdentifier" type="hidden">
+                <div class="form-actions compact-actions">
+                  <button class="btn btn-primary" type="submit">Simpan Equipment</button>
+                  <button class="btn btn-secondary" type="button" id="admin-equipment-cancel-edit">Reset</button>
+                </div>
               </form>
-              <div class="table-wrap compact-table">
+              <div class="table-wrap compact-table master-equipment-table-wrap">
                 <table>
                   <thead>
                     <tr>
                       <th>Source</th>
                       <th>Code</th>
                       <th>Nama Equipment</th>
+                      <th>Kategori</th>
                       <th>Area</th>
                       <th>Plant</th>
                       <th>Aksi</th>
@@ -2209,6 +2222,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260422-01"></script>
+  <script src="app.js?v=20260422-02"></script>
 </body>
 </html>

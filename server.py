@@ -306,6 +306,8 @@ ROLE_EDITABLE = {
 MASTER_REFERENCE_URLS = {
     "negatif-list": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRt_ysTFRHmKVY3-hlFDgBYex-BExU0cdFnuBaWOPqxKAo6mqavGhtZeKdTkvvFXsm-uvcOt2QVLHHC/pub?output=csv",
     "carbon-brush": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv",
+    "dcs-service": "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4f9-NuVnXVz24mPVlXP_b7rEbVGbutbSnspudmS8qztvXBEMY-Jw6moGdWWNEAHkYS68ohM2jM1E_/pub?gid=1968615039&single=true&output=csv",
+    "service-mcc": "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4f9-NuVnXVz24mPVlXP_b7rEbVGbutbSnspudmS8qztvXBEMY-Jw6moGdWWNEAHkYS68ohM2jM1E_/pub?gid=899226500&single=true&output=csv",
     "negatif-list-import": "https://docs.google.com/spreadsheets/d/e/2PACX-1vR6Qcrp5kjtkeRJ1IFRhHA9XLSkBmeSyo4kf8VJKyokBWJefXJmCQdBXHBTkN0DZlpvNDAbKFqzOw70/pub?output=csv",
 }
 
@@ -386,6 +388,18 @@ FALLBACK_EQUIPMENT_REFERENCES = {
     "carbon-brush": [
         "343RM1 - ABB",
         "344RM1 - ABB",
+    ],
+    "electrical-room": [
+        "ER17",
+        "ER23C",
+        "ER24",
+    ],
+    "dcs-service": [
+        "Operator Station CCR-03",
+        "Server Historian HS-01",
+    ],
+    "service-mcc": [
+        "Panel MCC Finish Mill",
     ],
 }
 
@@ -1939,7 +1953,7 @@ def seed_master_data(connection: sqlite3.Connection) -> None:
             (module_name, inspection_type, inspection_subtype, title, definition_json),
         )
 
-    for source_group in MASTER_REFERENCE_URLS:
+    for source_group in sorted(set(MASTER_REFERENCE_URLS) | set(FALLBACK_EQUIPMENT_REFERENCES)):
         existing = connection.execute(
             "SELECT COUNT(*) AS total FROM equipment_reference WHERE source_group = ?",
             (source_group,),
@@ -2029,6 +2043,7 @@ def fetch_remote_equipment_references(source_group: str) -> list[dict]:
     area_index = detect_reference_column(headers, ["area"])
     plant_index = detect_reference_column(headers, ["plant"])
     category_index = detect_reference_column(headers, ["category", "kategori"])
+    description_index = detect_reference_column(headers, ["description", "deskripsi", "deskripsi equipment", "nama equipment"])
 
     imported_rows: list[dict] = []
     for raw_row in rows[1:]:
@@ -2037,6 +2052,13 @@ def fetch_remote_equipment_references(source_group: str) -> list[dict]:
         equipment_name = raw_row[equipment_index].strip()
         if not equipment_name:
             continue
+        metadata = {
+            header: raw_row[index].strip()
+            for index, header in enumerate(headers)
+            if header and index < len(raw_row) and raw_row[index].strip()
+        }
+        if description_index >= 0 and description_index < len(raw_row):
+            metadata["equipmentDescription"] = raw_row[description_index].strip()
         imported_rows.append(
             {
                 "equipment_code": equipment_name.split(" ")[0],
@@ -2044,7 +2066,7 @@ def fetch_remote_equipment_references(source_group: str) -> list[dict]:
                 "category": raw_row[category_index].strip() if category_index >= 0 and category_index < len(raw_row) else "",
                 "area": raw_row[area_index].strip() if area_index >= 0 and area_index < len(raw_row) else "",
                 "plant": raw_row[plant_index].strip() if plant_index >= 0 and plant_index < len(raw_row) else "",
-                "metadata_json": "{}",
+                "metadata_json": json.dumps(metadata, ensure_ascii=False),
             }
         )
     return imported_rows
@@ -2380,7 +2402,7 @@ def list_inspection_templates() -> list[dict]:
 
 def list_equipment_references(source_group: str | None = None) -> list[dict]:
     query = """
-        SELECT source_group, equipment_code, equipment_name, category, area, plant, source_url, metadata_json
+        SELECT id, source_group, equipment_code, equipment_name, category, area, plant, source_url, metadata_json
         FROM equipment_reference
         WHERE is_active = 1
     """
@@ -2401,6 +2423,7 @@ def list_equipment_references(source_group: str | None = None) -> list[dict]:
             metadata = {}
         references.append(
             {
+                "id": row["id"],
                 "sourceGroup": row["source_group"],
                 "equipmentCode": row["equipment_code"],
                 "equipmentName": row["equipment_name"],
@@ -2606,8 +2629,13 @@ def delete_master_record(resource_name: str, identifier: str) -> bool:
             return cursor.rowcount > 0
         if resource_name == "equipment-references":
             cursor = connection.execute(
-                "DELETE FROM equipment_reference WHERE id = ? OR equipment_name = ?",
-                (identifier, identifier),
+                """
+                DELETE FROM equipment_reference
+                WHERE CAST(id AS TEXT) = ?
+                   OR source_group || '|' || equipment_code || '|' || equipment_name = ?
+                   OR equipment_name = ?
+                """,
+                (identifier, identifier, identifier),
             )
             return cursor.rowcount > 0
         if resource_name == "app-settings":
