@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260422-08">
+  <link rel="stylesheet" href="styles.css?v=20260422-09">
 </head>
 <body>
   <div class="app-shell">
@@ -1786,58 +1786,82 @@
                 <p class="eyebrow">Admin Tools</p>
                 <h4>Backup, Restore, Export</h4>
               </div>
-              <div class="admin-tools">
-                <button class="btn btn-secondary" id="admin-backup-button" type="button">Download Backup</button>
-                <label class="search-field compact">
-                  <span>Export laporan</span>
-                  <select id="admin-export-resource">
-                    <option value="negatif-list">Negatif List</option>
-                    <option value="sparepart">Sparepart</option>
-                    <option value="service">Service</option>
-                    <option value="bom">BOM</option>
-                    <option value="spb">SPB</option>
-                  </select>
-                </label>
-                <button class="btn btn-secondary" id="admin-export-button" type="button">Download Export</button>
-                <label class="btn btn-secondary file-trigger" for="admin-restore-input">Pilih File Restore</label>
-                <input id="admin-restore-input" type="file" accept="application/json" hidden>
-                <button class="btn btn-primary" id="admin-restore-button" type="button">Restore Backup</button>
-              </div>
-              <div class="admin-tools import-tools">
-                <label class="search-field compact">
-                  <span>Import modul</span>
-                  <select id="admin-import-resource">
-                    <option value="negatif-list">Negatif List</option>
-                    <option value="sparepart">Sparepart</option>
-                    <option value="service">Service</option>
-                    <option value="bom">BOM</option>
-                    <option value="spb">SPB</option>
-                  </select>
-                </label>
-                <label class="search-field compact">
-                  <span>Mode import</span>
-                  <select id="admin-import-mode">
-                    <option value="replace">Replace semua data modul</option>
-                    <option value="append">Append / update by ID</option>
-                  </select>
-                </label>
-                <label class="btn btn-secondary file-trigger" for="admin-import-input">Pilih File CSV</label>
-                <input id="admin-import-input" type="file" accept=".csv,text/csv" hidden>
-                <button class="btn btn-primary" id="admin-import-button" type="button">Import CSV</button>
-              </div>
-              <div class="admin-tools import-tools">
-                <label class="search-field compact admin-source-field">
-                  <span>Link Carbon Brush</span>
-                  <input id="admin-carbon-brush-url" type="url" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv">
-                </label>
-                <label class="search-field compact">
-                  <span>Mode carbon brush</span>
-                  <select id="admin-carbon-brush-mode">
-                    <option value="append">Append / update by ID</option>
-                    <option value="replace">Replace data carbon brush di service</option>
-                  </select>
-                </label>
-                <button class="btn btn-primary" id="admin-carbon-brush-import-button" type="button">Import Carbon Brush dari Link</button>
+              <div class="admin-tool-sections">
+                <section class="admin-tool-block">
+                  <div class="admin-tool-head">
+                    <strong>Backup & Restore</strong>
+                    <small>Simpan snapshot database atau pulihkan dari file backup.</small>
+                  </div>
+                  <div class="admin-tools">
+                    <button class="btn btn-secondary" id="admin-backup-button" type="button">Download Backup</button>
+                    <label class="btn btn-secondary file-trigger" for="admin-restore-input">Pilih File Restore</label>
+                    <input id="admin-restore-input" type="file" accept="application/json" hidden>
+                    <button class="btn btn-primary" id="admin-restore-button" type="button">Restore Backup</button>
+                  </div>
+                </section>
+
+                <section class="admin-tool-block">
+                  <div class="admin-tool-head">
+                    <strong>Export Laporan</strong>
+                    <small>Unduh data modul dalam format Excel.</small>
+                  </div>
+                  <div class="admin-tools admin-tools-grid">
+                    <label class="search-field compact">
+                      <span>Export laporan</span>
+                      <select id="admin-export-resource">
+                        <option value="negatif-list">Negatif List</option>
+                        <option value="sparepart">Sparepart</option>
+                        <option value="service">Service</option>
+                        <option value="bom">BOM</option>
+                        <option value="spb">SPB</option>
+                      </select>
+                    </label>
+                    <button class="btn btn-secondary" id="admin-export-button" type="button">Download Export</button>
+                  </div>
+                </section>
+
+                <section class="admin-tool-block">
+                  <div class="admin-tool-head">
+                    <strong>Import Data</strong>
+                    <small>Import CSV modul umum atau sinkronisasi carbon brush dari link.</small>
+                  </div>
+                  <div class="admin-tools admin-tools-grid import-tools">
+                    <label class="search-field compact">
+                      <span>Import modul</span>
+                      <select id="admin-import-resource">
+                        <option value="negatif-list">Negatif List</option>
+                        <option value="sparepart">Sparepart</option>
+                        <option value="service">Service</option>
+                        <option value="bom">BOM</option>
+                        <option value="spb">SPB</option>
+                      </select>
+                    </label>
+                    <label class="search-field compact">
+                      <span>Mode import</span>
+                      <select id="admin-import-mode">
+                        <option value="replace">Replace semua data modul</option>
+                        <option value="append">Append / update by ID</option>
+                      </select>
+                    </label>
+                    <label class="btn btn-secondary file-trigger" for="admin-import-input">Pilih File CSV</label>
+                    <input id="admin-import-input" type="file" accept=".csv,text/csv" hidden>
+                    <button class="btn btn-primary" id="admin-import-button" type="button">Import CSV</button>
+                  </div>
+                  <div class="admin-tools admin-tools-grid import-tools">
+                    <label class="search-field compact admin-source-field">
+                      <span>Link Carbon Brush</span>
+                      <input id="admin-carbon-brush-url" type="url" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv">
+                    </label>
+                    <label class="search-field compact">
+                      <span>Mode carbon brush</span>
+                      <select id="admin-carbon-brush-mode">
+                        <option value="append">Append / update by ID</option>
+                        <option value="replace">Replace data carbon brush di service</option>
+                      </select>
+                    </label>
+                    <button class="btn btn-primary" id="admin-carbon-brush-import-button" type="button">Import Carbon Brush dari Link</button>
+                  </div>
+                </section>
               </div>
               <p class="form-hint">Header CSV disarankan memakai nama field aplikasi. Contoh `negatif-list`: `equipment`, `damageDescription`, `followUpPlan`, `foundDate`, `pendingMark`, `workStatus`, `category`, `area`.</p>
             </section>

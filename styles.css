@@ -1515,6 +1515,43 @@ select:focus {
   align-items: end;
 }
 
+.admin-tool-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-tool-block {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 140, 66, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.014)),
+    rgba(255, 255, 255, 0.012);
+}
+
+.admin-tool-head {
+  margin-bottom: 10px;
+}
+
+.admin-tool-head strong {
+  display: block;
+  color: #fff4e8;
+  font-family: "Sora", sans-serif;
+  font-size: 0.96rem;
+}
+
+.admin-tool-head small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.admin-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .compact-form {
   margin-top: 12px;
 }
@@ -2934,6 +2971,10 @@ th.sort-desc::after {
   }
 
   .master-equipment-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-tools-grid {
     grid-template-columns: 1fr;
   }
 
