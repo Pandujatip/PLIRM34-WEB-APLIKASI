@@ -1330,6 +1330,7 @@ select:focus {
 [data-panel="negatif-list"] .negative-table-wrap {
   position: relative;
   overflow: auto;
+  max-height: 560px;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 122, 24, 0.82) rgba(255, 255, 255, 0.06);
@@ -1353,7 +1354,7 @@ select:focus {
 [data-panel="negatif-list"] table {
   border-collapse: separate;
   border-spacing: 0 10px;
-  min-width: 1180px;
+  min-width: 1440px;
   table-layout: fixed;
 }
 
@@ -1419,27 +1420,27 @@ select:focus {
 }
 
 [data-panel="negatif-list"] thead th:nth-child(1),
-[data-panel="negatif-list"] tbody td:nth-child(1) { width: 16%; }
+[data-panel="negatif-list"] tbody td:nth-child(1) { width: 180px; }
 [data-panel="negatif-list"] thead th:nth-child(2),
-[data-panel="negatif-list"] tbody td:nth-child(2) { width: 20%; }
+[data-panel="negatif-list"] tbody td:nth-child(2) { width: 260px; }
 [data-panel="negatif-list"] thead th:nth-child(3),
-[data-panel="negatif-list"] tbody td:nth-child(3) { width: 20%; }
+[data-panel="negatif-list"] tbody td:nth-child(3) { width: 260px; }
 [data-panel="negatif-list"] thead th:nth-child(4),
-[data-panel="negatif-list"] tbody td:nth-child(4) { width: 9%; }
+[data-panel="negatif-list"] tbody td:nth-child(4) { width: 128px; }
 [data-panel="negatif-list"] thead th:nth-child(5),
-[data-panel="negatif-list"] tbody td:nth-child(5) { width: 11%; }
+[data-panel="negatif-list"] tbody td:nth-child(5) { width: 170px; }
 [data-panel="negatif-list"] thead th:nth-child(6),
-[data-panel="negatif-list"] tbody td:nth-child(6) { width: 7%; }
+[data-panel="negatif-list"] tbody td:nth-child(6) { width: 110px; }
 [data-panel="negatif-list"] thead th:nth-child(7),
-[data-panel="negatif-list"] tbody td:nth-child(7) { width: 7%; }
+[data-panel="negatif-list"] tbody td:nth-child(7) { width: 110px; }
 [data-panel="negatif-list"] thead th:nth-child(8),
-[data-panel="negatif-list"] tbody td:nth-child(8) { width: 6%; }
+[data-panel="negatif-list"] tbody td:nth-child(8) { width: 100px; }
 [data-panel="negatif-list"] thead th:nth-child(9),
-[data-panel="negatif-list"] tbody td:nth-child(9) { width: 4%; }
+[data-panel="negatif-list"] tbody td:nth-child(9) { width: 92px; }
 
 [data-panel="negatif-list"] .action-cell {
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 6px;
   flex-wrap: nowrap;
 }
@@ -1468,6 +1469,7 @@ select:focus {
 [data-panel="negatif-list"] .negative-date-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 30px;
   padding: 0 10px;
   border-radius: 999px;
@@ -1545,6 +1547,14 @@ select:focus {
   min-width: 30px;
   min-height: 30px;
   border-radius: 10px;
+}
+
+[data-panel="negatif-list"] .tag {
+  max-width: 100%;
+  justify-content: center;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .mobile-card-list {
@@ -1657,6 +1667,13 @@ select:focus {
 
 #negatif-list-mobile .mobile-data-card strong {
   color: #fff5eb;
+}
+
+#negatif-list-mobile .mobile-card-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 #negatif-list-mobile .mobile-meta {
@@ -3073,6 +3090,12 @@ th.sort-desc::after {
     margin-top: 14px;
     border: 1px solid var(--line);
     border-radius: 16px;
+  }
+
+  #negatif-list-mobile .mobile-card-pill-row .tag {
+    min-height: 26px;
+    padding: 0 9px;
+    font-size: 0.74rem;
   }
 
   .chart-row {

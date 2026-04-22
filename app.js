@@ -4867,12 +4867,14 @@ function renderMobileCards(negatifItems, spbItems) {
       card.className = "mobile-data-card";
       card.innerHTML = `
         <strong>${item.equipment}</strong>
+        <div class="mobile-card-pill-row">
+          <span class="tag tag-neutral">Tanggal: ${item.foundDate || "-"}</span>
+          <span class="tag ${getNegatifStatusTagClass(item.workStatus)}">${item.workStatus || "-"}</span>
+        </div>
         <div class="mobile-meta">
           <span>Kerusakan: ${item.damageDescription}</span>
           <span>Tindak lanjut: ${item.followUpPlan}</span>
-          <span>Tanggal temuan: ${item.foundDate}</span>
           <span>Mark: ${item.pendingMark || "-"}</span>
-          <span>Status: ${item.workStatus || "-"}</span>
           <span>Kategori: ${item.category}</span>
           <span>Area: ${item.area}</span>
         </div>
