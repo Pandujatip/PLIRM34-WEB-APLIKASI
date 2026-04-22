@@ -4126,6 +4126,7 @@ function renderUserManagementTable() {
       <td class="action-cell">
         <button class="table-action" data-action="save-user-role" type="button">Simpan Role</button>
         <button class="table-action danger" data-action="delete-user-role" type="button">Hapus Role</button>
+        <button class="table-action danger" data-action="delete-user-account" type="button">Hapus Akun</button>
       </td>
     `;
     userManagementBody.append(row);
@@ -6063,7 +6064,7 @@ forgotPasswordButton?.addEventListener("click", () => {
 
 userManagementBody?.addEventListener("click", async (event) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement) || !["save-user-role", "delete-user-role"].includes(target.dataset.action || "")) {
+  if (!(target instanceof HTMLElement) || !["save-user-role", "delete-user-role", "delete-user-account"].includes(target.dataset.action || "")) {
     return;
   }
 
@@ -6075,6 +6076,39 @@ userManagementBody?.addEventListener("click", async (event) => {
   const username = row.dataset.username || "";
   const roleSelect = row.querySelector(".user-role-select");
   if (!(roleSelect instanceof HTMLSelectElement) || !username) {
+    return;
+  }
+
+  if (target.dataset.action === "delete-user-account") {
+    if (!confirmDeleteAction(`akun ${username}`)) {
+      return;
+    }
+    if (backendState.available) {
+      try {
+        const result = await apiRequest(`/users/${encodeURIComponent(username)}`, { method: "DELETE" });
+        cacheUsers(result.users);
+        renderUserManagementTable();
+        const session = readStorage(storageKeys.session);
+        if (session && !Array.isArray(session) && session.username === username) {
+          await performLogout("Akun aktif sudah dihapus. Silakan login ulang dengan akun lain.");
+          return;
+        }
+        showToast("Manajemen User", `Akun ${username} berhasil dihapus.`);
+      } catch (error) {
+        showToast("Manajemen User", error.message || "Gagal menghapus akun user.");
+      }
+      return;
+    }
+
+    const users = getStoredUsers().filter((user) => user.username !== username);
+    writeStorage(storageKeys.users, users);
+    renderUserManagementTable();
+    const session = readStorage(storageKeys.session);
+    if (session && !Array.isArray(session) && session.username === username) {
+      await performLogout("Akun aktif sudah dihapus. Silakan login ulang dengan akun lain.");
+      return;
+    }
+    showToast("Manajemen User", `Akun ${username} berhasil dihapus.`);
     return;
   }
 

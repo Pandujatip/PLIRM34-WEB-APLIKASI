@@ -1163,6 +1163,20 @@ def update_user_role(username: str, role: str) -> dict | None:
     return dict(row) if row else None
 
 
+def delete_user_account(username: str) -> dict | None:
+    with get_connection() as connection:
+        existing = connection.execute(
+            "SELECT id, username, role, created_at FROM users WHERE lower(username) = lower(?)",
+            (username,),
+        ).fetchone()
+        if not existing:
+            return None
+
+        connection.execute("DELETE FROM sessions WHERE user_id = ?", (existing["id"],))
+        connection.execute("DELETE FROM users WHERE id = ?", (existing["id"],))
+    return dict(existing)
+
+
 def create_session(user_id: int) -> tuple[str, str]:
     token = secrets.token_urlsafe(32)
     expires_at = (utc_now() + timedelta(days=SESSION_DURATION_DAYS)).isoformat()
@@ -2998,6 +3012,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/users/"):
+            username = parsed.path.removeprefix("/api/users/").strip("/")
+            self._handle_delete_user(username)
+            return
         if parsed.path.startswith("/api/admin/masters/"):
             self._handle_admin_masters_delete(parsed.path)
             return
@@ -3635,6 +3653,41 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 target_label=f"{updated_user['username']} -> {updated_user['role']}",
             )
         self._send_json({"ok": True, "user": updated_user, "users": list_users()})
+
+    def _handle_delete_user(self, username: str):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        if not username:
+            self._send_json({"error": "Username tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        target_user = get_user_by_username(username)
+        if not target_user:
+            self._send_json({"error": "User tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if target_user["role"] == "admin" and count_admin_users() <= 1:
+            self._send_json(
+                {"error": "Minimal harus ada satu akun admin aktif"},
+                status=HTTPStatus.BAD_REQUEST,
+            )
+            return
+
+        deleted_user = delete_user_account(username)
+        if deleted_user:
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="delete-user",
+                resource="users",
+                target_id=str(deleted_user["id"]),
+                target_label=str(deleted_user["username"]),
+            )
+        self._send_json({"ok": True, "user": deleted_user, "users": list_users()})
 
 
 def main():
