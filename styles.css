@@ -1718,6 +1718,19 @@ th {
     rgba(255, 255, 255, 0.02);
 }
 
+.schedule-history-list {
+  max-height: 310px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.inspection-history-card .inspection-schedule-item {
+  border-color: rgba(0, 255, 178, 0.16);
+  background:
+    linear-gradient(180deg, rgba(0, 255, 178, 0.07), rgba(255, 122, 24, 0.035)),
+    rgba(255, 255, 255, 0.025);
+}
+
 .inspection-grid,
 .bom-grid {
   display: grid;

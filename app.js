@@ -95,6 +95,7 @@ const dashboardSpbPreview = document.getElementById("dashboard-spb-preview");
 const dashboardServicePreview = document.getElementById("dashboard-service-preview");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
+const dashboardInspectionHistory = document.getElementById("dashboard-inspection-history");
 const statNegatif = document.getElementById("stat-negatif");
 const statSpbBelumAda = document.getElementById("stat-spb-belum-ada");
 const statService = document.getElementById("stat-service");
@@ -307,6 +308,7 @@ let dashboardInspectionSchedule = {
   timezone: "Asia/Jakarta",
   today: [],
   tomorrow: [],
+  history: [],
 };
 let dashboardSlideshowIndex = 0;
 let dashboardSlideshowTimer = null;
@@ -1385,6 +1387,7 @@ async function performLogout(reason = "") {
     timezone: "Asia/Jakarta",
     today: [],
     tomorrow: [],
+    history: [],
   };
   clearSession();
   if (reason) {
@@ -4082,6 +4085,7 @@ async function hydrateFromBackendAfterLogin() {
     timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
     today: Array.isArray(bootstrap.calendar?.today) ? bootstrap.calendar.today : [],
     tomorrow: Array.isArray(bootstrap.calendar?.tomorrow) ? bootstrap.calendar.tomorrow : [],
+    history: Array.isArray(bootstrap.calendar?.history) ? bootstrap.calendar.history : [],
   };
   if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
     cacheUsers(bootstrap.users);
@@ -4106,6 +4110,7 @@ async function restoreBackendSession() {
       timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
       today: Array.isArray(bootstrap.calendar?.today) ? bootstrap.calendar.today : [],
       tomorrow: Array.isArray(bootstrap.calendar?.tomorrow) ? bootstrap.calendar.tomorrow : [],
+      history: Array.isArray(bootstrap.calendar?.history) ? bootstrap.calendar.history : [],
     };
     if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
       cacheUsers(bootstrap.users);
@@ -4866,14 +4871,20 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
     dashboardInspectionSchedule.tomorrow,
     "Belum ada jadwal inspeksi besok",
   );
+  renderInspectionScheduleCard(
+    dashboardInspectionHistory,
+    dashboardInspectionSchedule.history,
+    "Belum ada history jadwal inspeksi",
+    { showDate: true, limit: 8 },
+  );
 }
 
-function renderInspectionScheduleCard(container, items, emptyTitle) {
+function renderInspectionScheduleCard(container, items, emptyTitle, options = {}) {
   if (!container) {
     return;
   }
 
-  const rows = Array.isArray(items) ? items.slice(0, 5) : [];
+  const rows = Array.isArray(items) ? items.slice(0, options.limit || 5) : [];
   container.innerHTML = "";
   if (!rows.length) {
     container.innerHTML = `
@@ -4889,6 +4900,9 @@ function renderInspectionScheduleCard(container, items, emptyTitle) {
   rows.forEach((item) => {
     const article = document.createElement("article");
     const detailParts = [item.timeLabel || (item.allDay ? "Seharian" : "-")];
+    if (options.showDate && item.date) {
+      detailParts.unshift(formatInspectionDate(item.date));
+    }
     if (item.location) {
       detailParts.push(item.location);
     }

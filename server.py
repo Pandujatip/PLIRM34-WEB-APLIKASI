@@ -396,6 +396,7 @@ CALENDAR_CACHE = {
         "timezone": "Asia/Jakarta",
         "today": [],
         "tomorrow": [],
+        "history": [],
     },
 }
 
@@ -552,11 +553,16 @@ def build_calendar_schedule() -> dict[str, object]:
         "timezone": "Asia/Jakarta",
         "today": [],
         "tomorrow": [],
+        "history": [],
     }
 
     target_today = now.date().isoformat()
     target_tomorrow = (now.date() + timedelta(days=1)).isoformat()
-    target_dates = {target_today, target_tomorrow}
+    history_start_date = now.date() - timedelta(days=90)
+    target_dates = {
+        (history_start_date + timedelta(days=index)).isoformat()
+        for index in range((now.date() - history_start_date).days + 2)
+    }
 
     try:
         with urlopen(CALENDAR_FEED_URL, timeout=10) as response:
@@ -656,6 +662,11 @@ def build_calendar_schedule() -> dict[str, object]:
             schedule["today"].append(entry)
         elif entry["date"] == target_tomorrow:
             schedule["tomorrow"].append(entry)
+        elif history_start_date.isoformat() <= entry["date"] < target_today:
+            schedule["history"].append(entry)
+
+    schedule["history"].sort(key=lambda item: item["date"], reverse=True)
+    schedule["history"] = schedule["history"][:30]
 
     CALENDAR_CACHE["fetched_at"] = now
     CALENDAR_CACHE["payload"] = schedule
