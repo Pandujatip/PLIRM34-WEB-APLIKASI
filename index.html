@@ -1180,6 +1180,7 @@
               <div class="service-subtab-bar instrument-subtab-bar">
                 <button class="chip-button instrument-subtab active" data-instrument-tab="instrument-basic" type="button">Instrument</button>
                 <button class="chip-button instrument-subtab" data-instrument-tab="cems" type="button">CEMS</button>
+                <button class="chip-button instrument-subtab" data-instrument-tab="opacity" type="button">Opacity</button>
               </div>
               <div class="service-form-grid service-form-grid-single">
               <form class="input-form instrument-pane visible" data-editable-for="admin,organik,team" data-instrument-pane="instrument-basic" data-form-type="service-instrument">
@@ -1415,6 +1416,194 @@
                   </div>
                 </div>
                 <button class="btn btn-primary" type="submit">Simpan Inspeksi CEMS</button>
+              </form>
+
+              <form class="input-form instrument-pane" data-editable-for="admin,organik,team" data-instrument-pane="opacity" data-form-type="service-opacity-meter">
+                <div class="card-head compact-head">
+                  <p class="eyebrow">Opacity Meter</p>
+                  <h3>Inspeksi Opacity Meter</h3>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Identitas Inspeksi</strong>
+                    <span>Isi tanggal, waktu, equipment, identitas teknisi, dan shift inspeksi.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Tanggal
+                      <input type="date" name="inspectionDate" required>
+                    </label>
+                    <label>
+                      Waktu
+                      <input type="time" name="inspectionTime" required>
+                    </label>
+                    <label>
+                      Equipment
+                      <input type="text" name="equipmentName" list="opacity-equipment-reference-list" placeholder="Pilih equipment opacity meter" required>
+                    </label>
+                    <label>
+                      Merk / Model
+                      <input type="text" name="brandModel" placeholder="Contoh: SICK / OMS420" required>
+                    </label>
+                    <label>
+                      Nama teknisi
+                      <input type="text" name="technicianName" placeholder="Nama teknisi" required>
+                    </label>
+                    <label>
+                      Shift
+                      <input type="text" name="shift" placeholder="Contoh: A / B / C" required>
+                    </label>
+                  </div>
+                  <datalist id="opacity-equipment-reference-list">
+                    <option value="343SK1OP01"></option>
+                    <option value="344SK01OP01"></option>
+                  </datalist>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Data Pembacaan Opacity</strong>
+                    <span>Isi nilai, satuan, batas, dan status pembacaan utama opacity meter.</span>
+                  </div>
+                  <div class="form-grid form-grid-5 cems-parameter-grid">
+                    <label><span>Opacity Nilai</span><input type="text" name="opacityValue" placeholder="Contoh: 12.5"></label>
+                    <label><span>Opacity Satuan</span><input type="text" name="opacityUnit" value="%" required></label>
+                    <label><span>Opacity Batas</span><input type="text" name="opacityLimit" placeholder="Contoh: ≤ 20"></label>
+                    <label><span>Opacity Status</span><select name="opacityStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+
+                    <label><span>Transmittance Nilai</span><input type="text" name="transmittanceValue" placeholder="Contoh: 87.5"></label>
+                    <label><span>Transmittance Satuan</span><input type="text" name="transmittanceUnit" value="%" required></label>
+                    <label><span>Transmittance Batas</span><input type="text" name="transmittanceLimit" placeholder="Contoh: ≥ 80"></label>
+                    <label><span>Transmittance Status</span><select name="transmittanceStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+
+                    <label><span>Alarm Status Nilai</span><input type="text" name="alarmStatusValue" placeholder="Contoh: Normal / Alarm High"></label>
+                    <label><span>Alarm Status Satuan</span><input type="text" name="alarmStatusUnit" value="-"></label>
+                    <label><span>Alarm Status Batas</span><input type="text" name="alarmStatusLimit" placeholder="Contoh: Tidak ada alarm"></label>
+                    <label><span>Alarm Status</span><select name="alarmStatusCondition" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Visual & Fisik</strong>
+                    <span>Periksa kondisi housing, mounting, alignment, vibrasi, dan kondensasi.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Housing Bersih</span><select name="visualHousingClean" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Mounting Kuat</span><select name="visualMounting" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Alignment Transmitter / Receiver</span><select name="visualAlignment" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Tidak Ada Vibrasi Berlebih</span><select name="visualVibration" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Tidak Ada Kondensasi</span><select name="visualCondensation" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Visual & Fisik</span><textarea name="visualNote" rows="3" placeholder="Catatan visual dan fisik"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Optik & Sensor</strong>
+                    <span>Periksa kebersihan optik, deposit, stabilitas sinyal, dan intensitas cahaya.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Lens Bersih</span><select name="opticLens" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Reflector Bersih</span><select name="opticReflector" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Tidak Ada Debu / Deposit</span><select name="opticDeposit" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Sinyal Stabil</span><select name="opticSignal" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Light Intensity Normal</span><select name="opticLightIntensity" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Optik & Sensor</span><textarea name="opticNote" rows="3" placeholder="Catatan optik dan sensor"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Air Purge / Blower</strong>
+                    <span>Validasi air purge, tekanan, flow, dan filter udara.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Air Purge Aktif</span><select name="purgeActive" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Tekanan Udara Cukup</span><select name="purgePressure" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Flow Udara Stabil</span><select name="purgeFlow" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Filter Udara Bersih</span><select name="purgeFilter" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Air Purge / Blower</span><textarea name="purgeNote" rows="3" placeholder="Catatan air purge / blower"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Elektrik & Komunikasi</strong>
+                    <span>Periksa power, output ke PLC/DCS, kabel, dan noise signal.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Power Supply Normal</span><select name="electricalPowerSupply" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Output ke PLC / DCS</span><select name="electricalOutput" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Kabel & Koneksi Aman</span><select name="electricalCable" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Tidak Ada Noise Signal</span><select name="electricalNoise" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Elektrik & Komunikasi</span><textarea name="electricalNote" rows="3" placeholder="Catatan elektrik dan komunikasi"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Zero & Span Check</strong>
+                    <span>Isi hasil zero check, span check, dan drift.</span>
+                  </div>
+                  <div class="form-grid form-grid-5 cems-parameter-grid">
+                    <label><span>Zero Check Nilai</span><input type="text" name="zeroCheckValue" placeholder="Contoh: 0.2"></label>
+                    <label><span>Zero Check Status</span><select name="zeroCheckStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Zero Check Keterangan</span><input type="text" name="zeroCheckNote" placeholder="Catatan zero check"></label>
+
+                    <label><span>Span Check Nilai</span><input type="text" name="spanCheckValue" placeholder="Contoh: 95"></label>
+                    <label><span>Span Check Status</span><select name="spanCheckStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Span Check Keterangan</span><input type="text" name="spanCheckNote" placeholder="Catatan span check"></label>
+
+                    <label><span>Drift Nilai</span><input type="text" name="driftValue" placeholder="Contoh: 0.8"></label>
+                    <label><span>Drift Status</span><select name="driftStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Drift Keterangan</span><input type="text" name="driftNote" placeholder="Catatan drift"></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Temuan Inspeksi</strong>
+                    <span>Isi masalah, analisa penyebab, dan dampaknya ke pembacaan opacity.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Masalah ditemukan
+                      <textarea name="findingIssue" rows="3" placeholder="Masalah yang ditemukan"></textarea>
+                    </label>
+                    <label class="full-span">
+                      Analisa penyebab
+                      <textarea name="possibleCause" rows="3" placeholder="Analisa penyebab"></textarea>
+                    </label>
+                    <label class="full-span">
+                      Dampak ke pembacaan opacity
+                      <textarea name="readingImpact" rows="3" placeholder="Dampak ke pembacaan opacity"></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Rekomendasi</strong>
+                    <span>Pilih tindak lanjut yang direkomendasikan dari hasil inspeksi.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><input type="checkbox" name="recommendationCleaning"> Cleaning</label>
+                    <label><input type="checkbox" name="recommendationRealignment"> Re-alignment</label>
+                    <label><input type="checkbox" name="recommendationCalibration"> Kalibrasi</label>
+                    <label><input type="checkbox" name="recommendationSparePart"> Penggantian Spare Part</label>
+                    <label class="full-span">
+                      Lainnya
+                      <input type="text" name="recommendationOther" placeholder="Rekomendasi tambahan">
+                    </label>
+                    <label class="full-span">
+                      Keterangan umum
+                      <textarea name="description" rows="4" placeholder="Catatan umum inspeksi opacity meter" required></textarea>
+                    </label>
+                  </div>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan Inspeksi Opacity Meter</button>
               </form>
             </div>
             </div>

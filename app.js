@@ -2036,6 +2036,70 @@ function analyzeServiceItem(item) {
     return notes.length ? notes : ["Kondisi umum CEMS masih baik berdasarkan parameter, checklist sistem, dan catatan inspeksi terakhir."];
   }
 
+  if (item.formType === "service-opacity-meter") {
+    const notes = [];
+    const parameterAlerts = [
+      ["Opacity", payload.opacityStatus, payload.opacityValue, payload.opacityUnit],
+      ["Transmittance", payload.transmittanceStatus, payload.transmittanceValue, payload.transmittanceUnit],
+      ["Alarm Status", payload.alarmStatusCondition, payload.alarmStatusValue, payload.alarmStatusUnit],
+    ].filter(([, status]) => normalizeOpacityStatusValue(status) === "NG");
+
+    if (parameterAlerts.length) {
+      notes.push(`Parameter opacity meter yang berstatus NG: ${parameterAlerts.map(([label, , value, unit]) => `${label} (${value || "-"} ${unit || ""})`.trim()).join(", ")}.`);
+    }
+
+    const checklistAlerts = [
+      ["Housing Bersih", payload.visualHousingClean],
+      ["Mounting Kuat", payload.visualMounting],
+      ["Alignment Transmitter / Receiver", payload.visualAlignment],
+      ["Tidak Ada Vibrasi Berlebih", payload.visualVibration],
+      ["Tidak Ada Kondensasi", payload.visualCondensation],
+      ["Lens Bersih", payload.opticLens],
+      ["Reflector Bersih", payload.opticReflector],
+      ["Tidak Ada Debu / Deposit", payload.opticDeposit],
+      ["Sinyal Stabil", payload.opticSignal],
+      ["Light Intensity Normal", payload.opticLightIntensity],
+      ["Air Purge Aktif", payload.purgeActive],
+      ["Tekanan Udara Cukup", payload.purgePressure],
+      ["Flow Udara Stabil", payload.purgeFlow],
+      ["Filter Udara Bersih", payload.purgeFilter],
+      ["Power Supply Normal", payload.electricalPowerSupply],
+      ["Output ke PLC / DCS", payload.electricalOutput],
+      ["Kabel & Koneksi Aman", payload.electricalCable],
+      ["Tidak Ada Noise Signal", payload.electricalNoise],
+      ["Zero Check", payload.zeroCheckStatus],
+      ["Span Check", payload.spanCheckStatus],
+      ["Drift", payload.driftStatus],
+    ].filter(([, status]) => normalizeOpacityStatusValue(status) === "NG");
+
+    if (checklistAlerts.length) {
+      notes.push(`Checklist opacity meter yang perlu tindakan: ${checklistAlerts.map(([label]) => label).join(", ")}.`);
+    }
+
+    if (String(payload.findingIssue || "").trim()) {
+      notes.push(`Masalah ditemukan: ${payload.findingIssue}.`);
+    }
+    if (String(payload.possibleCause || "").trim()) {
+      notes.push(`Analisa penyebab: ${payload.possibleCause}.`);
+    }
+    if (String(payload.readingImpact || "").trim()) {
+      notes.push(`Dampak ke pembacaan opacity: ${payload.readingImpact}.`);
+    }
+
+    const recommendations = [
+      payload.recommendationCleaning ? "Cleaning" : "",
+      payload.recommendationRealignment ? "Re-alignment" : "",
+      payload.recommendationCalibration ? "Kalibrasi" : "",
+      payload.recommendationSparePart ? "Penggantian Spare Part" : "",
+      payload.recommendationOther || "",
+    ].filter(Boolean);
+    if (recommendations.length) {
+      notes.push(`Rekomendasi tindak lanjut: ${recommendations.join(", ")}.`);
+    }
+
+    return notes.length ? notes : ["Kondisi umum opacity meter masih baik berdasarkan parameter, checklist, dan catatan inspeksi terakhir."];
+  }
+
   if (item.formType === "service-dcs") {
     const payload = normalizeDcsPayload(item.payload || {});
     const notes = [];
@@ -2577,6 +2641,35 @@ function formatServicePayloadLines(item) {
       ["Penyebab kemungkinan", payload.possibleCause || "-"],
       ["Dampak emisi / compliance", payload.emissionImpact || "-"],
       ["Urgensi", payload.urgencyLevel || "-"],
+      ["Foto temuan", photoSummary],
+    ];
+  }
+
+  if (item.formType === "service-opacity-meter") {
+    const recommendations = [
+      payload.recommendationCleaning ? "Cleaning" : "",
+      payload.recommendationRealignment ? "Re-alignment" : "",
+      payload.recommendationCalibration ? "Kalibrasi" : "",
+      payload.recommendationSparePart ? "Penggantian Spare Part" : "",
+      payload.recommendationOther || "",
+    ].filter(Boolean).join(", ");
+    return [
+      ["Waktu", payload.inspectionTime || "-"],
+      ["Merk / Model", payload.brandModel || "-"],
+      ["Nama teknisi", payload.technicianName || "-"],
+      ["Shift", payload.shift || "-"],
+      ["Opacity", `${payload.opacityValue || "-"} ${payload.opacityUnit || ""} | Batas ${payload.opacityLimit || "-"} | ${payload.opacityStatus || "-"}`.trim()],
+      ["Transmittance", `${payload.transmittanceValue || "-"} ${payload.transmittanceUnit || ""} | Batas ${payload.transmittanceLimit || "-"} | ${payload.transmittanceStatus || "-"}`.trim()],
+      ["Alarm Status", `${payload.alarmStatusValue || "-"} | Batas ${payload.alarmStatusLimit || "-"} | ${payload.alarmStatusCondition || "-"}`.trim()],
+      ["Visual & fisik", `Housing ${payload.visualHousingClean || "-"} | Mounting ${payload.visualMounting || "-"} | Alignment ${payload.visualAlignment || "-"}`],
+      ["Optik & sensor", `Lens ${payload.opticLens || "-"} | Reflector ${payload.opticReflector || "-"} | Sinyal ${payload.opticSignal || "-"}`],
+      ["Air purge / blower", `Purge ${payload.purgeActive || "-"} | Tekanan ${payload.purgePressure || "-"} | Flow ${payload.purgeFlow || "-"}`],
+      ["Elektrik & komunikasi", `Power ${payload.electricalPowerSupply || "-"} | PLC/DCS ${payload.electricalOutput || "-"} | Noise ${payload.electricalNoise || "-"}`],
+      ["Zero / Span / Drift", `Zero ${payload.zeroCheckValue || "-"} (${payload.zeroCheckStatus || "-"}) | Span ${payload.spanCheckValue || "-"} (${payload.spanCheckStatus || "-"}) | Drift ${payload.driftValue || "-"} (${payload.driftStatus || "-"})`],
+      ["Masalah ditemukan", payload.findingIssue || "-"],
+      ["Analisa penyebab", payload.possibleCause || "-"],
+      ["Dampak pembacaan", payload.readingImpact || "-"],
+      ["Rekomendasi", recommendations || "-"],
       ["Foto temuan", photoSummary],
     ];
   }
@@ -5515,6 +5608,44 @@ function buildCemsDetailSummary(payload = {}) {
   return `Parameter NG: ${abnormalParameters} | Checklist NG: ${abnormalChecks} | Urgensi: ${payload.urgencyLevel || "-"}`;
 }
 
+function normalizeOpacityStatusValue(value) {
+  return String(value || "").trim().toUpperCase() === "NG" ? "NG" : "OK";
+}
+
+function buildOpacityDetailSummary(payload = {}) {
+  const parameterNg = [
+    payload.opacityStatus,
+    payload.transmittanceStatus,
+    payload.alarmStatusCondition,
+  ].filter((value) => normalizeOpacityStatusValue(value) === "NG").length;
+
+  const checklistNg = [
+    payload.visualHousingClean,
+    payload.visualMounting,
+    payload.visualAlignment,
+    payload.visualVibration,
+    payload.visualCondensation,
+    payload.opticLens,
+    payload.opticReflector,
+    payload.opticDeposit,
+    payload.opticSignal,
+    payload.opticLightIntensity,
+    payload.purgeActive,
+    payload.purgePressure,
+    payload.purgeFlow,
+    payload.purgeFilter,
+    payload.electricalPowerSupply,
+    payload.electricalOutput,
+    payload.electricalCable,
+    payload.electricalNoise,
+    payload.zeroCheckStatus,
+    payload.spanCheckStatus,
+    payload.driftStatus,
+  ].filter((value) => normalizeOpacityStatusValue(value) === "NG").length;
+
+  return `Parameter NG: ${parameterNg} | Checklist NG: ${checklistNg} | Shift: ${payload.shift || "-"}`;
+}
+
 function getNegatifStatusTagClass(value) {
   return String(value || "").toLowerCase() === "close" ? "tag-neutral" : "tag-danger";
 }
@@ -6116,7 +6247,13 @@ function hydrateServiceForm(item) {
 
   if (item.type === "Instrument") {
     openServicePane("instrument");
-    openInstrumentPane(item.formType === "service-cems" ? "cems" : "instrument-basic");
+    if (item.formType === "service-cems") {
+      openInstrumentPane("cems");
+    } else if (item.formType === "service-opacity-meter") {
+      openInstrumentPane("opacity");
+    } else {
+      openInstrumentPane("instrument-basic");
+    }
   }
 
   if (item.type === "DCS") {
@@ -6262,6 +6399,65 @@ function hydrateServiceForm(item) {
     form.possibleCause.value = payload.possibleCause || "";
     form.emissionImpact.value = payload.emissionImpact || "";
     form.urgencyLevel.value = payload.urgencyLevel || "Low";
+  }
+
+  if (item.formType === "service-opacity-meter") {
+    form.inspectionDate.value = String(payload.inspectionDate || "").slice(0, 10);
+    form.inspectionTime.value = payload.inspectionTime || "";
+    form.brandModel.value = payload.brandModel || "";
+    form.technicianName.value = payload.technicianName || "";
+    form.shift.value = payload.shift || "";
+    form.opacityValue.value = payload.opacityValue || "";
+    form.opacityUnit.value = payload.opacityUnit || "%";
+    form.opacityLimit.value = payload.opacityLimit || "";
+    form.opacityStatus.value = normalizeOpacityStatusValue(payload.opacityStatus || "OK");
+    form.transmittanceValue.value = payload.transmittanceValue || "";
+    form.transmittanceUnit.value = payload.transmittanceUnit || "%";
+    form.transmittanceLimit.value = payload.transmittanceLimit || "";
+    form.transmittanceStatus.value = normalizeOpacityStatusValue(payload.transmittanceStatus || "OK");
+    form.alarmStatusValue.value = payload.alarmStatusValue || "";
+    form.alarmStatusUnit.value = payload.alarmStatusUnit || "-";
+    form.alarmStatusLimit.value = payload.alarmStatusLimit || "";
+    form.alarmStatusCondition.value = normalizeOpacityStatusValue(payload.alarmStatusCondition || "OK");
+    form.visualHousingClean.value = normalizeOpacityStatusValue(payload.visualHousingClean || "OK");
+    form.visualMounting.value = normalizeOpacityStatusValue(payload.visualMounting || "OK");
+    form.visualAlignment.value = normalizeOpacityStatusValue(payload.visualAlignment || "OK");
+    form.visualVibration.value = normalizeOpacityStatusValue(payload.visualVibration || "OK");
+    form.visualCondensation.value = normalizeOpacityStatusValue(payload.visualCondensation || "OK");
+    form.visualNote.value = payload.visualNote || "";
+    form.opticLens.value = normalizeOpacityStatusValue(payload.opticLens || "OK");
+    form.opticReflector.value = normalizeOpacityStatusValue(payload.opticReflector || "OK");
+    form.opticDeposit.value = normalizeOpacityStatusValue(payload.opticDeposit || "OK");
+    form.opticSignal.value = normalizeOpacityStatusValue(payload.opticSignal || "OK");
+    form.opticLightIntensity.value = normalizeOpacityStatusValue(payload.opticLightIntensity || "OK");
+    form.opticNote.value = payload.opticNote || "";
+    form.purgeActive.value = normalizeOpacityStatusValue(payload.purgeActive || "OK");
+    form.purgePressure.value = normalizeOpacityStatusValue(payload.purgePressure || "OK");
+    form.purgeFlow.value = normalizeOpacityStatusValue(payload.purgeFlow || "OK");
+    form.purgeFilter.value = normalizeOpacityStatusValue(payload.purgeFilter || "OK");
+    form.purgeNote.value = payload.purgeNote || "";
+    form.electricalPowerSupply.value = normalizeOpacityStatusValue(payload.electricalPowerSupply || "OK");
+    form.electricalOutput.value = normalizeOpacityStatusValue(payload.electricalOutput || "OK");
+    form.electricalCable.value = normalizeOpacityStatusValue(payload.electricalCable || "OK");
+    form.electricalNoise.value = normalizeOpacityStatusValue(payload.electricalNoise || "OK");
+    form.electricalNote.value = payload.electricalNote || "";
+    form.zeroCheckValue.value = payload.zeroCheckValue || "";
+    form.zeroCheckStatus.value = normalizeOpacityStatusValue(payload.zeroCheckStatus || "OK");
+    form.zeroCheckNote.value = payload.zeroCheckNote || "";
+    form.spanCheckValue.value = payload.spanCheckValue || "";
+    form.spanCheckStatus.value = normalizeOpacityStatusValue(payload.spanCheckStatus || "OK");
+    form.spanCheckNote.value = payload.spanCheckNote || "";
+    form.driftValue.value = payload.driftValue || "";
+    form.driftStatus.value = normalizeOpacityStatusValue(payload.driftStatus || "OK");
+    form.driftNote.value = payload.driftNote || "";
+    form.findingIssue.value = payload.findingIssue || "";
+    form.possibleCause.value = payload.possibleCause || "";
+    form.readingImpact.value = payload.readingImpact || "";
+    form.recommendationCleaning.checked = Boolean(payload.recommendationCleaning);
+    form.recommendationRealignment.checked = Boolean(payload.recommendationRealignment);
+    form.recommendationCalibration.checked = Boolean(payload.recommendationCalibration);
+    form.recommendationSparePart.checked = Boolean(payload.recommendationSparePart);
+    form.recommendationOther.value = payload.recommendationOther || "";
   }
 
   if (item.formType === "service-dcs") {
@@ -7585,6 +7781,102 @@ forms.forEach((form) => {
         appendServiceCard(savedItem);
         setSubmitNote(form, "Inspeksi CEMS berhasil ditambahkan.");
         showToast("CEMS", "Item baru berhasil ditambahkan.");
+      }
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
+    }
+
+    if (formType === "service-opacity-meter") {
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
+      const payload = {
+        inspectionDate: inspectionDateValue
+          ? new Date(`${inspectionDateValue}T00:00:00`).toISOString()
+          : existingPayload.inspectionDate || new Date().toISOString(),
+        inspectionTime: String(formData.get("inspectionTime") || "").trim(),
+        brandModel: String(formData.get("brandModel") || "").trim(),
+        technicianName: String(formData.get("technicianName") || "").trim(),
+        shift: String(formData.get("shift") || "").trim(),
+        opacityValue: String(formData.get("opacityValue") || "").trim(),
+        opacityUnit: String(formData.get("opacityUnit") || "").trim(),
+        opacityLimit: String(formData.get("opacityLimit") || "").trim(),
+        opacityStatus: normalizeOpacityStatusValue(formData.get("opacityStatus")),
+        transmittanceValue: String(formData.get("transmittanceValue") || "").trim(),
+        transmittanceUnit: String(formData.get("transmittanceUnit") || "").trim(),
+        transmittanceLimit: String(formData.get("transmittanceLimit") || "").trim(),
+        transmittanceStatus: normalizeOpacityStatusValue(formData.get("transmittanceStatus")),
+        alarmStatusValue: String(formData.get("alarmStatusValue") || "").trim(),
+        alarmStatusUnit: String(formData.get("alarmStatusUnit") || "").trim(),
+        alarmStatusLimit: String(formData.get("alarmStatusLimit") || "").trim(),
+        alarmStatusCondition: normalizeOpacityStatusValue(formData.get("alarmStatusCondition")),
+        visualHousingClean: normalizeOpacityStatusValue(formData.get("visualHousingClean")),
+        visualMounting: normalizeOpacityStatusValue(formData.get("visualMounting")),
+        visualAlignment: normalizeOpacityStatusValue(formData.get("visualAlignment")),
+        visualVibration: normalizeOpacityStatusValue(formData.get("visualVibration")),
+        visualCondensation: normalizeOpacityStatusValue(formData.get("visualCondensation")),
+        visualNote: String(formData.get("visualNote") || "").trim(),
+        opticLens: normalizeOpacityStatusValue(formData.get("opticLens")),
+        opticReflector: normalizeOpacityStatusValue(formData.get("opticReflector")),
+        opticDeposit: normalizeOpacityStatusValue(formData.get("opticDeposit")),
+        opticSignal: normalizeOpacityStatusValue(formData.get("opticSignal")),
+        opticLightIntensity: normalizeOpacityStatusValue(formData.get("opticLightIntensity")),
+        opticNote: String(formData.get("opticNote") || "").trim(),
+        purgeActive: normalizeOpacityStatusValue(formData.get("purgeActive")),
+        purgePressure: normalizeOpacityStatusValue(formData.get("purgePressure")),
+        purgeFlow: normalizeOpacityStatusValue(formData.get("purgeFlow")),
+        purgeFilter: normalizeOpacityStatusValue(formData.get("purgeFilter")),
+        purgeNote: String(formData.get("purgeNote") || "").trim(),
+        electricalPowerSupply: normalizeOpacityStatusValue(formData.get("electricalPowerSupply")),
+        electricalOutput: normalizeOpacityStatusValue(formData.get("electricalOutput")),
+        electricalCable: normalizeOpacityStatusValue(formData.get("electricalCable")),
+        electricalNoise: normalizeOpacityStatusValue(formData.get("electricalNoise")),
+        electricalNote: String(formData.get("electricalNote") || "").trim(),
+        zeroCheckValue: String(formData.get("zeroCheckValue") || "").trim(),
+        zeroCheckStatus: normalizeOpacityStatusValue(formData.get("zeroCheckStatus")),
+        zeroCheckNote: String(formData.get("zeroCheckNote") || "").trim(),
+        spanCheckValue: String(formData.get("spanCheckValue") || "").trim(),
+        spanCheckStatus: normalizeOpacityStatusValue(formData.get("spanCheckStatus")),
+        spanCheckNote: String(formData.get("spanCheckNote") || "").trim(),
+        driftValue: String(formData.get("driftValue") || "").trim(),
+        driftStatus: normalizeOpacityStatusValue(formData.get("driftStatus")),
+        driftNote: String(formData.get("driftNote") || "").trim(),
+        findingIssue: String(formData.get("findingIssue") || "").trim(),
+        possibleCause: String(formData.get("possibleCause") || "").trim(),
+        readingImpact: String(formData.get("readingImpact") || "").trim(),
+        recommendationCleaning: formData.get("recommendationCleaning") === "on",
+        recommendationRealignment: formData.get("recommendationRealignment") === "on",
+        recommendationCalibration: formData.get("recommendationCalibration") === "on",
+        recommendationSparePart: formData.get("recommendationSparePart") === "on",
+        recommendationOther: String(formData.get("recommendationOther") || "").trim(),
+        ...photoPayload,
+      };
+      const item = {
+        id: editingServiceId || createId("service"),
+        type: "Instrument",
+        subtype: "Opacity Meter",
+        formType: "service-opacity-meter",
+        equipmentName: String(formData.get("equipmentName") || "-").trim(),
+        description: String(formData.get("description") || "-").trim(),
+        detail: buildOpacityDetailSummary(payload),
+        payload,
+      };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
+      if (editingServiceId) {
+        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
+        if (existing) {
+          existing.replaceWith(renderServiceCard(savedItem));
+        }
+        setSubmitNote(form, "Inspeksi Opacity Meter berhasil diperbarui.");
+        showToast("Opacity Meter", "Data berhasil diperbarui.");
+        editingServiceId = null;
+      } else {
+        appendServiceCard(savedItem);
+        setSubmitNote(form, "Inspeksi Opacity Meter berhasil ditambahkan.");
+        showToast("Opacity Meter", "Item baru berhasil ditambahkan.");
       }
       persistServiceList();
       updateDashboardStats();
