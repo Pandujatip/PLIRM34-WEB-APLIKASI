@@ -4844,14 +4844,14 @@ async function refreshAdminMasters() {
 function getNegatifItemsFromDom() {
   return [...negatifListBody.querySelectorAll("tr")].map((row) => ({
     id: row.dataset.id,
-    equipment: row.children[0].textContent.trim(),
-    damageDescription: row.children[1].textContent.trim(),
-    followUpPlan: row.children[2].textContent.trim(),
-    foundDate: row.children[3].textContent.trim(),
-    pendingMark: row.children[4].textContent.trim(),
-    workStatus: row.children[5].textContent.trim(),
-    category: row.children[6].textContent.trim(),
-    area: row.children[7].textContent.trim(),
+    equipment: row.children[1].textContent.trim(),
+    damageDescription: row.children[2].textContent.trim(),
+    followUpPlan: row.children[3].textContent.trim(),
+    foundDate: row.children[4].textContent.trim(),
+    pendingMark: row.children[5].textContent.trim(),
+    workStatus: row.children[6].textContent.trim(),
+    category: row.children[7].textContent.trim(),
+    area: row.children[8].textContent.trim(),
   }));
 }
 
@@ -5730,6 +5730,10 @@ function renderNegatifRow(item) {
   const row = document.createElement("tr");
   row.dataset.id = item.id;
   row.innerHTML = `
+    <td class="action-cell">
+      <button class="table-action icon-action" data-action="edit-negatif" type="button" title="Edit" aria-label="Edit">&#9998;</button>
+      <button class="table-action danger icon-action" data-action="delete-negatif" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
+    </td>
     <td>
       <div class="negative-cell-main">
         <strong>${escapeHtml(item.equipment || "-")}</strong>
@@ -5746,10 +5750,6 @@ function renderNegatifRow(item) {
     <td><span class="tag ${getNegatifStatusTagClass(item.workStatus)}">${escapeHtml(item.workStatus || "-")}</span></td>
     <td><span class="tag ${getNegatifCategoryTagClass(item.category)}">${escapeHtml(item.category || "-")}</span></td>
     <td><span class="tag ${getNegatifAreaTagClass(item.area)}">${escapeHtml(item.area || "-")}</span></td>
-    <td class="action-cell">
-      <button class="table-action icon-action" data-action="edit-negatif" type="button" title="Edit" aria-label="Edit">&#9998;</button>
-      <button class="table-action danger icon-action" data-action="delete-negatif" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
-    </td>
   `;
   return row;
 }
@@ -8203,14 +8203,14 @@ negatifListBody.addEventListener("click", async (event) => {
   if (target.dataset.action === "edit-negatif") {
     hydrateNegatifForm({
       id: row.dataset.id,
-      equipment: row.children[0].textContent,
-      damageDescription: row.children[1].textContent,
-      followUpPlan: row.children[2].textContent,
-      foundDate: row.children[3].textContent.trim(),
-      pendingMark: row.children[4].textContent.trim(),
-      workStatus: row.children[5].textContent.trim(),
-      category: row.children[6].textContent.trim(),
-      area: row.children[7].textContent.trim(),
+      equipment: row.children[1].textContent,
+      damageDescription: row.children[2].textContent,
+      followUpPlan: row.children[3].textContent,
+      foundDate: row.children[4].textContent.trim(),
+      pendingMark: row.children[5].textContent.trim(),
+      workStatus: row.children[6].textContent.trim(),
+      category: row.children[7].textContent.trim(),
+      area: row.children[8].textContent.trim(),
     });
     openSection("negatif-list");
     openCreatePanel("negatif-list");
