@@ -1490,11 +1490,14 @@ select:focus {
 }
 
 [data-panel="spb"] .spb-table-wrap {
+  display: block;
   position: relative;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: scroll;
   max-height: calc(20 * 42px + 56px);
   min-height: calc(20 * 42px + 56px);
   overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
   scrollbar-width: auto;
   scrollbar-color: rgba(255, 140, 66, 0.95) rgba(255, 255, 255, 0.08);
 }
