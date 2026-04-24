@@ -1492,7 +1492,8 @@ select:focus {
 [data-panel="spb"] .spb-table-wrap {
   position: relative;
   overflow: auto;
-  max-height: 560px;
+  max-height: calc(20 * 42px + 56px);
+  min-height: calc(20 * 42px + 56px);
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 122, 24, 0.82) rgba(255, 255, 255, 0.06);
