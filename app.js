@@ -6014,6 +6014,10 @@ function renderSpbRow(item) {
   const row = document.createElement("tr");
   row.dataset.id = normalizedItem.id;
   row.innerHTML = `
+    <td class="action-cell">
+      <button class="table-action icon-action" data-action="edit-spb" type="button" title="Edit" aria-label="Edit">&#9998;</button>
+      <button class="table-action danger icon-action" data-action="delete-spb" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
+    </td>
     <td><span class="tag tag-neutral">${escapeHtml(normalizedItem.year || "-")}</span></td>
     <td><span class="tag tag-neutral">${escapeHtml(normalizedItem.quarter || "-")}</span></td>
     <td><span class="tag tag-blue">${escapeHtml(normalizedItem.spbType || "-")}</span></td>
@@ -6029,10 +6033,6 @@ function renderSpbRow(item) {
     <td>${escapeHtml(normalizedItem.prNo || "-")}</td>
     <td>${escapeHtml(normalizedItem.poNo || "-")}</td>
     <td><span class="spb-date-pill">${escapeHtml(normalizedItem.deliveryDate || "-")}</span></td>
-    <td class="action-cell">
-      <button class="table-action icon-action" data-action="edit-spb" type="button" title="Edit" aria-label="Edit">&#9998;</button>
-      <button class="table-action danger icon-action" data-action="delete-spb" type="button" title="Hapus" aria-label="Hapus">&#128465;</button>
-    </td>
   `;
   return row;
 }
@@ -6154,21 +6154,21 @@ function getBomMotorItemsFromDom() {
 function getSpbItemsFromDom() {
   return [...spbBody.querySelectorAll("tr")].map((row) => ({
     id: row.dataset.id,
-    year: row.children[0].textContent.trim(),
-    quarter: row.children[1].textContent.trim(),
-    spbType: row.children[2].textContent.trim(),
-    notificationNo: row.children[3].textContent.trim(),
-    orderNo: row.children[4].textContent.trim(),
-    reservationNo: row.children[5].textContent.trim(),
-    stockNo: row.children[6].textContent.trim(),
-    materialDescription: row.children[7].textContent.trim(),
-    qty: row.children[8].textContent.trim(),
-    mrp: row.children[9].textContent.trim(),
-    totalEce: row.children[10].textContent.trim(),
-    note: row.children[11].textContent.trim(),
-    prNo: row.children[12].textContent.trim(),
-    poNo: row.children[13].textContent.trim(),
-    deliveryDate: row.children[14].textContent.trim(),
+    year: row.children[1].textContent.trim(),
+    quarter: row.children[2].textContent.trim(),
+    spbType: row.children[3].textContent.trim(),
+    notificationNo: row.children[4].textContent.trim(),
+    orderNo: row.children[5].textContent.trim(),
+    reservationNo: row.children[6].textContent.trim(),
+    stockNo: row.children[7].textContent.trim(),
+    materialDescription: row.children[8].textContent.trim(),
+    qty: row.children[9].textContent.trim(),
+    mrp: row.children[10].textContent.trim(),
+    totalEce: row.children[11].textContent.trim(),
+    note: row.children[12].textContent.trim(),
+    prNo: row.children[13].textContent.trim(),
+    poNo: row.children[14].textContent.trim(),
+    deliveryDate: row.children[15].textContent.trim(),
   })).map((item) => normalizeSpbItem(item));
 }
 
@@ -8589,21 +8589,21 @@ spbBody.addEventListener("click", async (event) => {
   if (target.dataset.action === "edit-spb") {
     hydrateSpbForm({
       id: row.dataset.id,
-      year: row.children[0].textContent.trim(),
-      quarter: row.children[1].textContent.trim(),
-      spbType: row.children[2].textContent.trim(),
-      notificationNo: row.children[3].textContent.trim(),
-      orderNo: row.children[4].textContent.trim(),
-      reservationNo: row.children[5].textContent.trim(),
-      stockNo: row.children[6].textContent.trim(),
-      materialDescription: row.children[7].textContent.trim(),
-      qty: row.children[8].textContent.trim(),
-      mrp: row.children[9].textContent.trim(),
-      totalEce: row.children[10].textContent.trim(),
-      note: row.children[11].textContent.trim(),
-      prNo: row.children[12].textContent.trim(),
-      poNo: row.children[13].textContent.trim(),
-      deliveryDate: row.children[14].textContent.trim(),
+      year: row.children[1].textContent.trim(),
+      quarter: row.children[2].textContent.trim(),
+      spbType: row.children[3].textContent.trim(),
+      notificationNo: row.children[4].textContent.trim(),
+      orderNo: row.children[5].textContent.trim(),
+      reservationNo: row.children[6].textContent.trim(),
+      stockNo: row.children[7].textContent.trim(),
+      materialDescription: row.children[8].textContent.trim(),
+      qty: row.children[9].textContent.trim(),
+      mrp: row.children[10].textContent.trim(),
+      totalEce: row.children[11].textContent.trim(),
+      note: row.children[12].textContent.trim(),
+      prNo: row.children[13].textContent.trim(),
+      poNo: row.children[14].textContent.trim(),
+      deliveryDate: row.children[15].textContent.trim(),
     });
     openSection("spb");
     openCreatePanel("spb");
