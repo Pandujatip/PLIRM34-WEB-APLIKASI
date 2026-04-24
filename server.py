@@ -375,6 +375,13 @@ DEFAULT_APP_SETTINGS = {
         "transformerOilLow": 40,
         "transformerOilHigh": 70,
     },
+    "mso_motor_sync": {
+        "directory": "/opt/plirm34/imports/mso-motor",
+        "pattern": "mso-motor-inspections-*.csv",
+        "lastImportedFile": "",
+        "lastImportedAt": "",
+        "lastImportedCount": 0,
+    },
 }
 
 FALLBACK_EQUIPMENT_REFERENCES = {
@@ -872,6 +879,16 @@ def init_db() -> None:
                 winding_temperature TEXT NOT NULL DEFAULT '',
                 bearing_condition TEXT NOT NULL DEFAULT '',
                 motor_current TEXT NOT NULL DEFAULT '',
+                source_name TEXT NOT NULL DEFAULT '',
+                insp_id TEXT NOT NULL DEFAULT '',
+                id_amtrans TEXT NOT NULL DEFAULT '',
+                condition_label TEXT NOT NULL DEFAULT '',
+                creator_name TEXT NOT NULL DEFAULT '',
+                equipment_desc TEXT NOT NULL DEFAULT '',
+                photo_url TEXT NOT NULL DEFAULT '',
+                temperatur_ds TEXT NOT NULL DEFAULT '',
+                temperatur_nds TEXT NOT NULL DEFAULT '',
+                mplant TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
             );
 
@@ -1015,6 +1032,7 @@ def init_db() -> None:
         ensure_audit_columns(connection)
         ensure_bom_columns(connection)
         ensure_spb_columns(connection)
+        ensure_service_motor_mv_columns(connection)
         migrate_snapshot_state(connection)
 
 
@@ -1439,6 +1457,145 @@ def import_carbon_brush_from_url(source_url: str, mode: str, user_id: int) -> di
     return {"imported": imported, "mode": mode}
 
 
+def parse_mso_datetime(raw_value: str) -> str:
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return utc_now().isoformat()
+    for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw, fmt).isoformat()
+        except ValueError:
+            continue
+    return utc_now().isoformat()
+
+
+def read_text_with_fallbacks(file_path: Path) -> str:
+    last_error: UnicodeDecodeError | None = None
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            return file_path.read_text(encoding=encoding)
+        except UnicodeDecodeError as exc:
+            last_error = exc
+    if last_error:
+        raise ValueError("File CSV tidak dapat dibaca dengan encoding umum")
+    return file_path.read_text()
+
+
+def build_mso_motor_import_items(csv_text: str, source_name: str = "") -> list[dict]:
+    reader = csv.DictReader(io.StringIO(csv_text))
+    items: list[dict] = []
+
+    for row in reader:
+        insp_id = str(row.get("inspId", "") or "").strip()
+        equipment_name = str(row.get("equptName", "") or "").strip().upper()
+        if not insp_id or not equipment_name:
+            continue
+
+        inspection_date = parse_mso_datetime(str(row.get("tgl", "") or ""))
+        condition = str(row.get("condition", "") or "").strip().upper()
+        description = str(row.get("descr", "") or "").strip()
+        equipment_desc = str(row.get("equipmentDesc", "") or "").strip()
+        temperatur_ds = str(row.get("temperaturDs", "") or "").strip()
+        temperatur_nds = str(row.get("temperaturNds", "") or "").strip()
+        creator = str(row.get("creator", "") or "").strip()
+        photo_url = str(row.get("photoPath", "") or "").strip()
+        id_amtrans = str(row.get("idAmtrans", "") or "").strip()
+        mplant = str(row.get("mplant", "") or "").strip()
+        detail_parts = [
+            f"Condition: {condition or '-'}",
+            f"Temp DS: {temperatur_ds or '-'}",
+            f"Temp NDS: {temperatur_nds or '-'}",
+            f"InspID: {insp_id}",
+        ]
+        if creator:
+            detail_parts.append(f"PIC: {creator}")
+
+        items.append(
+            {
+                "id": f"service-mso-motor-{insp_id}",
+                "type": "Electrical",
+                "subtype": "Motor MV",
+                "formType": "service-motor-mv",
+                "equipmentName": equipment_name,
+                "description": description or equipment_desc or "-",
+                "detail": " | ".join(detail_parts),
+                "payload": {
+                    "inspectionDate": inspection_date,
+                    "source": "MSO",
+                    "sourceType": "mso-motor-sync",
+                    "sourceFile": source_name,
+                    "inspId": insp_id,
+                    "idAmtrans": id_amtrans,
+                    "condition": condition,
+                    "equipmentDesc": equipment_desc,
+                    "creator": creator,
+                    "mplant": mplant,
+                    "temperaturDs": temperatur_ds,
+                    "temperaturNds": temperatur_nds,
+                    "photoUrl": photo_url,
+                    "descriptionRaw": description,
+                    "vibrationDe": "",
+                    "vibrationNde": "",
+                    "windingTemperature": "",
+                    "bearingCondition": "",
+                    "motorCurrent": "",
+                },
+            }
+        )
+
+    return items
+
+
+def import_mso_motor_items(items: list[dict], user_id: int) -> dict:
+    if not items:
+        raise ValueError("CSV MSO motor tidak berisi data yang bisa diimport")
+
+    existing_ids = {str(item.get("id", "")) for item in load_resource_items("service")}
+    created = 0
+    updated = 0
+    for item in items:
+        if item["id"] in existing_ids:
+            updated += 1
+        else:
+            created += 1
+        create_or_update_item("service", item, user_id)
+    return {"imported": len(items), "created": created, "updated": updated, "mode": "append"}
+
+
+def import_mso_motor_from_latest_file(user_id: int) -> dict:
+    sync_settings = get_app_setting_value("mso_motor_sync", DEFAULT_APP_SETTINGS["mso_motor_sync"])
+    directory = Path(str(sync_settings.get("directory") or DEFAULT_APP_SETTINGS["mso_motor_sync"]["directory"]).strip())
+    pattern = str(sync_settings.get("pattern") or DEFAULT_APP_SETTINGS["mso_motor_sync"]["pattern"]).strip()
+    if not directory.exists() or not directory.is_dir():
+        raise ValueError(f"Folder sinkronisasi MSO tidak ditemukan: {directory}")
+    if not pattern:
+        raise ValueError("Pattern file MSO belum diatur")
+
+    latest_files = sorted(directory.glob(pattern), key=lambda path: path.stat().st_mtime, reverse=True)
+    if not latest_files:
+        raise ValueError(f"Tidak ada file CSV yang cocok dengan pattern {pattern} di folder {directory}")
+
+    latest_file = latest_files[0]
+    csv_text = read_text_with_fallbacks(latest_file)
+    items = build_mso_motor_import_items(csv_text, latest_file.name)
+    result = import_mso_motor_items(items, user_id)
+    updated_settings = {
+        **sync_settings,
+        "directory": str(directory),
+        "pattern": pattern,
+        "lastImportedFile": latest_file.name,
+        "lastImportedAt": utc_now().isoformat(),
+        "lastImportedCount": result["imported"],
+    }
+    save_app_setting_value("mso_motor_sync", updated_settings)
+    return {
+        **result,
+        "fileName": latest_file.name,
+        "directory": str(directory),
+        "pattern": pattern,
+    }
+
+
 def delete_item(resource_key: str, item_id: str) -> bool:
     resource_config = RESOURCE_TABLES[resource_key]
     with get_connection() as connection:
@@ -1507,8 +1664,10 @@ def sync_service_detail_tables(connection: sqlite3.Connection, item: dict) -> No
         connection.execute(
             """
             INSERT INTO service_motor_mv_details (
-                service_id, vibration_de, vibration_nde, winding_temperature, bearing_condition, motor_current
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                service_id, vibration_de, vibration_nde, winding_temperature, bearing_condition, motor_current,
+                source_name, insp_id, id_amtrans, condition_label, creator_name, equipment_desc,
+                photo_url, temperatur_ds, temperatur_nds, mplant
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 service_id,
@@ -1517,6 +1676,16 @@ def sync_service_detail_tables(connection: sqlite3.Connection, item: dict) -> No
                 str(payload.get("windingTemperature", "")),
                 str(payload.get("bearingCondition", "")),
                 str(payload.get("motorCurrent", "")),
+                str(payload.get("source", "")),
+                str(payload.get("inspId", "")),
+                str(payload.get("idAmtrans", "")),
+                str(payload.get("condition", "")),
+                str(payload.get("creator", "")),
+                str(payload.get("equipmentDesc", "")),
+                str(payload.get("photoUrl", "")),
+                str(payload.get("temperaturDs", "")),
+                str(payload.get("temperaturNds", "")),
+                str(payload.get("mplant", "")),
             ),
         )
         return
@@ -1934,6 +2103,28 @@ def ensure_spb_columns(connection: sqlite3.Connection) -> None:
     for column_name, column_definition in required_columns.items():
         if column_name not in columns:
             connection.execute(f"ALTER TABLE spb_items ADD COLUMN {column_name} {column_definition}")
+
+
+def ensure_service_motor_mv_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(service_motor_mv_details)").fetchall()
+    }
+    required_columns = {
+        "source_name": "TEXT NOT NULL DEFAULT ''",
+        "insp_id": "TEXT NOT NULL DEFAULT ''",
+        "id_amtrans": "TEXT NOT NULL DEFAULT ''",
+        "condition_label": "TEXT NOT NULL DEFAULT ''",
+        "creator_name": "TEXT NOT NULL DEFAULT ''",
+        "equipment_desc": "TEXT NOT NULL DEFAULT ''",
+        "photo_url": "TEXT NOT NULL DEFAULT ''",
+        "temperatur_ds": "TEXT NOT NULL DEFAULT ''",
+        "temperatur_nds": "TEXT NOT NULL DEFAULT ''",
+        "mplant": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column_name, column_definition in required_columns.items():
+        if column_name not in columns:
+            connection.execute(f"ALTER TABLE service_motor_mv_details ADD COLUMN {column_name} {column_definition}")
 
 
 def can_edit_resource(role: str, resource_key: str) -> bool:
@@ -2488,6 +2679,26 @@ def get_app_setting_value(setting_key: str, default: dict | None = None) -> dict
     return value if isinstance(value, dict) else (default.copy() if isinstance(default, dict) else {})
 
 
+def save_app_setting_value(setting_key: str, value: dict) -> None:
+    payload = value if isinstance(value, dict) else {}
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO app_settings (setting_key, value_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(setting_key) DO UPDATE SET
+                value_json = excluded.value_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                str(setting_key or "").strip(),
+                json.dumps(payload, ensure_ascii=False),
+                utc_now().isoformat(),
+            ),
+        )
+        checkpoint_connection(connection)
+
+
 def list_master_records(resource_name: str) -> list[dict]:
     if resource_name == "areas":
         return list_areas()
@@ -2985,6 +3196,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_admin_carbon_brush_import_post()
             return
 
+        if parsed.path == "/api/admin/import-mso-motor-latest":
+            self._handle_admin_mso_motor_import_post()
+            return
+
         if parsed.path.startswith("/api/admin/import/"):
             self._handle_admin_import_post(parsed.path)
             return
@@ -3328,6 +3543,33 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
         except Exception:
             self._send_json({"error": "Gagal mengambil data carbon brush dari link sumber"}, status=HTTPStatus.BAD_GATEWAY)
+
+    def _handle_admin_mso_motor_import_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            result = import_mso_motor_from_latest_file(int(user["id"]))
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="import",
+                resource="service",
+                target_label="Import MSO Motor mingguan",
+                detail={
+                    "imported": result.get("imported", 0),
+                    "created": result.get("created", 0),
+                    "updated": result.get("updated", 0),
+                    "fileName": result.get("fileName", ""),
+                },
+            )
+            self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
 
     def _handle_admin_negatif_list_import_post(self):
         user = self._require_user()

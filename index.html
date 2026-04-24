@@ -934,6 +934,7 @@
                   <p class="eyebrow">Motor MV</p>
                   <h3>Inspeksi motor MV</h3>
                 </div>
+                <p class="form-hint">Sumber utama inspeksi motor MV berasal dari sinkronisasi mingguan MSO. Form ini hanya dipakai bila diperlukan penyesuaian manual.</p>
                 <div class="form-grid form-grid-3">
                   <label>
                     Nama motor MV
@@ -2263,6 +2264,26 @@
                     </label>
                     <button class="btn btn-primary" id="admin-carbon-brush-import-button" type="button">Import Carbon Brush dari Link</button>
                   </div>
+                </section>
+
+                <section class="admin-tool-block">
+                  <div class="admin-tool-head">
+                    <strong>Sinkronisasi MSO Motor</strong>
+                    <small>Inspeksi motor MV diambil dari file CSV MSO terbaru yang diletakkan di folder server.</small>
+                  </div>
+                  <div class="admin-tools admin-tools-grid import-tools">
+                    <label class="search-field compact admin-source-field">
+                      <span>Folder server</span>
+                      <input id="admin-mso-motor-directory" type="text" placeholder="/opt/plirm34/imports/mso-motor">
+                    </label>
+                    <label class="search-field compact">
+                      <span>Pattern file</span>
+                      <input id="admin-mso-motor-pattern" type="text" placeholder="mso-motor-inspections-*.csv">
+                    </label>
+                    <button class="btn btn-secondary" id="admin-mso-motor-save-button" type="button">Simpan Setting</button>
+                    <button class="btn btn-primary" id="admin-mso-motor-import-button" type="button">Import MSO Mingguan</button>
+                  </div>
+                  <p class="form-hint" id="admin-mso-motor-status">Belum ada sinkronisasi MSO motor.</p>
                 </section>
               </div>
               <p class="form-hint">Header CSV disarankan memakai nama field aplikasi. Contoh `negatif-list`: `equipment`, `damageDescription`, `followUpPlan`, `foundDate`, `pendingMark`, `workStatus`, `category`, `area`.</p>

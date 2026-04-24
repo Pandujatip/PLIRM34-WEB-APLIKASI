@@ -72,6 +72,11 @@ const adminImportButton = document.getElementById("admin-import-button");
 const adminCarbonBrushUrl = document.getElementById("admin-carbon-brush-url");
 const adminCarbonBrushMode = document.getElementById("admin-carbon-brush-mode");
 const adminCarbonBrushImportButton = document.getElementById("admin-carbon-brush-import-button");
+const adminMsoMotorDirectory = document.getElementById("admin-mso-motor-directory");
+const adminMsoMotorPattern = document.getElementById("admin-mso-motor-pattern");
+const adminMsoMotorSaveButton = document.getElementById("admin-mso-motor-save-button");
+const adminMsoMotorImportButton = document.getElementById("admin-mso-motor-import-button");
+const adminMsoMotorStatus = document.getElementById("admin-mso-motor-status");
 const adminRestoreInput = document.getElementById("admin-restore-input");
 const adminRestoreButton = document.getElementById("admin-restore-button");
 const adminAreaForm = document.getElementById("admin-area-form");
@@ -1948,6 +1953,20 @@ function analyzeServiceItem(item) {
 
   if (item.formType === "service-motor-mv") {
     const notes = [];
+    if ((payload.source || "").toUpperCase() === "MSO") {
+      const temperatureDs = parseCarbonBrushNumericValue(payload.temperaturDs);
+      const temperatureNds = parseCarbonBrushNumericValue(payload.temperaturNds);
+      if ((payload.condition || "").toUpperCase() === "BAD") {
+        notes.push("MSO menandai kondisi motor sebagai BAD. Prioritaskan review hasil inspeksi dan tindak lanjut lapangan.");
+      }
+      if (temperatureDs !== null && temperatureDs >= 60) {
+        notes.push(`Temperature DS ${temperatureDs} C sudah tinggi. Cek beban, pendinginan, dan kondisi bearing sisi drive.`);
+      }
+      if (temperatureNds !== null && temperatureNds >= 60) {
+        notes.push(`Temperature NDS ${temperatureNds} C sudah tinggi. Periksa ventilasi motor dan kondisi sisi non-drive.`);
+      }
+      return notes.length ? notes : ["Data motor dari MSO masih menunjukkan kondisi umum aman berdasarkan hasil inspeksi terbaru."];
+    }
     const vibrationDe = parseCarbonBrushNumericValue(payload.vibrationDe);
     const vibrationNde = parseCarbonBrushNumericValue(payload.vibrationNde);
     const windingTemperature = parseCarbonBrushNumericValue(payload.windingTemperature);
@@ -2628,6 +2647,20 @@ function formatServicePayloadLines(item) {
   }
 
   if (item.formType === "service-motor-mv") {
+    if ((payload.source || "").toUpperCase() === "MSO") {
+      return [
+        ["Sumber", payload.source || "-"],
+        ["InspID", payload.inspId || "-"],
+        ["ID AMTRANS", payload.idAmtrans || "-"],
+        ["Condition", payload.condition || "-"],
+        ["Equipment Desc", payload.equipmentDesc || "-"],
+        ["Creator", payload.creator || "-"],
+        ["Mplant", payload.mplant || "-"],
+        ["Temperatur DS", payload.temperaturDs || "-"],
+        ["Temperatur NDS", payload.temperaturNds || "-"],
+        ["Photo URL", payload.photoUrl || "-"],
+      ];
+    }
     return [
       ["Vibrasi DE", payload.vibrationDe || "-"],
       ["Vibrasi NDE", payload.vibrationNde || "-"],
@@ -4143,6 +4176,7 @@ async function loadMastersFromBackend(sourceGroup = "") {
   renderElectricalRoomReferenceOptions();
   renderCemsReferenceOptions();
   renderOpacityReferenceOptions();
+  renderMsoMotorSyncSettings();
   return result;
 }
 
@@ -4226,6 +4260,31 @@ async function importCarbonBrushFromSource(sourceUrl, mode) {
       mode,
     },
   });
+}
+
+async function importLatestMsoMotorFile() {
+  return apiRequest("/admin/import-mso-motor-latest", {
+    method: "POST",
+    body: {},
+  });
+}
+
+function renderMsoMotorSyncSettings() {
+  const settings = getAppSetting("mso_motor_sync") || {};
+  if (adminMsoMotorDirectory instanceof HTMLInputElement) {
+    adminMsoMotorDirectory.value = String(settings.directory || "/opt/plirm34/imports/mso-motor");
+  }
+  if (adminMsoMotorPattern instanceof HTMLInputElement) {
+    adminMsoMotorPattern.value = String(settings.pattern || "mso-motor-inspections-*.csv");
+  }
+  if (adminMsoMotorStatus) {
+    const lastImportedFile = String(settings.lastImportedFile || "").trim();
+    const lastImportedCount = Number(settings.lastImportedCount || 0);
+    const lastImportedAt = String(settings.lastImportedAt || "").trim();
+    adminMsoMotorStatus.textContent = lastImportedFile
+      ? `File terakhir: ${lastImportedFile} | ${lastImportedCount} item | sinkron ${formatActivityLogDate(lastImportedAt)}`
+      : "Belum ada sinkronisasi MSO motor. Letakkan file CSV terbaru di folder server lalu klik Import MSO Mingguan.";
+  }
 }
 
 function getStoredUsers() {
@@ -4819,14 +4878,16 @@ async function refreshAdminMasters() {
     return;
   }
   try {
-    const [areas, equipmentReferences, templates] = await Promise.all([
+    const [areas, equipmentReferences, templates, appSettings] = await Promise.all([
       fetchAdminMaster("areas"),
       fetchAdminMaster("equipment-references"),
       fetchAdminMaster("inspection-templates"),
+      fetchAdminMaster("app-settings"),
     ]);
     backendState.masters.areas = areas;
     backendState.masters.equipmentReferences = equipmentReferences;
     backendState.masters.inspectionTemplates = templates;
+    backendState.masters.appSettings = appSettings;
     renderAdminAreasTable(areas);
     renderAdminElectricalRoomTable();
     renderAdminEquipmentSourceFilter(equipmentReferences);
@@ -4834,6 +4895,7 @@ async function refreshAdminMasters() {
     renderAdminTemplatesTable(templates);
     hydrateCarbonBrushThresholdForm();
     hydrateElectricalRoomThresholdForm();
+    renderMsoMotorSyncSettings();
     renderElectricalRoomReferenceOptions();
     renderMccReferenceOptions();
   } catch (error) {
@@ -6878,6 +6940,47 @@ adminCarbonBrushImportButton?.addEventListener("click", async () => {
     showToast("Admin Tools", `Import Carbon Brush selesai: ${result.imported || 0} item (${mode}).`);
   } catch (error) {
     showToast("Admin Tools", error.message || "Gagal import Carbon Brush dari link.");
+  }
+});
+
+adminMsoMotorSaveButton?.addEventListener("click", async () => {
+  const currentSettings = getAppSetting("mso_motor_sync") || {};
+  const directory = String(adminMsoMotorDirectory?.value || "").trim();
+  const pattern = String(adminMsoMotorPattern?.value || "").trim();
+  if (!directory || !pattern) {
+    showToast("MSO Motor", "Folder server dan pattern file wajib diisi.");
+    return;
+  }
+  try {
+    await saveAdminMaster("app-settings", {
+      settingKey: "mso_motor_sync",
+      value: {
+        ...currentSettings,
+        directory,
+        pattern,
+      },
+    });
+    await refreshAdminMasters();
+    showToast("MSO Motor", "Setting sinkronisasi MSO motor berhasil disimpan.");
+  } catch (error) {
+    showToast("MSO Motor", error.message || "Gagal menyimpan setting sinkronisasi MSO motor.");
+  }
+});
+
+adminMsoMotorImportButton?.addEventListener("click", async () => {
+  try {
+    const result = await importLatestMsoMotorFile();
+    await hydrateFromBackendAfterLogin();
+    updateDashboardMetrics();
+    if (activeRole === "admin") {
+      await refreshAdminMasters();
+    }
+    showToast(
+      "MSO Motor",
+      `Import selesai: ${result.imported || 0} item dari ${result.fileName || "file terbaru"} (${result.created || 0} baru, ${result.updated || 0} update).`,
+    );
+  } catch (error) {
+    showToast("MSO Motor", error.message || "Gagal import file MSO motor terbaru.");
   }
 });
 
