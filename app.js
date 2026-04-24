@@ -74,7 +74,10 @@ const adminCarbonBrushMode = document.getElementById("admin-carbon-brush-mode");
 const adminCarbonBrushImportButton = document.getElementById("admin-carbon-brush-import-button");
 const adminMsoMotorDirectory = document.getElementById("admin-mso-motor-directory");
 const adminMsoMotorPattern = document.getElementById("admin-mso-motor-pattern");
+const adminMsoMotorUploadInput = document.getElementById("admin-mso-motor-upload-input");
 const adminMsoMotorSaveButton = document.getElementById("admin-mso-motor-save-button");
+const adminMsoMotorUploadButton = document.getElementById("admin-mso-motor-upload-button");
+const adminMsoMotorUploadImportButton = document.getElementById("admin-mso-motor-upload-import-button");
 const adminMsoMotorImportButton = document.getElementById("admin-mso-motor-import-button");
 const adminMsoMotorStatus = document.getElementById("admin-mso-motor-status");
 const adminRestoreInput = document.getElementById("admin-restore-input");
@@ -4269,6 +4272,27 @@ async function importLatestMsoMotorFile() {
   });
 }
 
+async function uploadMsoMotorCsvFile(file) {
+  if (!(file instanceof File)) {
+    throw new Error("File CSV belum dipilih");
+  }
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  const fileData = btoa(binary);
+  return apiRequest("/admin/upload-mso-motor", {
+    method: "POST",
+    body: {
+      fileName: file.name,
+      fileData,
+    },
+  });
+}
+
 function renderMsoMotorSyncSettings() {
   const settings = getAppSetting("mso_motor_sync") || {};
   if (adminMsoMotorDirectory instanceof HTMLInputElement) {
@@ -4281,9 +4305,16 @@ function renderMsoMotorSyncSettings() {
     const lastImportedFile = String(settings.lastImportedFile || "").trim();
     const lastImportedCount = Number(settings.lastImportedCount || 0);
     const lastImportedAt = String(settings.lastImportedAt || "").trim();
-    adminMsoMotorStatus.textContent = lastImportedFile
-      ? `File terakhir: ${lastImportedFile} | ${lastImportedCount} item | sinkron ${formatActivityLogDate(lastImportedAt)}`
-      : "Belum ada sinkronisasi MSO motor. Letakkan file CSV terbaru di folder server lalu klik Import MSO Mingguan.";
+    const lastUploadedFile = String(settings.lastUploadedFile || "").trim();
+    const lastUploadedAt = String(settings.lastUploadedAt || "").trim();
+    const lastUploadedSize = Number(settings.lastUploadedSize || 0);
+    if (lastImportedFile) {
+      adminMsoMotorStatus.textContent = `File import terakhir: ${lastImportedFile} | ${lastImportedCount} item | sinkron ${formatActivityLogDate(lastImportedAt)}`;
+    } else if (lastUploadedFile) {
+      adminMsoMotorStatus.textContent = `File upload terakhir: ${lastUploadedFile} | ${formatBytes(lastUploadedSize)} | upload ${formatActivityLogDate(lastUploadedAt)}`;
+    } else {
+      adminMsoMotorStatus.textContent = "Belum ada sinkronisasi MSO motor. Pilih CSV mingguan lalu upload langsung dari web atau letakkan file di folder server.";
+    }
   }
 }
 
@@ -4735,6 +4766,20 @@ function formatActivityLogDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatBytes(value) {
+  const size = Number(value || 0);
+  if (!Number.isFinite(size) || size <= 0) {
+    return "0 B";
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function isSameCalendarDate(value, targetDate = new Date()) {
@@ -6984,6 +7029,52 @@ adminMsoMotorImportButton?.addEventListener("click", async () => {
     );
   } catch (error) {
     showToast("MSO Motor", error.message || "Gagal import file MSO motor terbaru.");
+  }
+});
+
+adminMsoMotorUploadButton?.addEventListener("click", async () => {
+  const file = adminMsoMotorUploadInput?.files?.[0];
+  if (!file) {
+    showToast("MSO Motor", "Pilih file CSV MSO terlebih dahulu.");
+    return;
+  }
+  try {
+    const result = await uploadMsoMotorCsvFile(file);
+    if (activeRole === "admin") {
+      await refreshAdminMasters();
+    }
+    if (adminMsoMotorUploadInput) {
+      adminMsoMotorUploadInput.value = "";
+    }
+    showToast("MSO Motor", `Upload berhasil: ${result.fileName || file.name} disimpan ke server.`);
+  } catch (error) {
+    showToast("MSO Motor", error.message || "Gagal upload CSV MSO motor.");
+  }
+});
+
+adminMsoMotorUploadImportButton?.addEventListener("click", async () => {
+  const file = adminMsoMotorUploadInput?.files?.[0];
+  if (!file) {
+    showToast("MSO Motor", "Pilih file CSV MSO terlebih dahulu.");
+    return;
+  }
+  try {
+    const uploadResult = await uploadMsoMotorCsvFile(file);
+    const importResult = await importLatestMsoMotorFile();
+    await hydrateFromBackendAfterLogin();
+    updateDashboardMetrics();
+    if (activeRole === "admin") {
+      await refreshAdminMasters();
+    }
+    if (adminMsoMotorUploadInput) {
+      adminMsoMotorUploadInput.value = "";
+    }
+    showToast(
+      "MSO Motor",
+      `Upload + import selesai: ${importResult.imported || 0} item dari ${importResult.fileName || uploadResult.fileName || file.name}.`,
+    );
+  } catch (error) {
+    showToast("MSO Motor", error.message || "Gagal upload dan import CSV MSO motor.");
   }
 });
 

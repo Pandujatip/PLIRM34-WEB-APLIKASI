@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260424-08">
+  <link rel="stylesheet" href="styles.css?v=20260425-01">
 </head>
 <body>
   <div class="app-shell">
@@ -2282,7 +2282,13 @@
                       <span>Pattern file</span>
                       <input id="admin-mso-motor-pattern" type="text" placeholder="mso-motor-inspections-*.csv">
                     </label>
+                    <label class="search-field compact">
+                      <span>Upload CSV mingguan</span>
+                      <input id="admin-mso-motor-upload-input" type="file" accept=".csv,text/csv">
+                    </label>
                     <button class="btn btn-secondary" id="admin-mso-motor-save-button" type="button">Simpan Setting</button>
+                    <button class="btn btn-secondary" id="admin-mso-motor-upload-button" type="button">Upload CSV ke Server</button>
+                    <button class="btn btn-primary" id="admin-mso-motor-upload-import-button" type="button">Upload + Import Sekarang</button>
                     <button class="btn btn-primary" id="admin-mso-motor-import-button" type="button">Import MSO Mingguan</button>
                   </div>
                   <p class="form-hint" id="admin-mso-motor-status">Belum ada sinkronisasi MSO motor.</p>
@@ -2656,6 +2662,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260424-08"></script>
+  <script src="app.js?v=20260425-01"></script>
 </body>
 </html>

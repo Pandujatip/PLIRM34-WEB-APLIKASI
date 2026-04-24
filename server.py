@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import hashlib
 import hmac
@@ -1593,6 +1594,42 @@ def import_mso_motor_from_latest_file(user_id: int) -> dict:
         "fileName": latest_file.name,
         "directory": str(directory),
         "pattern": pattern,
+    }
+
+
+def sanitize_upload_filename(filename: str, default_name: str = "mso-motor-upload.csv") -> str:
+    candidate = os.path.basename(str(filename or "").replace("\\", "/")).strip()
+    if not candidate:
+        candidate = default_name
+    if not candidate.lower().endswith(".csv"):
+        candidate = f"{candidate}.csv"
+    safe_candidate = "".join(char for char in candidate if char.isalnum() or char in ("-", "_", ".", " ")).strip(" .")
+    return safe_candidate or default_name
+
+
+def save_uploaded_mso_motor_file(file_name: str, file_bytes: bytes) -> dict:
+    if not file_bytes:
+        raise ValueError("File CSV kosong")
+    sync_settings = get_app_setting_value("mso_motor_sync", DEFAULT_APP_SETTINGS["mso_motor_sync"])
+    directory = Path(str(sync_settings.get("directory") or DEFAULT_APP_SETTINGS["mso_motor_sync"]["directory"]).strip())
+    if not str(directory).strip():
+        raise ValueError("Folder sinkronisasi MSO belum diatur")
+    directory.mkdir(parents=True, exist_ok=True)
+    clean_name = sanitize_upload_filename(file_name)
+    destination = directory / clean_name
+    destination.write_bytes(file_bytes)
+    updated_settings = {
+        **sync_settings,
+        "directory": str(directory),
+        "lastUploadedFile": clean_name,
+        "lastUploadedAt": utc_now().isoformat(),
+        "lastUploadedSize": len(file_bytes),
+    }
+    save_app_setting_value("mso_motor_sync", updated_settings)
+    return {
+        "fileName": clean_name,
+        "directory": str(directory),
+        "size": len(file_bytes),
     }
 
 
@@ -3200,6 +3237,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_admin_mso_motor_import_post()
             return
 
+        if parsed.path == "/api/admin/upload-mso-motor":
+            self._handle_admin_mso_motor_upload_post()
+            return
+
         if parsed.path.startswith("/api/admin/import/"):
             self._handle_admin_import_post(parsed.path)
             return
@@ -3565,6 +3606,51 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                     "created": result.get("created", 0),
                     "updated": result.get("updated", 0),
                     "fileName": result.get("fileName", ""),
+                },
+            )
+            self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_admin_mso_motor_upload_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+
+        file_name = str(payload.get("fileName") or "").strip()
+        file_data = str(payload.get("fileData") or "")
+        if not file_name:
+            self._send_json({"error": "Nama file CSV wajib diisi"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        if not file_data:
+            self._send_json({"error": "Isi file CSV wajib diisi"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        try:
+            file_bytes = base64.b64decode(file_data.encode("ascii"), validate=True)
+        except Exception:
+            self._send_json({"error": "Format upload CSV tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        try:
+            result = save_uploaded_mso_motor_file(file_name, file_bytes)
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="upload",
+                resource="service",
+                target_label="Upload CSV MSO Motor",
+                detail={
+                    "fileName": result.get("fileName", ""),
+                    "size": result.get("size", 0),
+                    "directory": result.get("directory", ""),
                 },
             )
             self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
