@@ -52,6 +52,10 @@ const electricalRoomReferenceHint = document.getElementById("electrical-room-ref
 const serviceMccEquipmentInput = document.getElementById("service-mcc-equipment-input");
 const serviceMccReferenceListElement = document.getElementById("service-mcc-reference-list");
 const serviceMccReferenceHint = document.getElementById("service-mcc-reference-hint");
+const cemsEquipmentReferenceListElement = document.getElementById("cems-equipment-reference-list");
+const cemsReferenceHint = document.getElementById("cems-reference-hint");
+const opacityEquipmentReferenceListElement = document.getElementById("opacity-equipment-reference-list");
+const opacityReferenceHint = document.getElementById("opacity-reference-hint");
 const serviceDetailModal = document.getElementById("service-detail-modal");
 const serviceDetailClose = document.getElementById("service-detail-close");
 const serviceDetailTitle = document.getElementById("service-detail-title");
@@ -622,6 +626,50 @@ function renderMccReferenceOptions() {
     serviceMccReferenceHint.textContent = items.length
       ? `Referensi MCC aktif: ${items.length} equipment dari data inspeksi/import.`
       : "Belum ada referensi MCC tersimpan. Setelah import data atau simpan inspeksi pertama, daftar akan muncul di sini.";
+  }
+}
+
+function getCemsEquipmentReferenceList() {
+  return getMasterEquipmentNames("cems-service");
+}
+
+function renderCemsReferenceOptions() {
+  if (!cemsEquipmentReferenceListElement) {
+    return;
+  }
+  const items = getCemsEquipmentReferenceList();
+  cemsEquipmentReferenceListElement.innerHTML = "";
+  items.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item;
+    cemsEquipmentReferenceListElement.append(option);
+  });
+  if (cemsReferenceHint) {
+    cemsReferenceHint.textContent = items.length
+      ? `Referensi CEMS aktif: ${items.length} equipment dari Master Equipment.`
+      : "Belum ada referensi CEMS. Tambahkan dari Master Equipment dengan source group cems-service.";
+  }
+}
+
+function getOpacityEquipmentReferenceList() {
+  return getMasterEquipmentNames("opacity-service");
+}
+
+function renderOpacityReferenceOptions() {
+  if (!opacityEquipmentReferenceListElement) {
+    return;
+  }
+  const items = getOpacityEquipmentReferenceList();
+  opacityEquipmentReferenceListElement.innerHTML = "";
+  items.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item;
+    opacityEquipmentReferenceListElement.append(option);
+  });
+  if (opacityReferenceHint) {
+    opacityReferenceHint.textContent = items.length
+      ? `Referensi Opacity aktif: ${items.length} equipment dari Master Equipment.`
+      : "Belum ada referensi Opacity Meter. Tambahkan dari Master Equipment dengan source group opacity-service.";
   }
 }
 
@@ -4093,6 +4141,8 @@ async function loadMastersFromBackend(sourceGroup = "") {
     };
   }
   renderElectricalRoomReferenceOptions();
+  renderCemsReferenceOptions();
+  renderOpacityReferenceOptions();
   return result;
 }
 
@@ -4301,6 +4351,8 @@ async function initializeApplication() {
     serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
   }
   renderElectricalRoomReferenceOptions();
+  renderCemsReferenceOptions();
+  renderOpacityReferenceOptions();
   openBomPane("general");
   ["negatif-list", "sparepart", "service", "bom", "spb"].forEach(placeCreatePanelNearToolbar);
   getStoredUsers();
@@ -7273,6 +7325,14 @@ serviceMccEquipmentInput?.addEventListener("blur", () => {
   serviceMccEquipmentInput.value = String(serviceMccEquipmentInput.value || "").trim().toUpperCase();
 });
 
+document.querySelector('[data-form-type="service-cems"] [name="equipmentName"]')?.addEventListener("blur", (event) => {
+  event.target.value = String(event.target.value || "").trim().toUpperCase();
+});
+
+document.querySelector('[data-form-type="service-opacity-meter"] [name="equipmentName"]')?.addEventListener("blur", (event) => {
+  event.target.value = String(event.target.value || "").trim().toUpperCase();
+});
+
 document.addEventListener("input", (event) => {
   if (event.target instanceof HTMLElement && event.target.matches("[data-carbon-brush-measurement]")) {
     updateCarbonBrushMeasurementColors();
@@ -7677,6 +7737,13 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-cems") {
+      const selectedEquipment = String(formData.get("equipmentName") || "").trim();
+      const cemsEquipmentReferenceList = getCemsEquipmentReferenceList();
+      if (!selectedEquipment || !cemsEquipmentReferenceList.includes(selectedEquipment)) {
+        setSubmitNote(form, "Pilih equipment CEMS dari Master Equipment source group cems-service.");
+        showToast("CEMS", "Equipment harus dipilih dari referensi CEMS resmi.");
+        return;
+      }
       const existingPayload = editingServiceId
         ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
         : {};
@@ -7763,7 +7830,7 @@ forms.forEach((form) => {
         type: "Instrument",
         subtype: "CEMS",
         formType: "service-cems",
-        equipmentName: String(formData.get("equipmentName") || "-").trim(),
+        equipmentName: selectedEquipment,
         description: String(formData.get("description") || "-").trim(),
         detail: buildCemsDetailSummary(payload),
         payload,
@@ -7788,6 +7855,13 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-opacity-meter") {
+      const selectedEquipment = String(formData.get("equipmentName") || "").trim();
+      const opacityEquipmentReferenceList = getOpacityEquipmentReferenceList();
+      if (!selectedEquipment || !opacityEquipmentReferenceList.includes(selectedEquipment)) {
+        setSubmitNote(form, "Pilih equipment opacity meter dari Master Equipment source group opacity-service.");
+        showToast("Opacity Meter", "Equipment harus dipilih dari referensi opacity resmi.");
+        return;
+      }
       const existingPayload = editingServiceId
         ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
         : {};
@@ -7859,7 +7933,7 @@ forms.forEach((form) => {
         type: "Instrument",
         subtype: "Opacity Meter",
         formType: "service-opacity-meter",
-        equipmentName: String(formData.get("equipmentName") || "-").trim(),
+        equipmentName: selectedEquipment,
         description: String(formData.get("description") || "-").trim(),
         detail: buildOpacityDetailSummary(payload),
         payload,
