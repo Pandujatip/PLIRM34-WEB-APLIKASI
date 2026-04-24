@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260422-10">
+  <link rel="stylesheet" href="styles.css?v=20260424-01">
 </head>
 <body>
   <div class="app-shell">
@@ -1177,8 +1177,12 @@
             </div>
 
             <div class="service-pane" data-service-pane="instrument">
+              <div class="service-subtab-bar instrument-subtab-bar">
+                <button class="chip-button instrument-subtab active" data-instrument-tab="instrument-basic" type="button">Instrument</button>
+                <button class="chip-button instrument-subtab" data-instrument-tab="cems" type="button">CEMS</button>
+              </div>
               <div class="service-form-grid service-form-grid-single">
-              <form class="input-form" data-editable-for="admin,organik,team" data-form-type="service-instrument">
+              <form class="input-form instrument-pane visible" data-editable-for="admin,organik,team" data-instrument-pane="instrument-basic" data-form-type="service-instrument">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Instrument</p>
                   <h3>Input inspeksi instrument</h3>
@@ -1202,6 +1206,215 @@
                   </label>
                 </div>
                 <button class="btn btn-primary" type="submit">Simpan Service Instrument</button>
+              </form>
+
+              <form class="input-form instrument-pane" data-editable-for="admin,organik,team" data-instrument-pane="cems" data-form-type="service-cems">
+                <div class="card-head compact-head">
+                  <p class="eyebrow">CEMS</p>
+                  <h3>Inspeksi CEMS</h3>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Identitas Inspeksi</strong>
+                    <span>Isi identitas dasar inspeksi CEMS sebelum lanjut ke parameter dan checklist sistem.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Tanggal inspeksi
+                      <input type="date" name="inspectionDate" required>
+                    </label>
+                    <label>
+                      Equipment
+                      <input type="text" name="equipmentName" list="cems-equipment-reference-list" placeholder="Pilih equipment CEMS" required>
+                    </label>
+                    <label>
+                      Nama inspektor
+                      <input type="text" name="inspectorName" placeholder="Nama petugas inspeksi" required>
+                    </label>
+                  </div>
+                  <datalist id="cems-equipment-reference-list">
+                    <option value="343SK1AN1"></option>
+                    <option value="444AN03(344SK01)"></option>
+                  </datalist>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Parameter Yang Dimonitor</strong>
+                    <span>Isi status, nilai, satuan, dan keterangan untuk tiap parameter utama CEMS.</span>
+                  </div>
+                  <div class="form-grid form-grid-5 cems-parameter-grid">
+                    <label><span>O₂ Status</span><select name="o2Status" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>O₂ Nilai</span><input type="text" name="o2Value" placeholder="Contoh: 8.5"></label>
+                    <label><span>O₂ Satuan</span><input type="text" name="o2Unit" value="%" required></label>
+                    <label class="full-span"><span>O₂ Keterangan</span><input type="text" name="o2Note" placeholder="Catatan O₂"></label>
+
+                    <label><span>CO Status</span><select name="coStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>CO Nilai</span><input type="text" name="coValue" placeholder="Contoh: 95"></label>
+                    <label><span>CO Satuan</span><input type="text" name="coUnit" value="mg/Nm3" required></label>
+                    <label class="full-span"><span>CO Keterangan</span><input type="text" name="coNote" placeholder="Catatan CO"></label>
+
+                    <label><span>NOx Status</span><select name="noxStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>NOx Nilai</span><input type="text" name="noxValue" placeholder="Contoh: 210"></label>
+                    <label><span>NOx Satuan</span><input type="text" name="noxUnit" value="mg/Nm3" required></label>
+                    <label class="full-span"><span>NOx Keterangan</span><input type="text" name="noxNote" placeholder="Catatan NOx"></label>
+
+                    <label><span>SO₂ Status</span><select name="so2Status" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>SO₂ Nilai</span><input type="text" name="so2Value" placeholder="Contoh: 180"></label>
+                    <label><span>SO₂ Satuan</span><input type="text" name="so2Unit" value="mg/Nm3" required></label>
+                    <label class="full-span"><span>SO₂ Keterangan</span><input type="text" name="so2Note" placeholder="Catatan SO₂"></label>
+
+                    <label><span>Dust / PM Status</span><select name="dustStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Dust / PM Nilai</span><input type="text" name="dustValue" placeholder="Contoh: 38"></label>
+                    <label><span>Dust / PM Satuan</span><input type="text" name="dustUnit" value="mg/Nm3" required></label>
+                    <label class="full-span"><span>Dust / PM Keterangan</span><input type="text" name="dustNote" placeholder="Catatan Dust / PM"></label>
+
+                    <label><span>Flow Status</span><select name="flowStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Flow Nilai</span><input type="text" name="flowValue" placeholder="Contoh: 250000"></label>
+                    <label><span>Flow Satuan</span><input type="text" name="flowUnit" value="Nm3/h" required></label>
+                    <label class="full-span"><span>Flow Keterangan</span><input type="text" name="flowNote" placeholder="Catatan Flow"></label>
+
+                    <label><span>Temperature Status</span><select name="temperatureStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Temperature Nilai</span><input type="text" name="temperatureValue" placeholder="Contoh: 145"></label>
+                    <label><span>Temperature Satuan</span><input type="text" name="temperatureUnit" value="C" required></label>
+                    <label class="full-span"><span>Temperature Keterangan</span><input type="text" name="temperatureNote" placeholder="Catatan Temperature"></label>
+
+                    <label><span>Pressure Status</span><select name="pressureStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Pressure Nilai</span><input type="text" name="pressureValue" placeholder="Contoh: -2.3"></label>
+                    <label><span>Pressure Satuan</span><input type="text" name="pressureUnit" value="kPa" required></label>
+                    <label class="full-span"><span>Pressure Keterangan</span><input type="text" name="pressureNote" placeholder="Catatan Pressure"></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Sistem Analyzer</strong>
+                    <span>Checklist kondisi analyzer utama.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Analyzer Power ON</span><select name="analyzerPower" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Status Analyzer Normal</span><select name="analyzerStatus" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Alarm Aktif</span><select name="analyzerAlarm" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Response Time Normal</span><select name="analyzerResponseTime" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Span Drift</span><select name="analyzerSpanDrift" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Zero Drift</span><select name="analyzerZeroDrift" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Analyzer</span><textarea name="analyzerNote" rows="3" placeholder="Catatan sistem analyzer"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Sampling System</strong>
+                    <span>Checklist probe, filter, heated line, sample pump, dan flow sample.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Probe Bersih</span><select name="samplingProbe" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Filter Tidak Tersumbat</span><select name="samplingFilter" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Heated Line Berfungsi</span><select name="samplingHeatedLine" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Sample Pump Normal</span><select name="samplingPump" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Flow Sample Stabil</span><select name="samplingFlow" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Sampling</span><textarea name="samplingNote" rows="3" placeholder="Catatan sampling system"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Gas Kalibrasi</strong>
+                    <span>Checklist kondisi tabung gas dan auto calibration.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Tabung Gas Tersedia</span><select name="calibrationCylinder" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Tekanan Gas Cukup</span><select name="calibrationPressure" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Regulator Normal</span><select name="calibrationRegulator" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Auto Calibration Jalan</span><select name="calibrationAuto" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Jadwal Kalibrasi Sesuai</span><select name="calibrationSchedule" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Gas Kalibrasi</span><textarea name="calibrationNote" rows="3" placeholder="Catatan gas kalibrasi"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Data & Komunikasi</strong>
+                    <span>Validasi data ke DAS/SCADA, data logger, loss data, dan sinkronisasi waktu.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Data ke DAS / SCADA</span><select name="dataDasScada" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Data Logger Normal</span><select name="dataLogger" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Tidak Ada Data Loss</span><select name="dataLoss" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Sinkronisasi Waktu</span><select name="timeSync" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Data & Komunikasi</span><textarea name="dataCommunicationNote" rows="3" placeholder="Catatan data dan komunikasi"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Cek Sistem Pendukung</strong>
+                    <span>Periksa stabilitas power, UPS, AC panel, dan kebersihan shelter.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label><span>Power Supply Stabil</span><select name="supportPowerSupply" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>UPS Normal</span><select name="supportUps" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>AC Panel Berfungsi</span><select name="supportAcPanel" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label><span>Shelter Bersih</span><select name="supportShelter" required><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="full-span"><span>Keterangan Sistem Pendukung</span><textarea name="supportNote" rows="3" placeholder="Catatan sistem pendukung"></textarea></label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Temuan & Analisa</strong>
+                    <span>Isi temuan utama, penyebab, dampak compliance, dan level urgensi.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Temuan masalah
+                      <textarea name="findingIssue" rows="3" placeholder="Temuan masalah utama pada CEMS"></textarea>
+                    </label>
+                    <label class="full-span">
+                      Penyebab kemungkinan
+                      <textarea name="possibleCause" rows="3" placeholder="Penyebab kemungkinan"></textarea>
+                    </label>
+                    <label class="full-span">
+                      Dampak ke emisi / compliance
+                      <textarea name="emissionImpact" rows="3" placeholder="Dampak ke emisi atau compliance"></textarea>
+                    </label>
+                    <label>
+                      Level urgensi
+                      <select name="urgencyLevel" required>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Dokumentasi</strong>
+                    <span>Lampirkan foto kondisi alat, screenshot data CEMS, dan log alarm.</span>
+                  </div>
+                  <div class="form-grid">
+                    <label>
+                      Foto kondisi alat
+                      <input type="file" name="cemsConditionPhoto" accept="image/*" multiple>
+                    </label>
+                    <label>
+                      Screenshot data CEMS
+                      <input type="file" name="cemsScreenshot" accept="image/*" multiple>
+                    </label>
+                    <label>
+                      Log alarm
+                      <input type="file" name="cemsAlarmLog" accept="image/*" multiple>
+                    </label>
+                    <label class="full-span">
+                      Keterangan umum
+                      <textarea name="description" rows="4" placeholder="Catatan umum inspeksi CEMS" required></textarea>
+                    </label>
+                  </div>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan Inspeksi CEMS</button>
               </form>
             </div>
             </div>
@@ -2233,6 +2446,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260422-07"></script>
+  <script src="app.js?v=20260424-01"></script>
 </body>
 </html>

@@ -21,6 +21,8 @@ const serviceTabs = document.querySelectorAll(".service-tab");
 const servicePanes = document.querySelectorAll(".service-pane");
 const electricalSubtabs = document.querySelectorAll(".service-subtab");
 const electricalPanes = document.querySelectorAll(".electrical-pane");
+const instrumentSubtabs = document.querySelectorAll(".instrument-subtab");
+const instrumentPanes = document.querySelectorAll(".instrument-pane");
 const editableBlocks = document.querySelectorAll("[data-editable-for]");
 const lockedNotes = document.querySelectorAll("[data-locked-for]");
 const forms = document.querySelectorAll(".input-form");
@@ -1486,6 +1488,7 @@ function resetCreatePanelState(sectionName) {
     updateCarbonBrushMeasurementColors();
     openServicePane("electrical");
     openElectricalPane("electrical-room");
+    openInstrumentPane("instrument-basic");
   }
 
   if (sectionName === "bom") {
@@ -1505,6 +1508,15 @@ function openElectricalPane(tabName) {
   });
   electricalPanes.forEach((pane) => {
     pane.classList.toggle("visible", pane.dataset.electricalPane === tabName);
+  });
+}
+
+function openInstrumentPane(tabName) {
+  instrumentSubtabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.instrumentTab === tabName);
+  });
+  instrumentPanes.forEach((pane) => {
+    pane.classList.toggle("visible", pane.dataset.instrumentPane === tabName);
   });
 }
 
@@ -1956,6 +1968,72 @@ function analyzeServiceItem(item) {
       return ["Kondisi sensor menunjukkan anomali. Lanjutkan verifikasi loop, mounting, dan kalibrasi ulang bila diperlukan."];
     }
     return ["Kondisi sensor relatif stabil dari catatan inspeksi saat ini."];
+  }
+
+  if (item.formType === "service-cems") {
+    const notes = [];
+    const parameterAlerts = [
+      ["O₂", payload.o2Status, payload.o2Value, payload.o2Unit],
+      ["CO", payload.coStatus, payload.coValue, payload.coUnit],
+      ["NOx", payload.noxStatus, payload.noxValue, payload.noxUnit],
+      ["SO₂", payload.so2Status, payload.so2Value, payload.so2Unit],
+      ["Dust / PM", payload.dustStatus, payload.dustValue, payload.dustUnit],
+      ["Flow", payload.flowStatus, payload.flowValue, payload.flowUnit],
+      ["Temperature", payload.temperatureStatus, payload.temperatureValue, payload.temperatureUnit],
+      ["Pressure", payload.pressureStatus, payload.pressureValue, payload.pressureUnit],
+    ].filter(([, status]) => normalizeCemsStatusValue(status) === "NG");
+
+    if (parameterAlerts.length) {
+      notes.push(`Parameter CEMS yang berstatus NG: ${parameterAlerts.map(([label, , value, unit]) => `${label} (${value || "-"} ${unit || ""})`.trim()).join(", ")}.`);
+    }
+
+    const checklistAlerts = [
+      ["Analyzer Power ON", payload.analyzerPower],
+      ["Status Analyzer Normal", payload.analyzerStatus],
+      ["Alarm Aktif", payload.analyzerAlarm],
+      ["Response Time Normal", payload.analyzerResponseTime],
+      ["Span Drift", payload.analyzerSpanDrift],
+      ["Zero Drift", payload.analyzerZeroDrift],
+      ["Probe Bersih", payload.samplingProbe],
+      ["Filter Tidak Tersumbat", payload.samplingFilter],
+      ["Heated Line Berfungsi", payload.samplingHeatedLine],
+      ["Sample Pump Normal", payload.samplingPump],
+      ["Flow Sample Stabil", payload.samplingFlow],
+      ["Tabung Gas Tersedia", payload.calibrationCylinder],
+      ["Tekanan Gas Cukup", payload.calibrationPressure],
+      ["Regulator Normal", payload.calibrationRegulator],
+      ["Auto Calibration Jalan", payload.calibrationAuto],
+      ["Jadwal Kalibrasi Sesuai", payload.calibrationSchedule],
+      ["Data ke DAS / SCADA", payload.dataDasScada],
+      ["Data Logger Normal", payload.dataLogger],
+      ["Tidak Ada Data Loss", payload.dataLoss],
+      ["Sinkronisasi Waktu", payload.timeSync],
+      ["Power Supply Stabil", payload.supportPowerSupply],
+      ["UPS Normal", payload.supportUps],
+      ["AC Panel Berfungsi", payload.supportAcPanel],
+      ["Shelter Bersih", payload.supportShelter],
+    ].filter(([, status]) => normalizeCemsStatusValue(status) === "NG");
+
+    if (checklistAlerts.length) {
+      notes.push(`Checklist sistem yang perlu tindakan: ${checklistAlerts.map(([label]) => label).join(", ")}.`);
+    }
+
+    if (String(payload.findingIssue || "").trim()) {
+      notes.push(`Temuan utama: ${payload.findingIssue}.`);
+    }
+    if (String(payload.possibleCause || "").trim()) {
+      notes.push(`Kemungkinan penyebab: ${payload.possibleCause}.`);
+    }
+    if (String(payload.emissionImpact || "").trim()) {
+      notes.push(`Dampak ke emisi/compliance: ${payload.emissionImpact}.`);
+    }
+    if ((payload.urgencyLevel || "") === "High") {
+      notes.push("Level urgensi tinggi. Perlu tindak lanjut prioritas karena berpotensi mengganggu validitas monitoring emisi atau compliance.");
+    } else if ((payload.urgencyLevel || "") === "Medium") {
+      notes.push("Level urgensi menengah. Jadwalkan tindak lanjut teknis pada window terdekat agar deviasi tidak berkembang.");
+    }
+
+    return notes.length ? notes : ["Kondisi umum CEMS masih baik berdasarkan parameter, checklist sistem, dan catatan inspeksi terakhir."];
   }
 
   if (item.formType === "service-dcs") {
@@ -2475,6 +2553,30 @@ function formatServicePayloadLines(item) {
   if (item.formType === "service-instrument") {
     return [
       ["Kondisi sensor", payload.sensorCondition || "-"],
+      ["Foto temuan", photoSummary],
+    ];
+  }
+
+  if (item.formType === "service-cems") {
+    return [
+      ["Nama inspektor", payload.inspectorName || "-"],
+      ["O₂", `${payload.o2Status || "-"} | ${payload.o2Value || "-"} ${payload.o2Unit || ""}`.trim()],
+      ["CO", `${payload.coStatus || "-"} | ${payload.coValue || "-"} ${payload.coUnit || ""}`.trim()],
+      ["NOx", `${payload.noxStatus || "-"} | ${payload.noxValue || "-"} ${payload.noxUnit || ""}`.trim()],
+      ["SO₂", `${payload.so2Status || "-"} | ${payload.so2Value || "-"} ${payload.so2Unit || ""}`.trim()],
+      ["Dust / PM", `${payload.dustStatus || "-"} | ${payload.dustValue || "-"} ${payload.dustUnit || ""}`.trim()],
+      ["Flow", `${payload.flowStatus || "-"} | ${payload.flowValue || "-"} ${payload.flowUnit || ""}`.trim()],
+      ["Temperature", `${payload.temperatureStatus || "-"} | ${payload.temperatureValue || "-"} ${payload.temperatureUnit || ""}`.trim()],
+      ["Pressure", `${payload.pressureStatus || "-"} | ${payload.pressureValue || "-"} ${payload.pressureUnit || ""}`.trim()],
+      ["Analyzer", `Power ${payload.analyzerPower || "-"} | Status ${payload.analyzerStatus || "-"} | Alarm ${payload.analyzerAlarm || "-"}`],
+      ["Sampling", `Probe ${payload.samplingProbe || "-"} | Filter ${payload.samplingFilter || "-"} | Pump ${payload.samplingPump || "-"}`],
+      ["Gas kalibrasi", `Cylinder ${payload.calibrationCylinder || "-"} | Auto Cal ${payload.calibrationAuto || "-"} | Jadwal ${payload.calibrationSchedule || "-"}`],
+      ["Data & komunikasi", `SCADA ${payload.dataDasScada || "-"} | Logger ${payload.dataLogger || "-"} | Loss ${payload.dataLoss || "-"}`],
+      ["Sistem pendukung", `Power ${payload.supportPowerSupply || "-"} | UPS ${payload.supportUps || "-"} | AC ${payload.supportAcPanel || "-"} | Shelter ${payload.supportShelter || "-"}`],
+      ["Temuan masalah", payload.findingIssue || "-"],
+      ["Penyebab kemungkinan", payload.possibleCause || "-"],
+      ["Dampak emisi / compliance", payload.emissionImpact || "-"],
+      ["Urgensi", payload.urgencyLevel || "-"],
       ["Foto temuan", photoSummary],
     ];
   }
@@ -3583,6 +3685,36 @@ function buildFindingPhotoCompatibility(photos = []) {
     findingPhotoData: firstPhoto?.data || "",
     findingPhotoUrl: firstPhoto?.url || "",
   };
+}
+
+async function getNamedFindingPhotoPayload(formData, existingPayload = {}, fieldConfigs = []) {
+  const collectedPhotos = [];
+
+  fieldConfigs.forEach((config) => {
+    const fieldName = String(config?.fieldName || "").trim();
+    const label = String(config?.label || "foto").trim() || "foto";
+    if (!fieldName) {
+      return;
+    }
+    const files = formData.getAll(fieldName)
+      .filter((photo) => photo && typeof photo === "object" && "name" in photo && photo.name && "size" in photo && photo.size > 0);
+    files.forEach((file) => {
+      collectedPhotos.push({
+        label,
+        file,
+      });
+    });
+  });
+
+  if (collectedPhotos.length > 0) {
+    const findingPhotos = await Promise.all(collectedPhotos.map(async ({ label, file }) => ({
+      name: `${label} - ${file.name}`,
+      data: await readFileAsDataUrl(file),
+    })));
+    return buildFindingPhotoCompatibility(findingPhotos);
+  }
+
+  return buildFindingPhotoCompatibility(normalizeFindingPhotosPayload(existingPayload));
 }
 
 async function getFindingPhotoPayload(formData, existingPayload = {}) {
@@ -5337,6 +5469,52 @@ function normalizeNegatifItem(item) {
   };
 }
 
+function normalizeCemsStatusValue(value) {
+  return String(value || "").trim().toUpperCase() === "NG" ? "NG" : "OK";
+}
+
+function buildCemsDetailSummary(payload = {}) {
+  const abnormalParameters = [
+    payload.o2Status,
+    payload.coStatus,
+    payload.noxStatus,
+    payload.so2Status,
+    payload.dustStatus,
+    payload.flowStatus,
+    payload.temperatureStatus,
+    payload.pressureStatus,
+  ].filter((value) => normalizeCemsStatusValue(value) === "NG").length;
+
+  const abnormalChecks = [
+    payload.analyzerPower,
+    payload.analyzerStatus,
+    payload.analyzerAlarm,
+    payload.analyzerResponseTime,
+    payload.analyzerSpanDrift,
+    payload.analyzerZeroDrift,
+    payload.samplingProbe,
+    payload.samplingFilter,
+    payload.samplingHeatedLine,
+    payload.samplingPump,
+    payload.samplingFlow,
+    payload.calibrationCylinder,
+    payload.calibrationPressure,
+    payload.calibrationRegulator,
+    payload.calibrationAuto,
+    payload.calibrationSchedule,
+    payload.dataDasScada,
+    payload.dataLogger,
+    payload.dataLoss,
+    payload.timeSync,
+    payload.supportPowerSupply,
+    payload.supportUps,
+    payload.supportAcPanel,
+    payload.supportShelter,
+  ].filter((value) => normalizeCemsStatusValue(value) === "NG").length;
+
+  return `Parameter NG: ${abnormalParameters} | Checklist NG: ${abnormalChecks} | Urgensi: ${payload.urgencyLevel || "-"}`;
+}
+
 function getNegatifStatusTagClass(value) {
   return String(value || "").toLowerCase() === "close" ? "tag-neutral" : "tag-danger";
 }
@@ -5938,6 +6116,7 @@ function hydrateServiceForm(item) {
 
   if (item.type === "Instrument") {
     openServicePane("instrument");
+    openInstrumentPane(item.formType === "service-cems" ? "cems" : "instrument-basic");
   }
 
   if (item.type === "DCS") {
@@ -6013,6 +6192,76 @@ function hydrateServiceForm(item) {
 
   if (item.formType === "service-instrument") {
     form.sensorCondition.value = payload.sensorCondition || "";
+  }
+
+  if (item.formType === "service-cems") {
+    form.inspectionDate.value = String(payload.inspectionDate || "").slice(0, 10);
+    form.inspectorName.value = payload.inspectorName || "";
+    form.o2Status.value = normalizeCemsStatusValue(payload.o2Status || "OK");
+    form.o2Value.value = payload.o2Value || "";
+    form.o2Unit.value = payload.o2Unit || "%";
+    form.o2Note.value = payload.o2Note || "";
+    form.coStatus.value = normalizeCemsStatusValue(payload.coStatus || "OK");
+    form.coValue.value = payload.coValue || "";
+    form.coUnit.value = payload.coUnit || "mg/Nm3";
+    form.coNote.value = payload.coNote || "";
+    form.noxStatus.value = normalizeCemsStatusValue(payload.noxStatus || "OK");
+    form.noxValue.value = payload.noxValue || "";
+    form.noxUnit.value = payload.noxUnit || "mg/Nm3";
+    form.noxNote.value = payload.noxNote || "";
+    form.so2Status.value = normalizeCemsStatusValue(payload.so2Status || "OK");
+    form.so2Value.value = payload.so2Value || "";
+    form.so2Unit.value = payload.so2Unit || "mg/Nm3";
+    form.so2Note.value = payload.so2Note || "";
+    form.dustStatus.value = normalizeCemsStatusValue(payload.dustStatus || "OK");
+    form.dustValue.value = payload.dustValue || "";
+    form.dustUnit.value = payload.dustUnit || "mg/Nm3";
+    form.dustNote.value = payload.dustNote || "";
+    form.flowStatus.value = normalizeCemsStatusValue(payload.flowStatus || "OK");
+    form.flowValue.value = payload.flowValue || "";
+    form.flowUnit.value = payload.flowUnit || "Nm3/h";
+    form.flowNote.value = payload.flowNote || "";
+    form.temperatureStatus.value = normalizeCemsStatusValue(payload.temperatureStatus || "OK");
+    form.temperatureValue.value = payload.temperatureValue || "";
+    form.temperatureUnit.value = payload.temperatureUnit || "C";
+    form.temperatureNote.value = payload.temperatureNote || "";
+    form.pressureStatus.value = normalizeCemsStatusValue(payload.pressureStatus || "OK");
+    form.pressureValue.value = payload.pressureValue || "";
+    form.pressureUnit.value = payload.pressureUnit || "kPa";
+    form.pressureNote.value = payload.pressureNote || "";
+    form.analyzerPower.value = normalizeCemsStatusValue(payload.analyzerPower || "OK");
+    form.analyzerStatus.value = normalizeCemsStatusValue(payload.analyzerStatus || "OK");
+    form.analyzerAlarm.value = normalizeCemsStatusValue(payload.analyzerAlarm || "OK");
+    form.analyzerResponseTime.value = normalizeCemsStatusValue(payload.analyzerResponseTime || "OK");
+    form.analyzerSpanDrift.value = normalizeCemsStatusValue(payload.analyzerSpanDrift || "OK");
+    form.analyzerZeroDrift.value = normalizeCemsStatusValue(payload.analyzerZeroDrift || "OK");
+    form.analyzerNote.value = payload.analyzerNote || "";
+    form.samplingProbe.value = normalizeCemsStatusValue(payload.samplingProbe || "OK");
+    form.samplingFilter.value = normalizeCemsStatusValue(payload.samplingFilter || "OK");
+    form.samplingHeatedLine.value = normalizeCemsStatusValue(payload.samplingHeatedLine || "OK");
+    form.samplingPump.value = normalizeCemsStatusValue(payload.samplingPump || "OK");
+    form.samplingFlow.value = normalizeCemsStatusValue(payload.samplingFlow || "OK");
+    form.samplingNote.value = payload.samplingNote || "";
+    form.calibrationCylinder.value = normalizeCemsStatusValue(payload.calibrationCylinder || "OK");
+    form.calibrationPressure.value = normalizeCemsStatusValue(payload.calibrationPressure || "OK");
+    form.calibrationRegulator.value = normalizeCemsStatusValue(payload.calibrationRegulator || "OK");
+    form.calibrationAuto.value = normalizeCemsStatusValue(payload.calibrationAuto || "OK");
+    form.calibrationSchedule.value = normalizeCemsStatusValue(payload.calibrationSchedule || "OK");
+    form.calibrationNote.value = payload.calibrationNote || "";
+    form.dataDasScada.value = normalizeCemsStatusValue(payload.dataDasScada || "OK");
+    form.dataLogger.value = normalizeCemsStatusValue(payload.dataLogger || "OK");
+    form.dataLoss.value = normalizeCemsStatusValue(payload.dataLoss || "OK");
+    form.timeSync.value = normalizeCemsStatusValue(payload.timeSync || "OK");
+    form.dataCommunicationNote.value = payload.dataCommunicationNote || "";
+    form.supportPowerSupply.value = normalizeCemsStatusValue(payload.supportPowerSupply || "OK");
+    form.supportUps.value = normalizeCemsStatusValue(payload.supportUps || "OK");
+    form.supportAcPanel.value = normalizeCemsStatusValue(payload.supportAcPanel || "OK");
+    form.supportShelter.value = normalizeCemsStatusValue(payload.supportShelter || "OK");
+    form.supportNote.value = payload.supportNote || "";
+    form.findingIssue.value = payload.findingIssue || "";
+    form.possibleCause.value = payload.possibleCause || "";
+    form.emissionImpact.value = payload.emissionImpact || "";
+    form.urgencyLevel.value = payload.urgencyLevel || "Low";
   }
 
   if (item.formType === "service-dcs") {
@@ -6781,6 +7030,12 @@ electricalSubtabs.forEach((button) => {
   });
 });
 
+instrumentSubtabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    openInstrumentPane(button.dataset.instrumentTab);
+  });
+});
+
 carbonBrushEquipmentInput?.addEventListener("input", (event) => {
   const query = event.target.value.trim();
   selectedCarbonBrushEquipmentReference = carbonBrushEquipmentReferenceList.includes(query) ? query : "";
@@ -7219,6 +7474,117 @@ forms.forEach((form) => {
         appendServiceCard(savedItem);
         setSubmitNote(form, "Service instrument berhasil ditambahkan ke daftar service.");
         showToast("Service Instrument", "Item baru berhasil ditambahkan.");
+      }
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
+    }
+
+    if (formType === "service-cems") {
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const photoPayload = await getNamedFindingPhotoPayload(formData, existingPayload, [
+        { fieldName: "cemsConditionPhoto", label: "Foto kondisi alat" },
+        { fieldName: "cemsScreenshot", label: "Screenshot data CEMS" },
+        { fieldName: "cemsAlarmLog", label: "Log alarm" },
+      ]);
+      const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+      const payload = {
+        inspectionDate: inspectionDateValue
+          ? new Date(`${inspectionDateValue}T00:00:00`).toISOString()
+          : existingPayload.inspectionDate || new Date().toISOString(),
+        inspectorName: String(formData.get("inspectorName") || "").trim(),
+        o2Status: normalizeCemsStatusValue(formData.get("o2Status")),
+        o2Value: String(formData.get("o2Value") || "").trim(),
+        o2Unit: String(formData.get("o2Unit") || "").trim(),
+        o2Note: String(formData.get("o2Note") || "").trim(),
+        coStatus: normalizeCemsStatusValue(formData.get("coStatus")),
+        coValue: String(formData.get("coValue") || "").trim(),
+        coUnit: String(formData.get("coUnit") || "").trim(),
+        coNote: String(formData.get("coNote") || "").trim(),
+        noxStatus: normalizeCemsStatusValue(formData.get("noxStatus")),
+        noxValue: String(formData.get("noxValue") || "").trim(),
+        noxUnit: String(formData.get("noxUnit") || "").trim(),
+        noxNote: String(formData.get("noxNote") || "").trim(),
+        so2Status: normalizeCemsStatusValue(formData.get("so2Status")),
+        so2Value: String(formData.get("so2Value") || "").trim(),
+        so2Unit: String(formData.get("so2Unit") || "").trim(),
+        so2Note: String(formData.get("so2Note") || "").trim(),
+        dustStatus: normalizeCemsStatusValue(formData.get("dustStatus")),
+        dustValue: String(formData.get("dustValue") || "").trim(),
+        dustUnit: String(formData.get("dustUnit") || "").trim(),
+        dustNote: String(formData.get("dustNote") || "").trim(),
+        flowStatus: normalizeCemsStatusValue(formData.get("flowStatus")),
+        flowValue: String(formData.get("flowValue") || "").trim(),
+        flowUnit: String(formData.get("flowUnit") || "").trim(),
+        flowNote: String(formData.get("flowNote") || "").trim(),
+        temperatureStatus: normalizeCemsStatusValue(formData.get("temperatureStatus")),
+        temperatureValue: String(formData.get("temperatureValue") || "").trim(),
+        temperatureUnit: String(formData.get("temperatureUnit") || "").trim(),
+        temperatureNote: String(formData.get("temperatureNote") || "").trim(),
+        pressureStatus: normalizeCemsStatusValue(formData.get("pressureStatus")),
+        pressureValue: String(formData.get("pressureValue") || "").trim(),
+        pressureUnit: String(formData.get("pressureUnit") || "").trim(),
+        pressureNote: String(formData.get("pressureNote") || "").trim(),
+        analyzerPower: normalizeCemsStatusValue(formData.get("analyzerPower")),
+        analyzerStatus: normalizeCemsStatusValue(formData.get("analyzerStatus")),
+        analyzerAlarm: normalizeCemsStatusValue(formData.get("analyzerAlarm")),
+        analyzerResponseTime: normalizeCemsStatusValue(formData.get("analyzerResponseTime")),
+        analyzerSpanDrift: normalizeCemsStatusValue(formData.get("analyzerSpanDrift")),
+        analyzerZeroDrift: normalizeCemsStatusValue(formData.get("analyzerZeroDrift")),
+        analyzerNote: String(formData.get("analyzerNote") || "").trim(),
+        samplingProbe: normalizeCemsStatusValue(formData.get("samplingProbe")),
+        samplingFilter: normalizeCemsStatusValue(formData.get("samplingFilter")),
+        samplingHeatedLine: normalizeCemsStatusValue(formData.get("samplingHeatedLine")),
+        samplingPump: normalizeCemsStatusValue(formData.get("samplingPump")),
+        samplingFlow: normalizeCemsStatusValue(formData.get("samplingFlow")),
+        samplingNote: String(formData.get("samplingNote") || "").trim(),
+        calibrationCylinder: normalizeCemsStatusValue(formData.get("calibrationCylinder")),
+        calibrationPressure: normalizeCemsStatusValue(formData.get("calibrationPressure")),
+        calibrationRegulator: normalizeCemsStatusValue(formData.get("calibrationRegulator")),
+        calibrationAuto: normalizeCemsStatusValue(formData.get("calibrationAuto")),
+        calibrationSchedule: normalizeCemsStatusValue(formData.get("calibrationSchedule")),
+        calibrationNote: String(formData.get("calibrationNote") || "").trim(),
+        dataDasScada: normalizeCemsStatusValue(formData.get("dataDasScada")),
+        dataLogger: normalizeCemsStatusValue(formData.get("dataLogger")),
+        dataLoss: normalizeCemsStatusValue(formData.get("dataLoss")),
+        timeSync: normalizeCemsStatusValue(formData.get("timeSync")),
+        dataCommunicationNote: String(formData.get("dataCommunicationNote") || "").trim(),
+        supportPowerSupply: normalizeCemsStatusValue(formData.get("supportPowerSupply")),
+        supportUps: normalizeCemsStatusValue(formData.get("supportUps")),
+        supportAcPanel: normalizeCemsStatusValue(formData.get("supportAcPanel")),
+        supportShelter: normalizeCemsStatusValue(formData.get("supportShelter")),
+        supportNote: String(formData.get("supportNote") || "").trim(),
+        findingIssue: String(formData.get("findingIssue") || "").trim(),
+        possibleCause: String(formData.get("possibleCause") || "").trim(),
+        emissionImpact: String(formData.get("emissionImpact") || "").trim(),
+        urgencyLevel: String(formData.get("urgencyLevel") || "Low").trim(),
+        ...photoPayload,
+      };
+      const item = {
+        id: editingServiceId || createId("service"),
+        type: "Instrument",
+        subtype: "CEMS",
+        formType: "service-cems",
+        equipmentName: String(formData.get("equipmentName") || "-").trim(),
+        description: String(formData.get("description") || "-").trim(),
+        detail: buildCemsDetailSummary(payload),
+        payload,
+      };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
+      if (editingServiceId) {
+        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
+        if (existing) {
+          existing.replaceWith(renderServiceCard(savedItem));
+        }
+        setSubmitNote(form, "Inspeksi CEMS berhasil diperbarui.");
+        showToast("CEMS", "Data berhasil diperbarui.");
+        editingServiceId = null;
+      } else {
+        appendServiceCard(savedItem);
+        setSubmitNote(form, "Inspeksi CEMS berhasil ditambahkan.");
+        showToast("CEMS", "Item baru berhasil ditambahkan.");
       }
       persistServiceList();
       updateDashboardStats();

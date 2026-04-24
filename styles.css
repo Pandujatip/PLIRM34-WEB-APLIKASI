@@ -2345,12 +2345,14 @@ th.sort-desc::after {
 
 .service-pane,
 .electrical-pane,
+.instrument-pane,
 .bom-pane {
   display: none;
 }
 
 .service-pane.visible,
 .electrical-pane.visible,
+.instrument-pane.visible,
 .bom-pane.visible {
   display: block;
 }
@@ -2432,6 +2434,15 @@ th.sort-desc::after {
 
 .dcs-form-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cems-parameter-grid label span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 [data-form-type="service-dcs"] .inspection-section {
