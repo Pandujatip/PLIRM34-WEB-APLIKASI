@@ -5821,6 +5821,7 @@ function renderServiceCard(item) {
     ...item,
     payload: item.payload || {},
   });
+  const isMsoMotorItem = item.formType === "service-motor-mv" && String(item.payload?.source || "").toUpperCase() === "MSO";
   const canDeleteService = activeRole !== "team";
   const card = document.createElement("article");
   card.className = "service-list-item";
@@ -5840,7 +5841,9 @@ function renderServiceCard(item) {
   const inspectionDate = formatInspectionDate(item.payload?.inspectionDate);
   const summaryText = item.formType === "service-motor-mv-carbon-brush"
     ? `Merah ${carbonBrushStatsPayload?.low || 0} | Kuning ${carbonBrushStatsPayload?.medium || 0} | Hijau ${carbonBrushStatsPayload?.high || 0}`
-    : (item.detail || "-");
+    : (isMsoMotorItem
+      ? `Condition ${item.payload?.condition || "-"} | Temp DS ${item.payload?.temperaturDs || "-"} | Temp NDS ${item.payload?.temperaturNds || "-"}`
+      : (item.detail || "-"));
 
   card.innerHTML = `
     <div class="service-list-main">
@@ -5855,8 +5858,8 @@ function renderServiceCard(item) {
     </div>
     <div class="service-list-actions">
       <button class="table-action compact" data-action="send-service" type="button">Kirim</button>
-      <button class="table-action compact" data-action="edit-service" type="button">Edit</button>
-      ${canDeleteService ? '<button class="table-action compact danger" data-action="delete-service" type="button">Hapus</button>' : ""}
+      ${isMsoMotorItem ? '<span class="table-action compact muted-action" title="Data sinkron dari MSO">MSO</span>' : '<button class="table-action compact" data-action="edit-service" type="button">Edit</button>'}
+      ${canDeleteService && !isMsoMotorItem ? '<button class="table-action compact danger" data-action="delete-service" type="button">Hapus</button>' : ""}
     </div>
   `;
   return card;
@@ -7603,47 +7606,9 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-motor-mv") {
-      const existingPayload = editingServiceId
-        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
-        : {};
-      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
-      const item = {
-        id: editingServiceId || createId("service"),
-        type: "Electrical",
-          subtype: "Motor MV",
-          formType: "service-motor-mv",
-        equipmentName: String(formData.get("equipmentName") || "-"),
-        description: String(formData.get("description") || "-"),
-          detail: `Vibrasi DE: ${String(formData.get("vibrationDe") || "-")} | Vibrasi NDE: ${String(formData.get("vibrationNde") || "-")} | Arus: ${String(formData.get("motorCurrent") || "-")}`,
-          payload: {
-            inspectionDate: editingServiceId
-              ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload?.inspectionDate || new Date().toISOString()
-              : new Date().toISOString(),
-            vibrationDe: String(formData.get("vibrationDe") || ""),
-            vibrationNde: String(formData.get("vibrationNde") || ""),
-            windingTemperature: String(formData.get("windingTemperature") || ""),
-            bearingCondition: String(formData.get("bearingCondition") || ""),
-            motorCurrent: String(formData.get("motorCurrent") || ""),
-            ...photoPayload,
-        },
-      };
-      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
-      if (editingServiceId) {
-        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
-        if (existing) {
-          existing.replaceWith(renderServiceCard(savedItem));
-        }
-        setSubmitNote(form, "Motor MV berhasil diperbarui.");
-        showToast("Motor MV", "Data berhasil diperbarui.");
-        editingServiceId = null;
-      } else {
-        appendServiceCard(savedItem);
-        setSubmitNote(form, "Inspeksi Motor MV berhasil ditambahkan.");
-        showToast("Motor MV", "Item baru berhasil ditambahkan.");
-      }
-      persistServiceList();
-      updateDashboardStats();
-      applyServiceFilter();
+      setSubmitNote(form, "Inspeksi Motor MV hanya bisa masuk melalui sinkronisasi MSO mingguan.");
+      showToast("Motor MV", "Gunakan Import MSO Mingguan di Manajemen User.");
+      return;
     }
 
     if (formType === "service-motor-mv-carbon-brush") {
@@ -8383,6 +8348,10 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "delete-service") {
+    if (item.formType === "service-motor-mv" && String(item.payload?.source || "").toUpperCase() === "MSO") {
+      showToast("Motor MV", "Data sinkron MSO tidak dihapus manual dari daftar service.");
+      return;
+    }
     if (!confirmDeleteAction("data ini")) {
       return;
     }
@@ -8414,6 +8383,10 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "edit-service") {
+    if (item.formType === "service-motor-mv" && String(item.payload?.source || "").toUpperCase() === "MSO") {
+      showToast("Motor MV", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
+      return;
+    }
     hydrateServiceForm(item);
     openSection("service");
     openCreatePanel("service");

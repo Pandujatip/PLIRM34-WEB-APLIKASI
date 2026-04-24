@@ -929,47 +929,49 @@
                 <button class="btn btn-primary" type="submit">Simpan Electrical Room</button>
               </form>
 
-              <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mv" data-form-type="service-motor-mv">
+              <form class="input-form electrical-pane sync-only-form" data-electrical-pane="motor-mv" data-form-type="service-motor-mv">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Motor MV</p>
-                  <h3>Inspeksi motor MV</h3>
+                  <h3>Sinkron inspeksi motor MV</h3>
                 </div>
-                <p class="form-hint">Sumber utama inspeksi motor MV berasal dari sinkronisasi mingguan MSO. Form ini hanya dipakai bila diperlukan penyesuaian manual.</p>
+                <div class="sync-only-note">
+                  <strong>Sumber data motor MV hanya dari MSO.</strong>
+                  <span>Letakkan file CSV export mingguan MSO di folder server yang sudah ditentukan, lalu jalankan tombol <strong>Import MSO Mingguan</strong> di menu <strong>Manajemen User &gt; Admin Tools</strong>.</span>
+                </div>
                 <div class="form-grid form-grid-3">
                   <label>
                     Nama motor MV
-                    <input type="text" name="equipmentName" placeholder="Contoh: Motor Raw Mill MV-01" required>
+                    <input type="text" name="equipmentName" placeholder="Diisi otomatis dari file MSO" disabled>
                   </label>
                   <label>
                     Vibrasi DE
-                    <input type="text" name="vibrationDe" placeholder="Contoh: 2.1 mm/s" required>
+                    <input type="text" name="vibrationDe" placeholder="Diisi otomatis dari file MSO" disabled>
                   </label>
                   <label>
                     Vibrasi NDE
-                    <input type="text" name="vibrationNde" placeholder="Contoh: 1.8 mm/s" required>
+                    <input type="text" name="vibrationNde" placeholder="Diisi otomatis dari file MSO" disabled>
                   </label>
                   <label>
                     Suhu winding
-                    <input type="text" name="windingTemperature" placeholder="Contoh: 78 C" required>
+                    <input type="text" name="windingTemperature" placeholder="Diisi otomatis dari file MSO" disabled>
                   </label>
                   <label>
                     Kondisi bearing
-                    <input type="text" name="bearingCondition" placeholder="Contoh: normal / bising / panas" required>
+                    <input type="text" name="bearingCondition" placeholder="Diisi otomatis dari file MSO" disabled>
                   </label>
                   <label>
                     Arus motor
-                    <input type="text" name="motorCurrent" placeholder="Contoh: 112 A" required>
+                    <input type="text" name="motorCurrent" placeholder="Diisi otomatis dari file MSO" disabled>
                   </label>
                   <label class="full-span">
                     Keterangan
-                    <textarea name="description" rows="4" placeholder="Temuan inspeksi motor MV" required></textarea>
+                    <textarea name="description" rows="4" placeholder="Ringkasan inspeksi akan mengikuti data MSO" disabled></textarea>
                   </label>
                   <label class="full-span">
                     Foto temuan
-                    <input type="file" name="findingPhoto" accept="image/*" multiple>
+                    <input type="file" name="findingPhoto" accept="image/*" multiple disabled>
                   </label>
                 </div>
-                <button class="btn btn-primary" type="submit">Simpan Motor MV</button>
               </form>
 
               <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mv-carbon-brush" data-form-type="service-motor-mv-carbon-brush">
