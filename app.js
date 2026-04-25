@@ -2684,6 +2684,34 @@ function formatServicePayloadLines(item) {
         ["Mplant", payload.mplant || "-"],
         ["Temperatur DS", payload.temperaturDs || "-"],
         ["Temperatur NDS", payload.temperaturNds || "-"],
+        ["gE DS Vert Before", payload.geDsVertBefore || "-"],
+        ["gE DS Hor Before", payload.geDsHorBefore || "-"],
+        ["gE DS Axial Before", payload.geDsAxialBefore || "-"],
+        ["Vibrasi DS Vert Before", payload.vibrasiDsVertBefore || "-"],
+        ["Vibrasi DS Hor Before", payload.vibrasiDsHorBefore || "-"],
+        ["Vibrasi DS Axial Before", payload.vibrasiDsAxialBefore || "-"],
+        ["gE NDS Vert Before", payload.geNdsVertBefore || "-"],
+        ["gE NDS Hor Before", payload.geNdsHorBefore || "-"],
+        ["gE NDS Axial Before", payload.geNdsAxialBefore || "-"],
+        ["Vibrasi NDS Vert Before", payload.vibrasiNdsVertBefore || "-"],
+        ["Vibrasi NDS Hor Before", payload.vibrasiNdsHorBefore || "-"],
+        ["Vibrasi NDS Axial Before", payload.vibrasiNdsAxialBefore || "-"],
+        ["Regrease DE", payload.regreaseDe || "-"],
+        ["Regrease NDE", payload.regreaseNde || "-"],
+        ["gE DS Vert After", payload.geDsVertAfter || "-"],
+        ["gE DS Hor After", payload.geDsHorAfter || "-"],
+        ["gE DS Axial After", payload.geDsAxialAfter || "-"],
+        ["Vibrasi DS Vert After", payload.vibrasiDsVertAfter || "-"],
+        ["Vibrasi DS Hor After", payload.vibrasiDsHorAfter || "-"],
+        ["Vibrasi DS Axial After", payload.vibrasiDsAxialAfter || "-"],
+        ["gE NDS Vert After", payload.geNdsVertAfter || "-"],
+        ["gE NDS Hor After", payload.geNdsHorAfter || "-"],
+        ["gE NDS Axial After", payload.geNdsAxialAfter || "-"],
+        ["Vibrasi NDS Vert After", payload.vibrasiNdsVertAfter || "-"],
+        ["Vibrasi NDS Hor After", payload.vibrasiNdsHorAfter || "-"],
+        ["Vibrasi NDS Axial After", payload.vibrasiNdsAxialAfter || "-"],
+        ["Kelengkapan Motor", payload.kelengkapanMotor || "-"],
+        ["Keterangan MSO", payload.inspectionNote || "-"],
         ["Photo URL", payload.photoUrl || "-"],
       ];
     }
@@ -4377,6 +4405,34 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       mplant: cells[10] || "",
       temperaturDs: cells[11] || "",
       temperaturNds: cells[12] || "",
+      geDsVertBefore: cells[13] || "",
+      geDsHorBefore: cells[14] || "",
+      geDsAxialBefore: cells[15] || "",
+      vibrasiDsVertBefore: cells[16] || "",
+      vibrasiDsHorBefore: cells[17] || "",
+      vibrasiDsAxialBefore: cells[18] || "",
+      geNdsVertBefore: cells[19] || "",
+      geNdsHorBefore: cells[20] || "",
+      geNdsAxialBefore: cells[21] || "",
+      vibrasiNdsVertBefore: cells[22] || "",
+      vibrasiNdsHorBefore: cells[23] || "",
+      vibrasiNdsAxialBefore: cells[24] || "",
+      regreaseDe: cells[25] || "",
+      regreaseNde: cells[26] || "",
+      geDsVertAfter: cells[27] || "",
+      geDsHorAfter: cells[28] || "",
+      geDsAxialAfter: cells[29] || "",
+      vibrasiDsVertAfter: cells[30] || "",
+      vibrasiDsHorAfter: cells[31] || "",
+      vibrasiDsAxialAfter: cells[32] || "",
+      geNdsVertAfter: cells[33] || "",
+      geNdsHorAfter: cells[34] || "",
+      geNdsAxialAfter: cells[35] || "",
+      vibrasiNdsVertAfter: cells[36] || "",
+      vibrasiNdsHorAfter: cells[37] || "",
+      vibrasiNdsAxialAfter: cells[38] || "",
+      kelengkapanMotor: cells[39] || "",
+      inspectionNote: cells[40] || "",
     };
   };
   const dedupeRows = (rows) => {
@@ -4566,6 +4622,34 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
       mplant: cells[10] || "",
       temperaturDs: cells[11] || "",
       temperaturNds: cells[12] || "",
+      geDsVertBefore: cells[13] || "",
+      geDsHorBefore: cells[14] || "",
+      geDsAxialBefore: cells[15] || "",
+      vibrasiDsVertBefore: cells[16] || "",
+      vibrasiDsHorBefore: cells[17] || "",
+      vibrasiDsAxialBefore: cells[18] || "",
+      geNdsVertBefore: cells[19] || "",
+      geNdsHorBefore: cells[20] || "",
+      geNdsAxialBefore: cells[21] || "",
+      vibrasiNdsVertBefore: cells[22] || "",
+      vibrasiNdsHorBefore: cells[23] || "",
+      vibrasiNdsAxialBefore: cells[24] || "",
+      regreaseDe: cells[25] || "",
+      regreaseNde: cells[26] || "",
+      geDsVertAfter: cells[27] || "",
+      geDsHorAfter: cells[28] || "",
+      geDsAxialAfter: cells[29] || "",
+      vibrasiDsVertAfter: cells[30] || "",
+      vibrasiDsHorAfter: cells[31] || "",
+      vibrasiDsAxialAfter: cells[32] || "",
+      geNdsVertAfter: cells[33] || "",
+      geNdsHorAfter: cells[34] || "",
+      geNdsAxialAfter: cells[35] || "",
+      vibrasiNdsVertAfter: cells[36] || "",
+      vibrasiNdsHorAfter: cells[37] || "",
+      vibrasiNdsAxialAfter: cells[38] || "",
+      kelengkapanMotor: cells[39] || "",
+      inspectionNote: cells[40] || "",
     };
   };
   const dedupeRows = (rows) => {
@@ -6295,10 +6379,23 @@ function renderServiceCard(item) {
     ? (item.payload?.stats || computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || ""))
     : null;
   const inspectionDate = formatInspectionDate(item.payload?.inspectionDate);
+  const msoMaxVibration = isMsoMotorItem
+    ? [
+      item.payload?.vibrasiDsVertBefore,
+      item.payload?.vibrasiDsHorBefore,
+      item.payload?.vibrasiDsAxialBefore,
+      item.payload?.vibrasiNdsVertBefore,
+      item.payload?.vibrasiNdsHorBefore,
+      item.payload?.vibrasiNdsAxialBefore,
+    ]
+      .map((value) => Number.parseFloat(String(value || "").replace(",", ".")))
+      .filter((value) => Number.isFinite(value))
+      .sort((left, right) => right - left)[0]
+    : null;
   const summaryText = item.formType === "service-motor-mv-carbon-brush"
     ? `Merah ${carbonBrushStatsPayload?.low || 0} | Kuning ${carbonBrushStatsPayload?.medium || 0} | Hijau ${carbonBrushStatsPayload?.high || 0}`
     : (isMsoMotorItem
-      ? `Condition ${item.payload?.condition || "-"} | Temp DS ${item.payload?.temperaturDs || "-"} | Temp NDS ${item.payload?.temperaturNds || "-"}`
+      ? `Condition ${item.payload?.condition || "-"} | Temp DS ${item.payload?.temperaturDs || "-"} | Temp NDS ${item.payload?.temperaturNds || "-"} | Vib max ${msoMaxVibration ?? "-"}`
       : (item.detail || "-"));
 
   card.innerHTML = `

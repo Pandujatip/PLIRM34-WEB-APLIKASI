@@ -1482,6 +1482,42 @@ def read_text_with_fallbacks(file_path: Path) -> str:
     return file_path.read_text()
 
 
+def extract_mso_motor_measurements(row: dict) -> dict:
+    data = {
+        "temperatureDs": str(row.get("temperaturDs") or "").strip(),
+        "temperatureNds": str(row.get("temperaturNds") or "").strip(),
+        "geDsVertBefore": str(row.get("geDsVertBefore") or "").strip(),
+        "geDsHorBefore": str(row.get("geDsHorBefore") or "").strip(),
+        "geDsAxialBefore": str(row.get("geDsAxialBefore") or "").strip(),
+        "vibrasiDsVertBefore": str(row.get("vibrasiDsVertBefore") or "").strip(),
+        "vibrasiDsHorBefore": str(row.get("vibrasiDsHorBefore") or "").strip(),
+        "vibrasiDsAxialBefore": str(row.get("vibrasiDsAxialBefore") or "").strip(),
+        "geNdsVertBefore": str(row.get("geNdsVertBefore") or "").strip(),
+        "geNdsHorBefore": str(row.get("geNdsHorBefore") or "").strip(),
+        "geNdsAxialBefore": str(row.get("geNdsAxialBefore") or "").strip(),
+        "vibrasiNdsVertBefore": str(row.get("vibrasiNdsVertBefore") or "").strip(),
+        "vibrasiNdsHorBefore": str(row.get("vibrasiNdsHorBefore") or "").strip(),
+        "vibrasiNdsAxialBefore": str(row.get("vibrasiNdsAxialBefore") or "").strip(),
+        "regreaseDe": str(row.get("regreaseDe") or "").strip(),
+        "regreaseNde": str(row.get("regreaseNde") or "").strip(),
+        "geDsVertAfter": str(row.get("geDsVertAfter") or "").strip(),
+        "geDsHorAfter": str(row.get("geDsHorAfter") or "").strip(),
+        "geDsAxialAfter": str(row.get("geDsAxialAfter") or "").strip(),
+        "vibrasiDsVertAfter": str(row.get("vibrasiDsVertAfter") or "").strip(),
+        "vibrasiDsHorAfter": str(row.get("vibrasiDsHorAfter") or "").strip(),
+        "vibrasiDsAxialAfter": str(row.get("vibrasiDsAxialAfter") or "").strip(),
+        "geNdsVertAfter": str(row.get("geNdsVertAfter") or "").strip(),
+        "geNdsHorAfter": str(row.get("geNdsHorAfter") or "").strip(),
+        "geNdsAxialAfter": str(row.get("geNdsAxialAfter") or "").strip(),
+        "vibrasiNdsVertAfter": str(row.get("vibrasiNdsVertAfter") or "").strip(),
+        "vibrasiNdsHorAfter": str(row.get("vibrasiNdsHorAfter") or "").strip(),
+        "vibrasiNdsAxialAfter": str(row.get("vibrasiNdsAxialAfter") or "").strip(),
+        "kelengkapanMotor": str(row.get("kelengkapanMotor") or "").strip(),
+        "inspectionNote": str(row.get("inspectionNote") or row.get("keterangan") or "").strip(),
+    }
+    return data
+
+
 def build_mso_motor_import_items(csv_text: str, source_name: str = "") -> list[dict]:
     reader = csv.DictReader(io.StringIO(csv_text))
     items: list[dict] = []
@@ -1502,6 +1538,7 @@ def build_mso_motor_import_items(csv_text: str, source_name: str = "") -> list[d
         photo_url = str(row.get("photoPath", "") or "").strip()
         id_amtrans = str(row.get("idAmtrans", "") or "").strip()
         mplant = str(row.get("mplant", "") or "").strip()
+        measurements = extract_mso_motor_measurements(row)
         detail_parts = [
             f"Condition: {condition or '-'}",
             f"Temp DS: {temperatur_ds or '-'}",
@@ -1535,6 +1572,7 @@ def build_mso_motor_import_items(csv_text: str, source_name: str = "") -> list[d
                     "temperaturNds": temperatur_nds,
                     "photoUrl": photo_url,
                     "descriptionRaw": description,
+                    **measurements,
                     "vibrationDe": "",
                     "vibrationNde": "",
                     "windingTemperature": "",
@@ -1567,6 +1605,7 @@ def build_mso_motor_import_items_from_rows(rows: list[dict], source_name: str = 
         id_amtrans = str(raw_row.get("idAmtrans") or "").strip()
         photo_url = str(raw_row.get("photoPath") or raw_row.get("photoUrl") or "").strip()
         mplant = str(raw_row.get("mplant") or "").strip()
+        measurements = extract_mso_motor_measurements(raw_row)
         detail_parts = [
             f"Condition: {condition}",
             f"Temp DS: {temperatur_ds or '-'}",
@@ -1599,6 +1638,7 @@ def build_mso_motor_import_items_from_rows(rows: list[dict], source_name: str = 
                     "temperaturNds": temperatur_nds,
                     "photoUrl": photo_url,
                     "descriptionRaw": descr,
+                    **measurements,
                     "vibrationDe": "",
                     "vibrationNde": "",
                     "windingTemperature": "",
