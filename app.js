@@ -113,6 +113,7 @@ const bomMotorList = document.getElementById("bom-motor-list");
 const spbBody = document.getElementById("spb-body");
 const dashboardNegatifPreview = document.getElementById("dashboard-negatif-preview");
 const dashboardSpbPreview = document.getElementById("dashboard-spb-preview");
+const isMsoBridgeMode = new URLSearchParams(window.location.search).get("mso_bridge") === "1";
 const dashboardServicePreview = document.getElementById("dashboard-service-preview");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
@@ -4312,6 +4313,7 @@ function buildMsoMotorBrowserSyncScript(startDate) {
   const CONFIG = {
     startDate: ${JSON.stringify(safeStartDate)},
     targetOrigin: ${JSON.stringify(targetOrigin)},
+    bridgeUrl: ${JSON.stringify(`${targetOrigin}/?mso_bridge=1`)},
     pageLength: "100",
     waitMs: 1400,
     maxPages: 500,
@@ -4405,6 +4407,53 @@ function buildMsoMotorBrowserSyncScript(startDate) {
     if (!next) return null;
     return next.classList.contains(CONFIG.disabledClass) ? null : next.querySelector("a") || next;
   };
+  const sendRowsToPlirm34 = (rows) => new Promise((resolve, reject) => {
+    const bridgeWindow = window.open(CONFIG.bridgeUrl, "plirm34-mso-bridge");
+    if (!bridgeWindow) {
+      reject(new Error("Popup bridge PLIRM34 gagal dibuka. Izinkan popup lalu coba lagi."));
+      return;
+    }
+    let settled = false;
+    let sendCount = 0;
+    const messagePayload = {
+      type: "plirm34-mso-sync",
+      sourceName: "MSO Browser Sync " + new Date().toISOString(),
+      items: rows,
+    };
+    const cleanup = () => {
+      window.removeEventListener("message", onMessage);
+      window.clearInterval(sendTimer);
+      window.clearTimeout(timeoutTimer);
+    };
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onMessage = (event) => {
+      if (event.origin !== CONFIG.targetOrigin) return;
+      if (!event.data || event.data.type !== "plirm34-mso-sync-result") return;
+      if (event.data.ok) {
+        finish(() => resolve(event.data));
+      } else {
+        finish(() => reject(new Error(event.data.error || "Bridge PLIRM34 menolak data sync.")));
+      }
+    };
+    window.addEventListener("message", onMessage);
+    const postPayload = () => {
+      sendCount += 1;
+      bridgeWindow.postMessage(messagePayload, CONFIG.targetOrigin);
+      if (sendCount === 1) {
+        bridgeWindow.focus();
+      }
+    };
+    const sendTimer = window.setInterval(postPayload, 1000);
+    const timeoutTimer = window.setTimeout(() => {
+      finish(() => reject(new Error("Bridge PLIRM34 tidak merespons. Pastikan Anda masih login di PLIRM34, lalu coba lagi.")));
+    }, 25000);
+    postPayload();
+  });
 
   (async () => {
     await ensureMotorFilter();
@@ -4429,19 +4478,7 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       alert("Tidak ada data motor sesuai filter tanggal.");
       return;
     }
-    const response = await fetch(CONFIG.targetOrigin + "/api/admin/import-mso-motor-scrape", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sourceName: "MSO Browser Sync " + new Date().toISOString(),
-        items: filteredRows,
-      }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload.error || ("HTTP " + response.status));
-    }
+    const payload = await sendRowsToPlirm34(filteredRows);
     alert("Sinkron selesai: " + (payload.imported || 0) + " item. Baru: " + (payload.created || 0) + ", update: " + (payload.updated || 0));
     console.log("PLIRM34 sync payload", payload);
   })().catch((error) => {
@@ -4626,6 +4663,58 @@ async function initializeApplication() {
       : "Belum ada data operasional. Mulai input data real melalui tiap menu.";
   }
 }
+
+window.addEventListener("message", async (event) => {
+  if (!isMsoBridgeMode || event.origin !== "https://smip.sig.id") {
+    return;
+  }
+  if (!event.data || event.data.type !== "plirm34-mso-sync") {
+    return;
+  }
+
+  const reply = (payload) => {
+    try {
+      event.source?.postMessage({ type: "plirm34-mso-sync-result", ...payload }, event.origin);
+    } catch (error) {
+      console.error("Gagal kirim balasan bridge MSO", error);
+    }
+  };
+
+  try {
+    const items = Array.isArray(event.data.items) ? event.data.items : [];
+    const sourceName = String(event.data.sourceName || "MSO Browser Sync").trim() || "MSO Browser Sync";
+    if (!items.length) {
+      throw new Error("Data scrape MSO kosong.");
+    }
+    if (!backendState.available) {
+      throw new Error("Backend PLIRM34 tidak tersedia.");
+    }
+    if (!backendState.sessionActive) {
+      const restored = await restoreBackendSession();
+      if (!restored) {
+        throw new Error("Sesi PLIRM34 belum aktif. Login dulu di tab bridge PLIRM34, lalu ulangi sync.");
+      }
+    }
+    const result = await importMsoMotorScrapeItems(items, sourceName);
+    await hydrateFromBackendAfterLogin();
+    updateDashboardMetrics();
+    if (activeRole === "admin") {
+      await refreshAdminMasters();
+    }
+    showToast("MSO Motor", `Browser sync selesai: ${result.imported || 0} item.`);
+    reply({
+      ok: true,
+      imported: result.imported || 0,
+      created: result.created || 0,
+      updated: result.updated || 0,
+      sourceName,
+    });
+  } catch (error) {
+    const message = error?.message || "Gagal memproses browser sync MSO.";
+    showToast("MSO Motor", message);
+    reply({ ok: false, error: message });
+  }
+});
 
 function renderUserManagementTable() {
   if (!userManagementBody) {
