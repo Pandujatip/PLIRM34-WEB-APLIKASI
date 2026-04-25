@@ -1322,32 +1322,8 @@ def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
     if not item.get("id"):
         raise ValueError("ID item wajib ada")
 
-    resource_config = RESOURCE_TABLES[resource_key]
-    table = resource_config["table"]
-    columns = resource_config["columns"]
-    placeholders = ", ".join(["?"] * (len(columns) + 3))
-    insert_columns = ", ".join(columns + ["created_by_user_id", "updated_by_user_id", "updated_at"])
-    update_assignments = ", ".join([f"{column} = excluded.{column}" for column in columns[1:]])
-
     with get_connection() as connection:
-        existing = connection.execute(
-            f"SELECT created_by_user_id FROM {table} WHERE id = ?",
-            (item["id"],),
-        ).fetchone()
-        created_by_user_id = existing["created_by_user_id"] if existing else user_id
-        row = serialize_resource_item(resource_key, item) + (created_by_user_id, user_id, utc_now().isoformat())
-        connection.execute(
-            f"""
-            INSERT INTO {table} ({insert_columns}) VALUES ({placeholders})
-            ON CONFLICT(id) DO UPDATE SET
-                {update_assignments},
-                updated_by_user_id = excluded.updated_by_user_id,
-                updated_at = excluded.updated_at
-            """,
-            row,
-        )
-        if resource_key == "service":
-            sync_service_detail_tables(connection, item)
+        upsert_resource_item(connection, resource_key, item, user_id)
         refresh_snapshot(connection, resource_key)
         checkpoint_connection(connection)
 
@@ -1355,6 +1331,37 @@ def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
     if not saved_item:
         raise ValueError("Gagal menyimpan item")
     return saved_item
+
+
+def upsert_resource_item(connection: sqlite3.Connection, resource_key: str, item: dict, user_id: int) -> None:
+    if not item.get("id"):
+        raise ValueError("ID item wajib ada")
+
+    resource_config = RESOURCE_TABLES[resource_key]
+    table = resource_config["table"]
+    columns = resource_config["columns"]
+    placeholders = ", ".join(["?"] * (len(columns) + 3))
+    insert_columns = ", ".join(columns + ["created_by_user_id", "updated_by_user_id", "updated_at"])
+    update_assignments = ", ".join([f"{column} = excluded.{column}" for column in columns[1:]])
+
+    existing = connection.execute(
+        f"SELECT created_by_user_id FROM {table} WHERE id = ?",
+        (item["id"],),
+    ).fetchone()
+    created_by_user_id = existing["created_by_user_id"] if existing else user_id
+    row = serialize_resource_item(resource_key, item) + (created_by_user_id, user_id, utc_now().isoformat())
+    connection.execute(
+        f"""
+        INSERT INTO {table} ({insert_columns}) VALUES ({placeholders})
+        ON CONFLICT(id) DO UPDATE SET
+            {update_assignments},
+            updated_by_user_id = excluded.updated_by_user_id,
+            updated_at = excluded.updated_at
+        """,
+        row,
+    )
+    if resource_key == "service":
+        sync_service_detail_tables(connection, item)
 
 
 def generate_import_id(resource_key: str) -> str:
@@ -1654,15 +1661,22 @@ def import_mso_motor_items(items: list[dict], user_id: int) -> dict:
     if not items:
         raise ValueError("CSV MSO motor tidak berisi data yang bisa diimport")
 
-    existing_ids = {str(item.get("id", "")) for item in load_resource_items("service")}
-    created = 0
-    updated = 0
-    for item in items:
-        if item["id"] in existing_ids:
-            updated += 1
-        else:
-            created += 1
-        create_or_update_item("service", item, user_id)
+    with get_connection() as connection:
+        existing_ids = {
+            str(row["id"])
+            for row in connection.execute("SELECT id FROM service_items").fetchall()
+        }
+        created = 0
+        updated = 0
+        for item in items:
+            if item["id"] in existing_ids:
+                updated += 1
+            else:
+                created += 1
+                existing_ids.add(item["id"])
+            upsert_resource_item(connection, "service", item, user_id)
+        refresh_snapshot(connection, "service")
+        checkpoint_connection(connection)
     return {"imported": len(items), "created": created, "updated": updated, "mode": "append"}
 
 
