@@ -79,6 +79,7 @@ const adminMsoMotorSaveButton = document.getElementById("admin-mso-motor-save-bu
 const adminMsoMotorUploadButton = document.getElementById("admin-mso-motor-upload-button");
 const adminMsoMotorUploadImportButton = document.getElementById("admin-mso-motor-upload-import-button");
 const adminMsoMotorImportButton = document.getElementById("admin-mso-motor-import-button");
+const adminMsoMotorResetButton = document.getElementById("admin-mso-motor-reset-button");
 const adminMsoMotorStartDate = document.getElementById("admin-mso-motor-start-date");
 const adminMsoMotorCopyScriptButton = document.getElementById("admin-mso-motor-copy-script-button");
 const adminMsoMotorCopyScrapeOnlyButton = document.getElementById("admin-mso-motor-copy-scrape-only-button");
@@ -4874,6 +4875,13 @@ async function importMsoMotorScrapeItems(items, sourceName) {
   });
 }
 
+async function resetMsoMotorItems() {
+  return apiRequest("/admin/reset-mso-motor", {
+    method: "POST",
+    body: {},
+  });
+}
+
 function buildMsoMotorBrowserSyncScript(startDate) {
   const safeStartDate = String(startDate || "2026-01-01").trim() || "2026-01-01";
   const targetOrigin = window.location.origin;
@@ -5405,6 +5413,7 @@ const msoMotorSyncControls = [
   adminMsoMotorUploadButton,
   adminMsoMotorUploadImportButton,
   adminMsoMotorImportButton,
+  adminMsoMotorResetButton,
   adminMsoMotorCopyScriptButton,
   adminMsoMotorCopyScrapeOnlyButton,
   adminMsoMotorImportJsonButton,
@@ -8453,6 +8462,29 @@ adminMsoMotorImportJsonButton?.addEventListener("click", async () => {
   } catch (error) {
     finishMsoMotorProgress("Import JSON MSO gagal.", error.message || "Terjadi kesalahan saat memproses file JSON hasil scrape.", "error");
     showToast("MSO Motor", error.message || "Gagal import JSON hasil scrape.");
+  }
+});
+
+adminMsoMotorResetButton?.addEventListener("click", async () => {
+  const isConfirmed = window.confirm("Reset semua data Motor MSO? Tindakan ini akan menghapus seluruh hasil import/sinkron Motor MSO dari aplikasi.");
+  if (!isConfirmed) {
+    return;
+  }
+  try {
+    showMsoMotorProgress("Menghapus seluruh data Motor MSO...", "Backend sedang membersihkan data hasil sinkron Motor MSO.");
+    const result = await resetMsoMotorItems();
+    updateMsoMotorProgress("Menyegarkan data aplikasi...", `Sebanyak ${result.deleted || 0} item Motor MSO dihapus. Memuat ulang data terbaru...`);
+    await hydrateFromBackendAfterLogin();
+    updateDashboardMetrics();
+    if (activeRole === "admin") {
+      updateMsoMotorProgress("Menyelesaikan reset Motor MSO...", "Memperbarui master admin dan status sinkron terbaru...");
+      await refreshAdminMasters();
+    }
+    finishMsoMotorProgress("Reset data Motor MSO selesai.", `${result.deleted || 0} item berhasil dihapus.`, "success");
+    showToast("MSO Motor", `Reset data Motor MSO selesai: ${result.deleted || 0} item dihapus.`);
+  } catch (error) {
+    finishMsoMotorProgress("Reset data Motor MSO gagal.", error.message || "Terjadi kesalahan saat menghapus data Motor MSO.", "error");
+    showToast("MSO Motor", error.message || "Gagal reset data Motor MSO.");
   }
 });
 

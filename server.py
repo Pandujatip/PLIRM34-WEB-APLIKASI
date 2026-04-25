@@ -1714,6 +1714,35 @@ def import_mso_motor_from_latest_file(user_id: int) -> dict:
     }
 
 
+def reset_mso_motor_items() -> dict:
+    with get_connection() as connection:
+        service_ids = [
+            str(row["id"])
+            for row in connection.execute(
+                "SELECT id FROM service_items WHERE form_type = ?",
+                ("service-motor-mso",),
+            ).fetchall()
+        ]
+        if not service_ids:
+            refresh_snapshot(connection, "service")
+            checkpoint_connection(connection)
+            return {"deleted": 0}
+
+        placeholders = ", ".join(["?"] * len(service_ids))
+        connection.execute(
+            f"DELETE FROM service_motor_mv_details WHERE service_id IN ({placeholders})",
+            service_ids,
+        )
+        cursor = connection.execute(
+            f"DELETE FROM service_items WHERE id IN ({placeholders})",
+            service_ids,
+        )
+        deleted = int(cursor.rowcount or 0)
+        refresh_snapshot(connection, "service")
+        checkpoint_connection(connection)
+    return {"deleted": deleted}
+
+
 def sanitize_upload_filename(filename: str, default_name: str = "mso-motor-upload.csv") -> str:
     candidate = os.path.basename(str(filename or "").replace("\\", "/")).strip()
     if not candidate:
@@ -3362,6 +3391,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_admin_mso_motor_scrape_post()
             return
 
+        if parsed.path == "/api/admin/reset-mso-motor":
+            self._handle_admin_mso_motor_reset_post()
+            return
+
         if parsed.path.startswith("/api/admin/import/"):
             self._handle_admin_import_post(parsed.path)
             return
@@ -3823,6 +3856,33 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"ok": True, **result, "sourceName": source_name}, status=HTTPStatus.CREATED)
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_admin_mso_motor_reset_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        result = reset_mso_motor_items()
+        sync_settings = get_app_setting_value("mso_motor_sync", DEFAULT_APP_SETTINGS["mso_motor_sync"])
+        updated_settings = {
+            **sync_settings,
+            "lastImportedFile": "",
+            "lastImportedAt": "",
+            "lastImportedCount": 0,
+        }
+        save_app_setting_value("mso_motor_sync", updated_settings)
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="delete",
+            resource="service",
+            target_label="Reset data Motor MSO",
+            detail={"deleted": result.get("deleted", 0)},
+        )
+        self._send_json({"ok": True, **result}, status=HTTPStatus.OK)
 
     def _handle_admin_negatif_list_import_post(self):
         user = self._require_user()
