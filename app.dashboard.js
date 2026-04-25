@@ -57,18 +57,24 @@ function renderCarbonBrushAlertBanner(serviceItems) {
 
   dashboardCarbonBrushBanner.classList.remove("hidden");
   if (dashboardCarbonBrushBannerSummary) {
-    dashboardCarbonBrushBannerSummary.textContent = `Top ${alerts.length} alert aktual carbon brush`;
+    dashboardCarbonBrushBannerSummary.textContent = `Top ${alerts.length} prioritas carbon brush`;
   }
-  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, worstPoint, status, predictionStatus, predictionQuality, rank }) => `
-    <article class="carbon-brush-alert-slide ${status.className}" data-service-id="${escapeHtml(item.id || "")}" tabindex="0" aria-hidden="true">
+  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, worstPoint, status, displayStatus, predictionStatus, predictionQuality, rank }) => {
+    const activeStatus = displayStatus || status;
+    const countdownText = worstPoint.countdownDays !== null ? `${worstPoint.countdownDays} hari` : "prediksi belum siap";
+    const statusBasisText = activeStatus.source === "prediction"
+      ? "Prioritas ini berasal dari prediksi countdown dengan histori yang cukup; nilai aktual tetap menjadi acuan utama."
+      : "Prioritas ini berasal dari nilai aktual terhadap threshold carbon brush.";
+    return `
+    <article class="carbon-brush-alert-slide ${activeStatus.className}" data-service-id="${escapeHtml(item.id || "")}" tabindex="0" aria-hidden="true">
       <div class="carbon-brush-alert-rank">#${rank}</div>
       <div class="carbon-brush-alert-copy">
         <div class="carbon-brush-alert-line">
-          <span class="carbon-brush-alert-status ${status.className}">${escapeHtml(status.label)}</span>
-          <span class="carbon-brush-alert-days">${escapeHtml(worstPoint.countdownDays !== null ? `${worstPoint.countdownDays} hari` : "prediksi belum siap")}</span>
+          <span class="carbon-brush-alert-status ${activeStatus.className}">${escapeHtml(activeStatus.label)}</span>
+          <span class="carbon-brush-alert-days">${escapeHtml(countdownText)}</span>
         </div>
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
-        <p>Titik <strong>${escapeHtml(worstPoint.pointKey)}</strong> sekarang berada di <strong>${escapeHtml(worstPoint.currentValue ?? "-")} mm</strong> dengan limit <strong>${escapeHtml(worstPoint.thresholdLow)}</strong>. Alert utama mengacu pada kondisi aktual titik saat ini.</p>
+        <p>Titik <strong>${escapeHtml(worstPoint.pointKey)}</strong> sekarang berada di <strong>${escapeHtml(worstPoint.currentValue ?? "-")} mm</strong> dengan limit <strong>${escapeHtml(worstPoint.thresholdLow)}</strong>. ${escapeHtml(statusBasisText)}</p>
         <div class="carbon-brush-alert-metrics">
           <span>Nilai sekarang ${escapeHtml(worstPoint.currentValue ?? "-")} mm</span>
           <span>Sisa ${escapeHtml(worstPoint.remainingMm !== null ? worstPoint.remainingMm.toFixed(2) : "-")} mm</span>
@@ -77,12 +83,13 @@ function renderCarbonBrushAlertBanner(serviceItems) {
         </div>
       </div>
       <div class="carbon-brush-alert-action">
-        <span>${escapeHtml(status.actionLabel)}</span>
+        <span>${escapeHtml(activeStatus.actionLabel)}</span>
         <small>${escapeHtml(predictionQuality?.note || "Countdown menunggu histori yang cukup.")}</small>
         <small>Klik untuk buka detail equipment</small>
       </div>
     </article>
-  `).join("");
+  `;
+  }).join("");
   showCarbonBrushAlertSlide(0);
   startCarbonBrushAlertRotation(alerts.length);
 }

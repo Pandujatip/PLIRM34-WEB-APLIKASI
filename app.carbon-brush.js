@@ -129,7 +129,7 @@ function classifyCarbonBrushActualStatus(currentValue, thresholdLow, thresholdHi
       severity: 0,
     };
   }
-  if (currentValue <= thresholdLow) {
+  if (currentValue < thresholdLow) {
     return {
       label: "Melewati limit",
       className: "is-critical",
@@ -149,7 +149,48 @@ function classifyCarbonBrushActualStatus(currentValue, thresholdLow, thresholdHi
     label: "Masih aman",
     className: "is-monitor",
     actionLabel: "Tetap monitor sambil lihat arah countdown",
-    severity: 1,
+    severity: 0,
+  };
+}
+
+function isCarbonBrushPredictionUsable(analysis) {
+  const qualityKey = analysis?.predictionQuality?.key || "insufficient";
+  return qualityKey === "high" || qualityKey === "medium";
+}
+
+function getCarbonBrushAlertPriority(analysis) {
+  const actualSeverity = analysis?.actualStatus?.severity ?? 0;
+  const predictionSeverity = isCarbonBrushPredictionUsable(analysis)
+    ? (analysis?.predictionStatus?.severity ?? 0)
+    : 0;
+  return {
+    actualSeverity,
+    predictionSeverity,
+    hasAlert: actualSeverity > 0 || predictionSeverity > 0,
+  };
+}
+
+function getCarbonBrushDisplayStatus(analysis) {
+  const priority = getCarbonBrushAlertPriority(analysis);
+  if (priority.actualSeverity > 0) {
+    return {
+      ...(analysis.actualStatus || {}),
+      source: "actual",
+      sourceLabel: "Aktual",
+    };
+  }
+  if (priority.predictionSeverity > 0) {
+    return {
+      ...(analysis.predictionStatus || {}),
+      label: `Prediksi ${analysis.predictionStatus?.label || "Monitor"}`,
+      source: "prediction",
+      sourceLabel: "Prediksi",
+    };
+  }
+  return {
+    ...(analysis.actualStatus || {}),
+    source: "monitor",
+    sourceLabel: "Monitor",
   };
 }
 
@@ -306,15 +347,21 @@ function buildCarbonBrushAlertSummary(serviceItems) {
       if (!pointAnalyses.length) {
         return null;
       }
-      const worstPoint = [...pointAnalyses].sort((left, right) => {
-        if ((right.actualStatus?.severity ?? 0) !== (left.actualStatus?.severity ?? 0)) {
-          return (right.actualStatus?.severity ?? 0) - (left.actualStatus?.severity ?? 0);
+      const alertPointAnalyses = pointAnalyses.filter((analysis) => getCarbonBrushAlertPriority(analysis).hasAlert);
+      if (!alertPointAnalyses.length) {
+        return null;
+      }
+      const worstPoint = [...alertPointAnalyses].sort((left, right) => {
+        const leftPriority = getCarbonBrushAlertPriority(left);
+        const rightPriority = getCarbonBrushAlertPriority(right);
+        if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
+          return rightPriority.actualSeverity - leftPriority.actualSeverity;
+        }
+        if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
+          return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
         }
         if ((left.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
           return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
-        }
-        if ((right.predictionStatus?.severity ?? 0) !== (left.predictionStatus?.severity ?? 0)) {
-          return (right.predictionStatus?.severity ?? 0) - (left.predictionStatus?.severity ?? 0);
         }
         return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
       })[0];
@@ -322,20 +369,23 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         item,
         worstPoint,
         status: worstPoint.actualStatus,
+        displayStatus: getCarbonBrushDisplayStatus(worstPoint),
         predictionStatus: worstPoint.predictionStatus,
         predictionQuality: worstPoint.predictionQuality,
       };
     })
     .filter(Boolean)
     .sort((left, right) => {
-      if ((right.status?.severity ?? 0) !== (left.status?.severity ?? 0)) {
-        return (right.status?.severity ?? 0) - (left.status?.severity ?? 0);
+      const leftPriority = getCarbonBrushAlertPriority(left.worstPoint);
+      const rightPriority = getCarbonBrushAlertPriority(right.worstPoint);
+      if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
+        return rightPriority.actualSeverity - leftPriority.actualSeverity;
+      }
+      if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
+        return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
       }
       if ((left.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
         return (left.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER);
-      }
-      if ((right.predictionStatus?.severity ?? 0) !== (left.predictionStatus?.severity ?? 0)) {
-        return (right.predictionStatus?.severity ?? 0) - (left.predictionStatus?.severity ?? 0);
       }
       return (left.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER);
     })
