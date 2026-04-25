@@ -2339,14 +2339,38 @@ function getMsoMotorTemperatureValues(payload = {}) {
   ].filter((value) => value !== null);
 }
 
+function getMsoMotorHistoryInspectionTime(entry) {
+  return new Date(entry?.payload?.inspectionDate || 0).getTime() || 0;
+}
+
 function getMsoMotorHealthSnapshot(item) {
-  const payload = item.payload || {};
+  const history = getMsoMotorHistory(item);
+  const latestEntry = history.length ? history[history.length - 1] : item;
+  const payload = latestEntry?.payload || item.payload || {};
   const latestCondition = String(payload.condition || "").toUpperCase();
   const temperatureDs = parseMsoMotorNumeric(payload.temperaturDs);
   const temperatureNds = parseMsoMotorNumeric(payload.temperaturNds);
   const maxTemperature = Math.max(...getMsoMotorTemperatureValues(payload), 0);
   const maxVibrationBefore = getMsoMotorMaxVibration(payload, "before");
   const maxVibrationAfter = getMsoMotorMaxVibration(payload, "after");
+  const recentHistory = history.slice(-3);
+  const recentConditions = recentHistory.map((entry) => String(entry.payload?.condition || "").toUpperCase());
+  const badEntries = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD");
+  const latestBadEntry = badEntries.length ? badEntries[badEntries.length - 1] : null;
+  const latestTime = getMsoMotorHistoryInspectionTime(latestEntry);
+  const latestBadTime = getMsoMotorHistoryInspectionTime(latestBadEntry);
+  const daysSinceLatestBad = latestBadTime && latestTime >= latestBadTime
+    ? Math.round((latestTime - latestBadTime) / (1000 * 60 * 60 * 24))
+    : null;
+  const priorHistory = history.slice(0, -1);
+  const priorMaxTemperature = priorHistory.length
+    ? Math.max(...priorHistory.map((entry) => Math.max(...getMsoMotorTemperatureValues(entry.payload || {}), 0)))
+    : null;
+  const priorMaxVibration = priorHistory.length
+    ? Math.max(...priorHistory.map((entry) => getMsoMotorMaxVibration(entry.payload || {}, "before") ?? 0))
+    : null;
+  const latestIsGood = latestCondition === "GOOD";
+  const recentBadCount = recentConditions.filter((condition) => condition === "BAD").length;
   let score = 100;
   const notes = [];
 
@@ -2372,6 +2396,32 @@ function getMsoMotorHealthSnapshot(item) {
     score -= 10;
     notes.push("Nilai after tidak menunjukkan perbaikan terhadap vibrasi before.");
   }
+  if (recentBadCount >= 2) {
+    score -= 12;
+    notes.push(`Dua atau lebih dari 3 inspeksi terakhir masih BAD (${recentBadCount}/3), jadi masalah dianggap masih aktif.`);
+  } else if (recentBadCount === 1 && latestIsGood) {
+    score -= 4;
+    notes.push("Ada BAD pada salah satu inspeksi terakhir, tetapi inspeksi terbaru sudah GOOD sehingga penalti diperkecil.");
+  }
+  if (latestBadEntry && latestIsGood && daysSinceLatestBad !== null) {
+    if (daysSinceLatestBad >= 90) {
+      score += 8;
+      notes.push(`BAD terakhir sudah lewat ${daysSinceLatestBad} hari dan inspeksi terbaru tetap GOOD. Pengaruh histori lama dikurangi.`);
+    } else if (daysSinceLatestBad >= 30) {
+      score += 4;
+      notes.push(`BAD terakhir sudah lewat ${daysSinceLatestBad} hari dan kondisi terbaru GOOD. Riwayat lama masih dicatat, tapi bobotnya lebih kecil.`);
+    } else {
+      notes.push(`BAD terakhir masih relatif baru (${daysSinceLatestBad} hari lalu), jadi histori masih cukup mempengaruhi penilaian.`);
+    }
+  }
+  if (latestIsGood && priorMaxTemperature !== null && maxTemperature < priorMaxTemperature) {
+    score += Math.min(6, Math.round((priorMaxTemperature - maxTemperature) / 3));
+    notes.push(`Temperatur terbaru lebih rendah dibanding histori sebelumnya (${maxTemperature} C vs puncak lama ${priorMaxTemperature} C).`);
+  }
+  if (latestIsGood && priorMaxVibration !== null && maxVibrationBefore !== null && maxVibrationBefore < priorMaxVibration) {
+    score += Math.min(6, Math.round((priorMaxVibration - maxVibrationBefore) * 2));
+    notes.push(`Vibrasi terbaru membaik dibanding histori sebelumnya (${maxVibrationBefore} mm/s vs puncak lama ${priorMaxVibration} mm/s).`);
+  }
 
   score = Math.max(0, Math.min(100, score));
   let grade = "Healthy";
@@ -2394,6 +2444,9 @@ function getMsoMotorHealthSnapshot(item) {
     maxTemperature,
     maxVibrationBefore,
     maxVibrationAfter,
+    historyCount: history.length,
+    recentBadCount,
+    daysSinceLatestBad,
     notes,
   };
 }
@@ -2539,6 +2592,8 @@ function buildMsoMotorAnalyticsHtml(item) {
           ["Vibrasi after max", latestSnapshot.maxVibrationAfter ?? "-"],
           ["Total histori", `${history.length} inspeksi`],
           ["Frekuensi BAD", `${badCount} kali`],
+          ["BAD 3 inspeksi terakhir", `${latestSnapshot.recentBadCount || 0} kali`],
+          ["Jarak dari BAD terakhir", latestSnapshot.daysSinceLatestBad === null ? "-" : `${latestSnapshot.daysSinceLatestBad} hari`],
           ["Source", item.payload?.source || "MSO"],
         ])}
       </div>
