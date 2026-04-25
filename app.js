@@ -2315,21 +2315,91 @@ function getMsoMotorHistory(item) {
     });
 }
 
-function getMsoMotorVibrationValues(payload = {}, phase = "before") {
+const msoMotorVibrationChannelDefinitions = [
+  { key: "vibrasiDsVert", label: "DS Vert", side: "DS", axis: "Vert" },
+  { key: "vibrasiDsHor", label: "DS Hor", side: "DS", axis: "Hor" },
+  { key: "vibrasiDsAxial", label: "DS Axial", side: "DS", axis: "Axial" },
+  { key: "vibrasiNdsVert", label: "NDS Vert", side: "NDS", axis: "Vert" },
+  { key: "vibrasiNdsHor", label: "NDS Hor", side: "NDS", axis: "Hor" },
+  { key: "vibrasiNdsAxial", label: "NDS Axial", side: "NDS", axis: "Axial" },
+];
+
+function classifyMsoMotorVibrationValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (value >= 4.5) {
+    return "critical";
+  }
+  if (value >= 2.8) {
+    return "watch";
+  }
+  return "normal";
+}
+
+function getMsoMotorVibrationChannelEntries(payload = {}, phase = "before") {
   const suffix = phase === "after" ? "After" : "Before";
-  return [
-    parseMsoMotorNumeric(payload[`vibrasiDsVert${suffix}`]),
-    parseMsoMotorNumeric(payload[`vibrasiDsHor${suffix}`]),
-    parseMsoMotorNumeric(payload[`vibrasiDsAxial${suffix}`]),
-    parseMsoMotorNumeric(payload[`vibrasiNdsVert${suffix}`]),
-    parseMsoMotorNumeric(payload[`vibrasiNdsHor${suffix}`]),
-    parseMsoMotorNumeric(payload[`vibrasiNdsAxial${suffix}`]),
-  ].filter((value) => value !== null);
+  return msoMotorVibrationChannelDefinitions
+    .map((channel) => {
+      const value = parseMsoMotorNumeric(payload[`${channel.key}${suffix}`]);
+      return {
+        ...channel,
+        phase,
+        value,
+        bucket: classifyMsoMotorVibrationValue(value),
+      };
+    })
+    .filter((entry) => entry.value !== null);
+}
+
+function getMsoMotorVibrationValues(payload = {}, phase = "before") {
+  return getMsoMotorVibrationChannelEntries(payload, phase).map((entry) => entry.value);
 }
 
 function getMsoMotorMaxVibration(payload = {}, phase = "before") {
   const values = getMsoMotorVibrationValues(payload, phase);
   return values.length ? Math.max(...values) : null;
+}
+
+function getMsoMotorDominantVibrationChannel(payload = {}, phase = "before") {
+  const entries = getMsoMotorVibrationChannelEntries(payload, phase);
+  if (!entries.length) {
+    return null;
+  }
+  return [...entries].sort((left, right) => right.value - left.value)[0];
+}
+
+function getMsoMotorVibrationDiagnostics(payload = {}) {
+  const beforeEntries = getMsoMotorVibrationChannelEntries(payload, "before");
+  const afterEntries = getMsoMotorVibrationChannelEntries(payload, "after");
+  const dominantBefore = beforeEntries.length ? [...beforeEntries].sort((left, right) => right.value - left.value)[0] : null;
+  const dominantAfter = afterEntries.length ? [...afterEntries].sort((left, right) => right.value - left.value)[0] : null;
+  const beforeCriticalCount = beforeEntries.filter((entry) => entry.bucket === "critical").length;
+  const beforeWatchCount = beforeEntries.filter((entry) => entry.bucket === "watch").length;
+  const afterCriticalCount = afterEntries.filter((entry) => entry.bucket === "critical").length;
+  const afterWatchCount = afterEntries.filter((entry) => entry.bucket === "watch").length;
+  const channelComparisons = msoMotorVibrationChannelDefinitions.map((channel) => {
+    const before = beforeEntries.find((entry) => entry.key === channel.key) || null;
+    const after = afterEntries.find((entry) => entry.key === channel.key) || null;
+    return {
+      ...channel,
+      beforeValue: before?.value ?? null,
+      afterValue: after?.value ?? null,
+      beforeBucket: before?.bucket || "",
+      afterBucket: after?.bucket || "",
+    };
+  });
+  return {
+    beforeEntries,
+    afterEntries,
+    dominantBefore,
+    dominantAfter,
+    beforeCriticalCount,
+    beforeWatchCount,
+    afterCriticalCount,
+    afterWatchCount,
+    channelComparisons,
+  };
 }
 
 function getMsoMotorTemperatureValues(payload = {}) {
@@ -2351,8 +2421,9 @@ function getMsoMotorHealthSnapshot(item) {
   const temperatureDs = parseMsoMotorNumeric(payload.temperaturDs);
   const temperatureNds = parseMsoMotorNumeric(payload.temperaturNds);
   const maxTemperature = Math.max(...getMsoMotorTemperatureValues(payload), 0);
-  const maxVibrationBefore = getMsoMotorMaxVibration(payload, "before");
-  const maxVibrationAfter = getMsoMotorMaxVibration(payload, "after");
+  const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
+  const maxVibrationBefore = vibrationDiagnostics.dominantBefore?.value ?? null;
+  const maxVibrationAfter = vibrationDiagnostics.dominantAfter?.value ?? null;
   const recentHistory = history.slice(-3);
   const recentConditions = recentHistory.map((entry) => String(entry.payload?.condition || "").toUpperCase());
   const badEntries = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD");
@@ -2366,7 +2437,7 @@ function getMsoMotorHealthSnapshot(item) {
   const priorMaxTemperature = priorHistory.length
     ? Math.max(...priorHistory.map((entry) => Math.max(...getMsoMotorTemperatureValues(entry.payload || {}), 0)))
     : null;
-  const priorMaxVibration = priorHistory.length
+  const priorDominantVibration = priorHistory.length
     ? Math.max(...priorHistory.map((entry) => getMsoMotorMaxVibration(entry.payload || {}, "before") ?? 0))
     : null;
   const latestIsGood = latestCondition === "GOOD";
@@ -2385,16 +2456,20 @@ function getMsoMotorHealthSnapshot(item) {
     score -= 15;
     notes.push(`Temperatur maksimum ${maxTemperature} C perlu diawasi.`);
   }
-  if ((maxVibrationBefore ?? 0) >= 4.5) {
-    score -= 25;
-    notes.push(`Vibrasi before maksimum ${maxVibrationBefore} mm/s tergolong tinggi.`);
-  } else if ((maxVibrationBefore ?? 0) >= 2.8) {
-    score -= 15;
-    notes.push(`Vibrasi before maksimum ${maxVibrationBefore} mm/s masuk watchlist.`);
+  if (vibrationDiagnostics.beforeCriticalCount > 0) {
+    score -= 12 + ((vibrationDiagnostics.beforeCriticalCount - 1) * 5);
+    notes.push(`Ada ${vibrationDiagnostics.beforeCriticalCount} kanal vibrasi before pada zona kritis. Dominan di ${vibrationDiagnostics.dominantBefore?.label || "-"}.`);
+  }
+  if (vibrationDiagnostics.beforeWatchCount > 0) {
+    score -= Math.min(12, vibrationDiagnostics.beforeWatchCount * 4);
+    notes.push(`Ada ${vibrationDiagnostics.beforeWatchCount} kanal vibrasi before di zona watchlist.`);
+  }
+  if (!vibrationDiagnostics.beforeCriticalCount && !vibrationDiagnostics.beforeWatchCount && maxVibrationBefore !== null) {
+    notes.push(`Kanal vibrasi tertinggi saat ini ada di ${vibrationDiagnostics.dominantBefore?.label || "-"} sebesar ${maxVibrationBefore} mm/s.`);
   }
   if (maxVibrationAfter !== null && maxVibrationBefore !== null && maxVibrationAfter >= maxVibrationBefore) {
     score -= 10;
-    notes.push("Nilai after tidak menunjukkan perbaikan terhadap vibrasi before.");
+    notes.push(`Nilai after belum membaik dari before. Kanal dominan after ada di ${vibrationDiagnostics.dominantAfter?.label || "-"} (${maxVibrationAfter} mm/s).`);
   }
   if (recentBadCount >= 2) {
     score -= 12;
@@ -2418,9 +2493,9 @@ function getMsoMotorHealthSnapshot(item) {
     score += Math.min(6, Math.round((priorMaxTemperature - maxTemperature) / 3));
     notes.push(`Temperatur terbaru lebih rendah dibanding histori sebelumnya (${maxTemperature} C vs puncak lama ${priorMaxTemperature} C).`);
   }
-  if (latestIsGood && priorMaxVibration !== null && maxVibrationBefore !== null && maxVibrationBefore < priorMaxVibration) {
-    score += Math.min(6, Math.round((priorMaxVibration - maxVibrationBefore) * 2));
-    notes.push(`Vibrasi terbaru membaik dibanding histori sebelumnya (${maxVibrationBefore} mm/s vs puncak lama ${priorMaxVibration} mm/s).`);
+  if (latestIsGood && priorDominantVibration !== null && maxVibrationBefore !== null && maxVibrationBefore < priorDominantVibration) {
+    score += Math.min(6, Math.round((priorDominantVibration - maxVibrationBefore) * 2));
+    notes.push(`Vibrasi dominan terbaru membaik dibanding histori sebelumnya (${maxVibrationBefore} mm/s vs puncak lama ${priorDominantVibration} mm/s).`);
   }
 
   score = Math.max(0, Math.min(100, score));
@@ -2444,6 +2519,13 @@ function getMsoMotorHealthSnapshot(item) {
     maxTemperature,
     maxVibrationBefore,
     maxVibrationAfter,
+    dominantVibrationBefore: vibrationDiagnostics.dominantBefore,
+    dominantVibrationAfter: vibrationDiagnostics.dominantAfter,
+    vibrationBeforeCriticalCount: vibrationDiagnostics.beforeCriticalCount,
+    vibrationBeforeWatchCount: vibrationDiagnostics.beforeWatchCount,
+    vibrationAfterCriticalCount: vibrationDiagnostics.afterCriticalCount,
+    vibrationAfterWatchCount: vibrationDiagnostics.afterWatchCount,
+    vibrationChannels: vibrationDiagnostics.channelComparisons,
     historyCount: history.length,
     recentBadCount,
     daysSinceLatestBad,
@@ -2553,10 +2635,25 @@ function buildMsoMotorAnalyticsHtml(item) {
   if (latestSnapshot.latestCondition === "BAD") {
     recommendations.push("Prioritaskan verifikasi lapangan karena inspeksi terbaru berstatus BAD.");
   }
-  if ((latestSnapshot.maxVibrationBefore ?? 0) >= 4.5) {
-    recommendations.push("Cek alignment, baseplate, kekencangan baut, dan kondisi bearing karena vibrasi before masuk zona kritis.");
-  } else if ((latestSnapshot.maxVibrationBefore ?? 0) >= 2.8) {
-    recommendations.push("Masukkan motor ke watchlist vibrasi dan bandingkan tren 3 inspeksi terakhir.");
+  if (latestSnapshot.vibrationBeforeCriticalCount > 0 || latestSnapshot.vibrationBeforeWatchCount > 0) {
+    const dominantChannel = latestSnapshot.dominantVibrationBefore;
+    if (dominantChannel?.axis === "Axial") {
+      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Fokus ke alignment, thrust, dan indikasi misalignment shaft/kopling.`);
+    } else if (dominantChannel?.axis === "Hor") {
+      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Cek looseness, soft foot, baseplate, dan alignment horizontal.`);
+    } else if (dominantChannel?.axis === "Vert") {
+      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Verifikasi fondasi, kekakuan struktur, dan kondisi bearing pada sisi tersebut.`);
+    }
+    if (dominantChannel?.side === "DS") {
+      recommendations.push("Karena kanal dominan berada di Drive Side, prioritaskan inspeksi bearing DS, coupling, dan kekencangan sisi penggerak.");
+    } else if (dominantChannel?.side === "NDS") {
+      recommendations.push("Karena kanal dominan berada di Non-Drive Side, prioritaskan inspeksi bearing NDS, fan/cooling end, dan kekakuan sisi non-drive.");
+    }
+    if (latestSnapshot.vibrationBeforeCriticalCount > 0) {
+      recommendations.push(`Ada ${latestSnapshot.vibrationBeforeCriticalCount} kanal vibrasi kritis. Motor layak diprioritaskan untuk analisa getaran lanjutan.`);
+    } else {
+      recommendations.push(`Ada ${latestSnapshot.vibrationBeforeWatchCount} kanal vibrasi watchlist. Bandingkan kanal yang sama pada 3 inspeksi terakhir.`);
+    }
   }
   if (latestSnapshot.maxTemperature >= 70) {
     recommendations.push("Evaluasi beban motor, pendinginan, ventilasi, dan kondisi bearing karena temperatur sudah kritis.");
@@ -2590,6 +2687,10 @@ function buildMsoMotorAnalyticsHtml(item) {
           ["Temperatur maksimum", latestSnapshot.maxTemperature || "-"],
           ["Vibrasi before max", latestSnapshot.maxVibrationBefore ?? "-"],
           ["Vibrasi after max", latestSnapshot.maxVibrationAfter ?? "-"],
+          ["Kanal before dominan", latestSnapshot.dominantVibrationBefore?.label || "-"],
+          ["Kanal after dominan", latestSnapshot.dominantVibrationAfter?.label || "-"],
+          ["Kanal before kritis", `${latestSnapshot.vibrationBeforeCriticalCount || 0} kanal`],
+          ["Kanal before watch", `${latestSnapshot.vibrationBeforeWatchCount || 0} kanal`],
           ["Total histori", `${history.length} inspeksi`],
           ["Frekuensi BAD", `${badCount} kali`],
           ["BAD 3 inspeksi terakhir", `${latestSnapshot.recentBadCount || 0} kali`],
@@ -2614,10 +2715,21 @@ function buildMsoMotorAnalyticsHtml(item) {
       <div class="detail-modal-head compact-trend-head">
         <div>
           <h4>Trend Vibrasi</h4>
-          <p>Perbandingan vibrasi maksimum before dan after untuk menilai efektivitas tindakan service.</p>
+          <p>Grafik ini tetap menampilkan vibrasi maksimum before dan after. Tetapi health score, ranking, dan rekomendasi sekarang dihitung dari detail kanal DS/NDS dan Vert/Hor/Axial.</p>
         </div>
       </div>
       ${vibrationTrendHtml}
+    </section>
+    <section class="detail-card">
+      <h4>Ringkasan Kanal Vibrasi</h4>
+      <div class="detail-grid">
+        ${buildDetailGridRows(
+          latestSnapshot.vibrationChannels.flatMap((channel) => ([
+            [`${channel.label} Before`, channel.beforeValue ?? "-"],
+            [`${channel.label} After`, channel.afterValue ?? "-"],
+          ])),
+        )}
+      </div>
     </section>
     <section class="detail-card">
       <h4>Rekomendasi Otomatis</h4>
@@ -2652,7 +2764,9 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
       const badCount = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD").length;
       const scoreComponent = 100 - snapshot.score;
       const badComponent = badCount * 8;
-      const vibrationComponent = Math.round((snapshot.maxVibrationBefore ?? 0) * 4);
+      const vibrationComponent = (snapshot.vibrationBeforeCriticalCount * 14)
+        + (snapshot.vibrationBeforeWatchCount * 6)
+        + Math.round((snapshot.maxVibrationBefore ?? 0) * 2);
       const temperatureComponent = (snapshot.maxTemperature ?? 0) >= 70 ? 12 : (snapshot.maxTemperature ?? 0) >= 60 ? 6 : 0;
       const severity = scoreComponent + badComponent + vibrationComponent + temperatureComponent;
       let priorityLabel = "Monitor";
@@ -6499,7 +6613,7 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
         <span>${escapeHtml(snapshot.grade)} | Score ${snapshot.score} | BAD ${badCount}x</span>
         <span class="dashboard-watchlist-severity">Severity ${severity} = Score ${scoreComponent} + BAD ${badComponent} + Vib ${vibrationComponent} + Temp ${temperatureComponent}</span>
-        <small>Temp max ${escapeHtml(snapshot.maxTemperature || "-")} C | Vib max ${escapeHtml(snapshot.maxVibrationBefore ?? "-")} | ${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</small>
+        <small>Temp max ${escapeHtml(snapshot.maxTemperature || "-")} C | Vib dominan ${escapeHtml(snapshot.dominantVibrationBefore?.label || "-")} ${escapeHtml(snapshot.maxVibrationBefore ?? "-")} | Kanal kritis ${snapshot.vibrationBeforeCriticalCount || 0}</small>
       `;
       dashboardMsoWatchlistPreview.append(article);
     });
