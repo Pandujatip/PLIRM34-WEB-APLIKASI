@@ -3695,10 +3695,9 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
   for (let index = 1; index < history.length; index += 1) {
     const previous = history[index - 1];
     const current = history[index];
-    const replacementRaised = current.replacementValue !== null
-      && (previous.replacementValue === null || current.replacementValue > previous.replacementValue);
-    const valueRaised = current.numericValue > previous.numericValue;
-    if (replacementRaised || current.replacedConfirmed || valueRaised) {
+    const valueIncrease = current.numericValue - previous.numericValue;
+    const valueRaised = valueIncrease >= 3;
+    if (current.replacedConfirmed || valueRaised) {
       currentCycleHistory = [current];
       currentCycleIntervals = [];
       continue;
