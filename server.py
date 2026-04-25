@@ -1547,6 +1547,69 @@ def build_mso_motor_import_items(csv_text: str, source_name: str = "") -> list[d
     return items
 
 
+def build_mso_motor_import_items_from_rows(rows: list[dict], source_name: str = "") -> list[dict]:
+    items: list[dict] = []
+    for raw_row in rows:
+        if not isinstance(raw_row, dict):
+            continue
+        insp_id = str(raw_row.get("inspId") or "").strip()
+        if not insp_id:
+            continue
+        inspection_date_raw = str(raw_row.get("tgl") or raw_row.get("inspectionDate") or "").strip()
+        inspection_date = parse_mso_datetime(inspection_date_raw)
+        equipment_name = str(raw_row.get("equptName") or raw_row.get("equipmentName") or "-").strip() or "-"
+        equipment_desc = str(raw_row.get("equipmentDesc") or "").strip()
+        condition = str(raw_row.get("condition") or "-").strip() or "-"
+        descr = str(raw_row.get("descr") or raw_row.get("description") or "").strip()
+        temperatur_ds = str(raw_row.get("temperaturDs") or "").strip()
+        temperatur_nds = str(raw_row.get("temperaturNds") or "").strip()
+        creator = str(raw_row.get("creator") or "").strip()
+        id_amtrans = str(raw_row.get("idAmtrans") or "").strip()
+        photo_url = str(raw_row.get("photoPath") or raw_row.get("photoUrl") or "").strip()
+        mplant = str(raw_row.get("mplant") or "").strip()
+        detail_parts = [
+            f"Condition: {condition}",
+            f"Temp DS: {temperatur_ds or '-'}",
+            f"Temp NDS: {temperatur_nds or '-'}",
+            f"InspID: {insp_id}",
+        ]
+        if creator:
+            detail_parts.append(f"PIC: {creator}")
+        items.append(
+            {
+                "id": f"service-mso-motor-{insp_id}",
+                "type": "Electrical",
+                "subtype": "Motor MV",
+                "formType": "service-motor-mv",
+                "equipmentName": equipment_name,
+                "description": descr or equipment_desc or f"Inspection {condition}",
+                "detail": " | ".join(detail_parts),
+                "payload": {
+                    "inspectionDate": inspection_date,
+                    "source": "MSO",
+                    "sourceType": "mso-motor-sync",
+                    "sourceName": source_name or "MSO Browser Sync",
+                    "inspId": insp_id,
+                    "idAmtrans": id_amtrans,
+                    "condition": condition,
+                    "equipmentDesc": equipment_desc,
+                    "creator": creator,
+                    "mplant": mplant,
+                    "temperaturDs": temperatur_ds,
+                    "temperaturNds": temperatur_nds,
+                    "photoUrl": photo_url,
+                    "descriptionRaw": descr,
+                    "vibrationDe": "",
+                    "vibrationNde": "",
+                    "windingTemperature": "",
+                    "bearingCondition": "",
+                    "motorCurrent": "",
+                },
+            }
+        )
+    return items
+
+
 def import_mso_motor_items(items: list[dict], user_id: int) -> dict:
     if not items:
         raise ValueError("CSV MSO motor tidak berisi data yang bisa diimport")
@@ -3241,6 +3304,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_admin_mso_motor_upload_post()
             return
 
+        if parsed.path == "/api/admin/import-mso-motor-scrape":
+            self._handle_admin_mso_motor_scrape_post()
+            return
+
         if parsed.path.startswith("/api/admin/import/"):
             self._handle_admin_import_post(parsed.path)
             return
@@ -3654,6 +3721,52 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 },
             )
             self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_admin_mso_motor_scrape_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+        except json.JSONDecodeError:
+            return
+
+        rows = payload.get("items")
+        source_name = str(payload.get("sourceName") or "MSO Browser Sync").strip()
+        if not isinstance(rows, list) or not rows:
+            self._send_json({"error": "Data scrape MSO kosong"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        try:
+            items = build_mso_motor_import_items_from_rows(rows, source_name)
+            result = import_mso_motor_items(items, int(user["id"]))
+            sync_settings = get_app_setting_value("mso_motor_sync", DEFAULT_APP_SETTINGS["mso_motor_sync"])
+            updated_settings = {
+                **sync_settings,
+                "lastImportedFile": source_name,
+                "lastImportedAt": utc_now().isoformat(),
+                "lastImportedCount": result["imported"],
+            }
+            save_app_setting_value("mso_motor_sync", updated_settings)
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="import",
+                resource="service",
+                target_label="Import MSO Motor browser sync",
+                detail={
+                    "imported": result.get("imported", 0),
+                    "created": result.get("created", 0),
+                    "updated": result.get("updated", 0),
+                    "sourceName": source_name,
+                },
+            )
+            self._send_json({"ok": True, **result, "sourceName": source_name}, status=HTTPStatus.CREATED)
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
 

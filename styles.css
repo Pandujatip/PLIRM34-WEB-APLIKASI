@@ -1765,6 +1765,11 @@ select:focus {
   gap: 10px;
 }
 
+.mso-browser-sync-grid .compact-inline {
+  margin: 0;
+  align-self: end;
+}
+
 .compact-form {
   margin-top: 12px;
 }
