@@ -1220,8 +1220,11 @@ function renderCarbonBrushMeasurementGrid() {
 }
 
 function parseCarbonBrushNumericValue(value) {
-  const match = String(value || "").replace(",", ".").match(/-?\d+(\.\d+)?/);
-  return match ? Number(match[0]) : null;
+  const normalized = String(value || "").trim().replace(",", ".");
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
+    return null;
+  }
+  return Number(normalized);
 }
 
 function classifyCarbonBrushValue(value, equipmentName, explicitPlant = "") {
@@ -1306,6 +1309,15 @@ function collectCarbonBrushMeasurements(form) {
     result[key] = String(form.querySelector(`[name="${key}"]`)?.value || "").trim();
     return result;
   }, {});
+}
+
+function getInvalidCarbonBrushMeasurements(measurements) {
+  return Object.entries(measurements)
+    .filter(([, value]) => {
+      const rawValue = String(value || "").trim();
+      return rawValue && parseCarbonBrushNumericValue(rawValue) === null;
+    })
+    .map(([key, value]) => `${key}: ${value}`);
 }
 
 function updateCarbonBrushMeasurementColors() {
@@ -9041,6 +9053,13 @@ forms.forEach((form) => {
       }
 
       const measurements = collectCarbonBrushMeasurements(form);
+      const invalidMeasurements = getInvalidCarbonBrushMeasurements(measurements);
+      if (invalidMeasurements.length) {
+        const sample = invalidMeasurements.slice(0, 6).join(", ");
+        setSubmitNote(form, `Nilai carbon brush harus angka saja. Periksa: ${sample}${invalidMeasurements.length > 6 ? ", ..." : ""}`);
+        showToast("Carbon Brush", "Nilai carbon brush hanya boleh angka, tanpa keterangan seperti new.");
+        return;
+      }
       const meta = decodeCarbonBrushEquipmentMeta(selectedEquipment);
       const stats = computeCarbonBrushStats(measurements, selectedEquipment, meta.plant);
       const inspectionDateValue = String(formData.get("inspectionDate") || "").trim() || new Date().toISOString().slice(0, 10);

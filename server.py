@@ -2526,20 +2526,9 @@ def fetch_remote_text(url: str) -> str:
 
 def parse_carbon_brush_numeric_value(value: str) -> float | None:
     text = str(value or "").strip().replace(",", ".")
-    match = None
-    for token in text.replace("(", " ").replace(")", " ").split():
-        if any(char.isdigit() for char in token):
-            match = token
-            break
-    if match is None:
+    if not re.fullmatch(r"-?\d+(\.\d+)?", text):
         return None
-    cleaned = "".join(char for char in match if char.isdigit() or char in ".-")
-    if not cleaned or cleaned in {"-", ".", "-."}:
-        return None
-    try:
-        return float(cleaned)
-    except ValueError:
-        return None
+    return float(text)
 
 
 def normalize_carbon_brush_date(value: str) -> str:
@@ -2768,10 +2757,10 @@ def build_carbon_brush_import_items(csv_text: str) -> list[dict]:
             continue
         source_id = str(row.get("ID", "") or "").strip()
         plant_value = str(row.get("PLANT", "") or "").strip()
-        measurements = {
-            key: str(row.get(key, "") or "").strip()
-            for key in CARBON_BRUSH_MEASUREMENT_KEYS
-        }
+        measurements = {}
+        for key in CARBON_BRUSH_MEASUREMENT_KEYS:
+            raw_value = str(row.get(key, "") or "").strip()
+            measurements[key] = raw_value if parse_carbon_brush_numeric_value(raw_value) is not None else ""
         meta = decode_carbon_brush_meta(equipment_name, plant_value)
         stats = compute_carbon_brush_stats(measurements, equipment_name, meta["plant"])
         replacement = str(row.get("REPLACEMENT", "") or "").strip()
