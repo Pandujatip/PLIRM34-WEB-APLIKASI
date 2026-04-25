@@ -2039,21 +2039,65 @@ function analyzeServiceItem(item) {
     const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
     const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", payload.plant || "");
     const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
+    const meggerMinimum = 100;
+    const meggerValue = parseCarbonBrushNumericValue(payload.megger);
+    const meggerHistory = getCarbonBrushMeggerHistory(item);
+    const meggerTrend = analyzeCarbonBrushMeggerTrend(meggerHistory, meggerMinimum);
+    const pointAnalyses = carbonBrushMeasurementKeys
+      .map((pointKey) => analyzeCarbonBrushPointWear(item, pointKey))
+      .filter((analysis) => analysis.currentValue !== null);
+    const worstCountdownPoint = pointAnalyses
+      .filter((analysis) => analysis.hasEnoughHistory && analysis.countdownDays !== null)
+      .sort((left, right) => {
+        if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
+          return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
+        }
+        return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
+      })[0] || null;
+    const closestPoint = [...pointAnalyses]
+      .sort((left, right) => {
+        if ((left.currentValue ?? Number.MAX_SAFE_INTEGER) !== (right.currentValue ?? Number.MAX_SAFE_INTEGER)) {
+          return (left.currentValue ?? Number.MAX_SAFE_INTEGER) - (right.currentValue ?? Number.MAX_SAFE_INTEGER);
+        }
+        return String(left.pointKey || "").localeCompare(String(right.pointKey || ""));
+      })[0] || null;
     const notes = [];
+
     if (replacedPoints.length) {
       notes.push(`Penggantian terkonfirmasi pada titik: ${replacedPoints.join(", ")}.`);
     }
     if (stats.low > 0) {
-      notes.push(`Ada ${stats.low} titik di zona merah. Titik ini sebaiknya diprioritaskan untuk penggantian/pemeriksaan carbon brush.`);
+      notes.push(`Ada ${stats.low} titik di zona merah. Prioritaskan koordinasi rawmill off untuk titik yang sudah menyentuh atau melewati batas minimum ${threshold.low}.`);
     }
     if (stats.medium > 0) {
-      notes.push(`Ada ${stats.medium} titik di zona kuning. Jadwalkan monitoring lanjutan sebelum turun ke bawah batas ${threshold.low}.`);
+      notes.push(`Ada ${stats.medium} titik di zona kuning. Titik ini belum merah, tetapi sudah mendekati batas minimum ${threshold.low} sehingga monitoring tidak boleh menunggu terlalu lama.`);
     }
     if (stats.attentionPoints?.length) {
       notes.push(`Titik perhatian utama: ${stats.attentionPoints.join(", ")}.`);
     }
+    if (worstCountdownPoint) {
+      const countdownStatus = classifyCarbonBrushCountdownStatus(worstCountdownPoint.countdownDays);
+      const wearRateText = worstCountdownPoint.medianWearRate !== null
+        ? `${worstCountdownPoint.medianWearRate.toFixed(3)} mm/hari`
+        : "-";
+      notes.push(`Histori titik ${worstCountdownPoint.pointKey} menunjukkan countdown paling dekat: sekitar ${worstCountdownPoint.countdownDays} hari lagi menuju limit ${worstCountdownPoint.thresholdLow}, sisa ${worstCountdownPoint.remainingMm?.toFixed(2) || "-"} mm dengan laju aus median ${wearRateText}. Status saat ini ${countdownStatus.label}; ${countdownStatus.actionLabel.toLowerCase()}.`);
+    } else if (closestPoint) {
+      notes.push(`Titik yang paling dekat ke limit saat ini adalah ${closestPoint.pointKey} dengan nilai ${closestPoint.currentValue}. Countdown belum dihitung karena histori valid per titik belum cukup; lanjutkan pencatatan minimal 3 interval valid pada titik ini.`);
+    }
+    if (meggerValue !== null) {
+      if (meggerValue <= meggerMinimum) {
+        notes.push(`Megger terbaru ${meggerValue} Mohm sudah menyentuh atau berada di bawah batas minimum ${meggerMinimum} Mohm. Kondisi isolasi perlu menjadi prioritas bersamaan dengan evaluasi carbon brush.`);
+      } else if (meggerTrend.servicesToThreshold !== null && meggerTrend.servicesToThreshold <= 2) {
+        notes.push(`Megger terbaru ${meggerValue} Mohm masih di atas batas, tetapi tren turun menunjukkan estimasi tinggal sekitar ${meggerTrend.servicesToThreshold.toFixed(1)} service lagi menuju ${meggerMinimum} Mohm. Jadwalkan inspeksi isolasi lebih ketat.`);
+      } else if (meggerTrend.avgDropPerService !== null && meggerTrend.avgDropPerService > 0) {
+        notes.push(`Megger masih aman di ${meggerValue} Mohm, namun ada tren turun rata-rata ${meggerTrend.avgDropPerService.toFixed(2)} Mohm per service. Pantau agar penurunan tidak mendekati batas minimum tanpa warning dini.`);
+      }
+    }
+    if (replacedPoints.length && stats.low === 0 && stats.medium === 0) {
+      notes.push("Setelah titik yang diganti diperbarui, sebaran carbon brush saat ini kembali berada di area aman. Fokus berikutnya adalah memastikan tren aus tetap stabil pada inspeksi berikutnya.");
+    }
     if (!notes.length) {
-      notes.push("Sebaran hasil carbon brush berada di zona aman. Lanjutkan monitoring periodik sesuai jadwal.");
+      notes.push("Sebaran hasil carbon brush berada di zona aman dan belum ada indikasi countdown kritis dari histori yang tersimpan. Lanjutkan monitoring periodik sesuai jadwal rawmill.");
     }
     return notes;
   }
