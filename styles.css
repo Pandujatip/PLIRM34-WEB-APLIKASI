@@ -2150,6 +2150,12 @@ th.sort-desc::after {
   margin-top: 14px;
 }
 
+#dashboard-mso-watchlist-preview {
+  max-height: 900px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
 .status-list article,
 .inspection-card,
 .bom-card {
@@ -2162,6 +2168,89 @@ th.sort-desc::after {
 .dashboard-watchlist-item {
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.dashboard-watchlist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.dashboard-watchlist-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff6ef;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.dashboard-watchlist-priority {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-watchlist-item.is-priority-1 {
+  border-color: rgba(255, 107, 120, 0.36);
+  background:
+    linear-gradient(180deg, rgba(255, 107, 120, 0.12), rgba(255, 255, 255, 0.03)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-watchlist-item.is-priority-2 {
+  border-color: rgba(255, 177, 74, 0.34);
+  background:
+    linear-gradient(180deg, rgba(255, 177, 74, 0.1), rgba(255, 255, 255, 0.03)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-watchlist-item.is-priority-3 {
+  border-color: rgba(58, 134, 255, 0.28);
+  background:
+    linear-gradient(180deg, rgba(58, 134, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-watchlist-item.is-monitor {
+  border-color: rgba(115, 224, 169, 0.22);
+}
+
+.dashboard-watchlist-priority.is-priority-1 {
+  background: rgba(255, 59, 59, 0.18);
+  color: #ffeef1;
+  border: 1px solid rgba(255, 107, 120, 0.3);
+}
+
+.dashboard-watchlist-priority.is-priority-2 {
+  background: rgba(255, 177, 74, 0.18);
+  color: #fff6e8;
+  border: 1px solid rgba(255, 177, 74, 0.3);
+}
+
+.dashboard-watchlist-priority.is-priority-3 {
+  background: rgba(58, 134, 255, 0.16);
+  color: #eef5ff;
+  border: 1px solid rgba(58, 134, 255, 0.26);
+}
+
+.dashboard-watchlist-priority.is-monitor {
+  background: rgba(115, 224, 169, 0.16);
+  color: #effff6;
+  border: 1px solid rgba(115, 224, 169, 0.24);
 }
 
 .dashboard-watchlist-item:hover,

@@ -2654,15 +2654,33 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
         + (badCount * 8)
         + ((snapshot.maxVibrationBefore ?? 0) * 4)
         + ((snapshot.maxTemperature ?? 0) >= 70 ? 12 : (snapshot.maxTemperature ?? 0) >= 60 ? 6 : 0);
+      let priorityLabel = "Monitor";
+      let priorityClass = "is-monitor";
+      if (severity >= 85 || snapshot.grade === "Critical") {
+        priorityLabel = "Prioritas 1";
+        priorityClass = "is-priority-1";
+      } else if (severity >= 60 || badCount >= 2) {
+        priorityLabel = "Prioritas 2";
+        priorityClass = "is-priority-2";
+      } else if (severity >= 35 || snapshot.grade === "Watchlist") {
+        priorityLabel = "Prioritas 3";
+        priorityClass = "is-priority-3";
+      }
       return {
         item,
         snapshot,
         badCount,
         severity,
+        priorityLabel,
+        priorityClass,
       };
     })
     .sort((left, right) => right.severity - left.severity)
-    .slice(0, 5);
+    .slice(0, 20)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
 }
 
 function openServiceDetail(item) {
@@ -6450,13 +6468,17 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
         </article>
       `;
     }
-    watchlistItems.forEach(({ item, snapshot, badCount }) => {
+    watchlistItems.forEach(({ item, snapshot, badCount, rank, priorityLabel, priorityClass }) => {
       const article = document.createElement("article");
-      article.className = "dashboard-watchlist-item";
+      article.className = `dashboard-watchlist-item ${priorityClass}`;
       article.dataset.serviceId = item.id || "";
       article.dataset.openable = "true";
       article.tabIndex = 0;
       article.innerHTML = `
+        <div class="dashboard-watchlist-head">
+          <span class="dashboard-watchlist-rank">#${rank}</span>
+          <span class="dashboard-watchlist-priority ${priorityClass}">${escapeHtml(priorityLabel)}</span>
+        </div>
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
         <span>${escapeHtml(snapshot.grade)} | Score ${snapshot.score} | BAD ${badCount}x</span>
         <small>Temp max ${escapeHtml(snapshot.maxTemperature || "-")} C | Vib max ${escapeHtml(snapshot.maxVibrationBefore ?? "-")} | ${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</small>
