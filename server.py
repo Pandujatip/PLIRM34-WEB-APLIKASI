@@ -1499,7 +1499,7 @@ def import_resource_csv(resource_key: str, csv_text: str, mode: str, user_id: in
 
 
 def import_carbon_brush_from_url(source_url: str, mode: str, user_id: int) -> dict:
-    csv_text = fetch_remote_text(source_url)
+    csv_text = fetch_remote_text(normalize_google_sheet_csv_url(source_url))
     items = build_carbon_brush_import_items(csv_text)
     if not items:
         raise ValueError("CSV carbon brush tidak berisi data yang bisa diimport")
@@ -2524,11 +2524,30 @@ def fetch_remote_text(url: str) -> str:
         return response.read().decode("utf-8", errors="ignore")
 
 
+def normalize_google_sheet_csv_url(source_url: str) -> str:
+    text = str(source_url or "").strip()
+    if "docs.google.com/spreadsheets" not in text:
+        return text
+    if "/pubhtml" in text:
+        return text.split("/pubhtml", 1)[0] + "/pub?output=csv"
+    if "/pub?" in text and "output=csv" not in text:
+        separator = "&" if "?" in text else "?"
+        return f"{text}{separator}output=csv"
+    return text
+
+
 def parse_carbon_brush_numeric_value(value: str) -> float | None:
     text = str(value or "").strip().replace(",", ".")
     if not re.fullmatch(r"-?\d+(\.\d+)?", text):
         return None
     return float(text)
+
+
+def normalize_carbon_brush_measurement_value(value: str) -> str:
+    text = str(value or "").strip()
+    if re.search(r"\bnew\b", text, flags=re.IGNORECASE):
+        return "50"
+    return text if parse_carbon_brush_numeric_value(text) is not None else ""
 
 
 def normalize_carbon_brush_date(value: str) -> str:
@@ -2760,7 +2779,7 @@ def build_carbon_brush_import_items(csv_text: str) -> list[dict]:
         measurements = {}
         for key in CARBON_BRUSH_MEASUREMENT_KEYS:
             raw_value = str(row.get(key, "") or "").strip()
-            measurements[key] = raw_value if parse_carbon_brush_numeric_value(raw_value) is not None else ""
+            measurements[key] = normalize_carbon_brush_measurement_value(raw_value)
         meta = decode_carbon_brush_meta(equipment_name, plant_value)
         stats = compute_carbon_brush_stats(measurements, equipment_name, meta["plant"])
         replacement = str(row.get("REPLACEMENT", "") or "").strip()
