@@ -215,7 +215,8 @@ function getCarbonBrushCycleResetReason(previous, current, threshold) {
 function analyzeCarbonBrushPointWear(item, pointKey) {
   const history = getCarbonBrushPointHistory(item, pointKey).filter((entry) => entry.numericValue !== null);
   const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
-  const currentValue = history[history.length - 1]?.numericValue ?? null;
+  const currentRawValue = String(item.payload?.measurements?.[pointKey] || "").trim();
+  const currentValue = parseCarbonBrushNumericValue(currentRawValue);
   const remainingMm = currentValue === null ? null : currentValue - threshold.low;
   const actualStatus = classifyCarbonBrushActualStatus(currentValue, threshold.low, threshold.high);
   if (history.length < 4) {
@@ -277,7 +278,7 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
   }
 
   const recentIntervals = currentCycleIntervals.slice(-3);
-  const latestCycleValue = currentCycleHistory[currentCycleHistory.length - 1]?.numericValue ?? history[history.length - 1]?.numericValue ?? null;
+  const latestCycleValue = currentValue;
   const medianWearRate = recentIntervals.length >= 3 ? getMedianValue(recentIntervals.map((entry) => entry.wearRatePerDay)) : null;
   const latestRemainingMm = latestCycleValue === null ? null : latestCycleValue - threshold.low;
   const predictionQuality = classifyCarbonBrushPredictionQuality(recentIntervals);
