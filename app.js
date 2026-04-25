@@ -118,6 +118,7 @@ const dashboardNegatifPreview = document.getElementById("dashboard-negatif-previ
 const dashboardSpbPreview = document.getElementById("dashboard-spb-preview");
 const isMsoBridgeMode = new URLSearchParams(window.location.search).get("mso_bridge") === "1";
 const dashboardServicePreview = document.getElementById("dashboard-service-preview");
+const dashboardMsoWatchlistPreview = document.getElementById("dashboard-mso-watchlist-preview");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
 const dashboardInspectionHistory = document.getElementById("dashboard-inspection-history");
@@ -2566,6 +2567,43 @@ function buildMsoMotorAnalyticsHtml(item) {
       </div>
     </section>
   `;
+}
+
+function buildMsoMotorWatchlistSummary(serviceItems) {
+  const latestByEquipment = new Map();
+  serviceItems
+    .filter((item) => item.formType === "service-motor-mso" && String(item.payload?.source || "").toUpperCase() === "MSO")
+    .forEach((item) => {
+      const key = String(item.equipmentName || "").trim().toUpperCase();
+      if (!key) {
+        return;
+      }
+      const existing = latestByEquipment.get(key);
+      const currentTime = new Date(item.payload?.inspectionDate || 0).getTime() || 0;
+      const existingTime = new Date(existing?.payload?.inspectionDate || 0).getTime() || 0;
+      if (!existing || currentTime >= existingTime) {
+        latestByEquipment.set(key, item);
+      }
+    });
+
+  return [...latestByEquipment.values()]
+    .map((item) => {
+      const snapshot = getMsoMotorHealthSnapshot(item);
+      const history = getMsoMotorHistory(item);
+      const badCount = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD").length;
+      const severity = (100 - snapshot.score)
+        + (badCount * 8)
+        + ((snapshot.maxVibrationBefore ?? 0) * 4)
+        + ((snapshot.maxTemperature ?? 0) >= 70 ? 12 : (snapshot.maxTemperature ?? 0) >= 60 ? 6 : 0);
+      return {
+        item,
+        snapshot,
+        badCount,
+        severity,
+      };
+    })
+    .sort((left, right) => right.severity - left.severity)
+    .slice(0, 5);
 }
 
 function openServiceDetail(item) {
@@ -6114,6 +6152,29 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
         <small>${formatInspectionDate(item.payload?.inspectionDate)}</small>
       `;
       dashboardServicePreview.append(article);
+    });
+  }
+
+  if (dashboardMsoWatchlistPreview) {
+    const watchlistItems = buildMsoMotorWatchlistSummary(serviceItems);
+    dashboardMsoWatchlistPreview.innerHTML = "";
+    if (!watchlistItems.length) {
+      dashboardMsoWatchlistPreview.innerHTML = `
+        <article>
+          <strong>Belum ada data Motor MSO</strong>
+          <span>Equipment prioritas akan tampil di sini berdasarkan health score, vibrasi, temperatur, dan frekuensi BAD.</span>
+          <small>Sinkron dari data service Motor MSO</small>
+        </article>
+      `;
+    }
+    watchlistItems.forEach(({ item, snapshot, badCount }) => {
+      const article = document.createElement("article");
+      article.innerHTML = `
+        <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+        <span>${escapeHtml(snapshot.grade)} | Score ${snapshot.score} | BAD ${badCount}x</span>
+        <small>Temp max ${escapeHtml(snapshot.maxTemperature || "-")} C | Vib max ${escapeHtml(snapshot.maxVibrationBefore ?? "-")} | ${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</small>
+      `;
+      dashboardMsoWatchlistPreview.append(article);
     });
   }
 
