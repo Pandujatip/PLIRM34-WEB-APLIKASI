@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260425-22">
+  <link rel="stylesheet" href="styles.css?v=20260425-23">
 </head>
 <body>
   <div class="app-shell">
@@ -129,6 +129,20 @@
         </header>
 
         <section class="panel-section visible" data-panel="dashboard">
+          <section class="content-card carbon-brush-alert-banner hidden" id="dashboard-carbon-brush-banner">
+            <div class="carbon-brush-alert-head">
+              <div>
+                <p class="eyebrow">Carbon Brush Early Warning</p>
+                <h3>Countdown penggantian carbon brush rawmill</h3>
+              </div>
+              <div class="carbon-brush-alert-meta">
+                <span class="carbon-brush-alert-chip" id="dashboard-carbon-brush-banner-summary">Top 5 countdown</span>
+                <div class="carbon-brush-alert-dots" id="dashboard-carbon-brush-banner-dots"></div>
+              </div>
+            </div>
+            <div class="carbon-brush-alert-viewport" id="dashboard-carbon-brush-banner-viewport"></div>
+          </section>
+
           <div class="hero-banner dashboard-hero">
             <div class="dashboard-slideshow" id="dashboard-slideshow">
               <div class="dashboard-slideshow-frame">
@@ -2401,6 +2415,18 @@
                     Tuban 4 hijau mulai
                     <input type="number" step="0.01" name="tuban4High" required>
                   </label>
+                  <label>
+                    Prepare jika <= hari
+                    <input type="number" step="1" name="prepareDays" required>
+                  </label>
+                  <label>
+                    Urgent jika <= hari
+                    <input type="number" step="1" name="urgentDays" required>
+                  </label>
+                  <label>
+                    Critical jika <= hari
+                    <input type="number" step="1" name="criticalDays" required>
+                  </label>
                 </div>
                 <div class="form-actions">
                   <button class="btn btn-primary" type="submit">Simpan Threshold</button>
@@ -2701,6 +2727,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260425-22"></script>
+  <script src="app.js?v=20260425-23"></script>
 </body>
 </html>
