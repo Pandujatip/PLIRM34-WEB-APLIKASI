@@ -2590,7 +2590,9 @@ function buildMsoMotorTrendSvg(history, series, options = {}) {
           <polyline fill="none" stroke="${stroke}" stroke-width="3" points="${polyline}"></polyline>
           ${points.map((point) => `
             <g>
-              <circle cx="${point.xCoord}" cy="${point.yCoord}" r="5" class="trend-point" style="fill:${stroke};"></circle>
+              <circle cx="${point.xCoord}" cy="${point.yCoord}" r="5" class="trend-point" style="fill:${stroke};">
+                <title>${escapeHtml(`${entry.label} | ${point.label} | ${point.value}`)}</title>
+              </circle>
             </g>
           `).join("")}
         `;

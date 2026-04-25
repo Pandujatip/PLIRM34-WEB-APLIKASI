@@ -216,6 +216,15 @@ select {
   fill: var(--accent-2);
   stroke: rgba(7, 16, 29, 0.95);
   stroke-width: 2;
+  transition: transform 140ms ease, r 140ms ease, stroke-width 140ms ease;
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.trend-point:hover {
+  transform: scale(1.18);
+  stroke-width: 2.6;
 }
 
 .trend-point.is-low {
