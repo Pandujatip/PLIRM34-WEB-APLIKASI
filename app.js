@@ -6169,6 +6169,10 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
     }
     watchlistItems.forEach(({ item, snapshot, badCount }) => {
       const article = document.createElement("article");
+      article.className = "dashboard-watchlist-item";
+      article.dataset.serviceId = item.id || "";
+      article.dataset.openable = "true";
+      article.tabIndex = 0;
       article.innerHTML = `
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
         <span>${escapeHtml(snapshot.grade)} | Score ${snapshot.score} | BAD ${badCount}x</span>
@@ -9421,6 +9425,37 @@ serviceCardList.addEventListener("keydown", async (event) => {
 
   event.preventDefault();
   const item = await resolveServiceItem(card.dataset.id || "");
+  if (item) {
+    openServiceDetail(item);
+  }
+});
+
+dashboardMsoWatchlistPreview?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const card = target.closest(".dashboard-watchlist-item");
+  if (!(card instanceof HTMLElement)) {
+    return;
+  }
+  const item = await resolveServiceItem(card.dataset.serviceId || "");
+  if (item) {
+    openServiceDetail(item);
+  }
+});
+
+dashboardMsoWatchlistPreview?.addEventListener("keydown", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !(event.key === "Enter" || event.key === " ")) {
+    return;
+  }
+  const card = target.closest(".dashboard-watchlist-item");
+  if (!(card instanceof HTMLElement)) {
+    return;
+  }
+  event.preventDefault();
+  const item = await resolveServiceItem(card.dataset.serviceId || "");
   if (item) {
     openServiceDetail(item);
   }

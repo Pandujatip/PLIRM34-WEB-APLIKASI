@@ -2049,6 +2049,20 @@ th.sort-desc::after {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.dashboard-watchlist-item {
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.dashboard-watchlist-item:hover,
+.dashboard-watchlist-item:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(255, 140, 66, 0.28);
+  box-shadow: var(--orange-glow);
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
 .status-list strong,
 .inspection-card strong,
 .bom-copy strong {
