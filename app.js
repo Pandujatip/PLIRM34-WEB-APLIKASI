@@ -4262,51 +4262,24 @@ function buildCarbonBrushMeggerTrendHtml(item) {
           ["Megger tertinggi", highest ?? "-"],
         ])}
       </div>
-      <div class="detail-analysis trend-event-list">
-        <div class="detail-analysis-item">
-          <strong>Prediksi Tren</strong>
-          <span>${
-            escapeHtml(
+        <div class="detail-analysis trend-event-list">
+          <div class="detail-analysis-item">
+            <strong>Prediksi Tren</strong>
+            <span>${
+              escapeHtml(
               latest?.numericValue !== null && latest.numericValue <= meggerMinimum
                 ? `Megger terbaru sudah menyentuh atau berada di bawah batas minimum ${meggerMinimum} Mohm. Perlu tindak lanjut prioritas.`
                 : meggerTrend.avgDropPerService !== null
                   ? `Tren megger menunjukkan penurunan rata-rata ${meggerTrend.avgDropPerService.toFixed(2)} Mohm per service dan ${meggerTrend.avgDropPerMonth !== null ? `${meggerTrend.avgDropPerMonth.toFixed(2)} Mohm per bulan` : "belum cukup data per bulan"}. Dengan laju ini, nilai diperkirakan mendekati ${meggerMinimum} Mohm dalam ${meggerTrend.servicesToThreshold !== null ? `${meggerTrend.servicesToThreshold.toFixed(1)} service` : "-"} atau ${meggerTrend.monthsToThreshold !== null ? `${meggerTrend.monthsToThreshold.toFixed(1)} bulan` : "-"} sekitar ${meggerTrend.estimatedThresholdDateLabel}.`
-                  : "Belum terlihat tren penurunan rata-rata yang cukup untuk membuat prediksi menuju batas minimum."
-            )
-          }</span>
+                    : "Belum terlihat tren penurunan rata-rata yang cukup untuk membuat prediksi menuju batas minimum."
+              )
+            }</span>
+          </div>
         </div>
-        ${(history.length ? history : [{ inspectionDateLabel: "-", rawValue: "-", pic: "-" }]).map((entry, index, array) => {
-          const prev = index > 0 ? array[index - 1] : null;
-          const currentNumeric = entry.numericValue;
-          const previousNumeric = prev?.numericValue ?? null;
-          const entryDelta = currentNumeric !== null && previousNumeric !== null ? currentNumeric - previousNumeric : null;
-          const noteParts = [];
-          if (entryDelta === null) {
-            noteParts.push("Baseline histori megger.");
-          } else if (entryDelta < 0) {
-            noteParts.push(`Turun ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`);
-          } else if (entryDelta > 0) {
-            noteParts.push(`Naik ${Math.abs(entryDelta).toFixed(2)} dari service sebelumnya.`);
-          } else {
-            noteParts.push("Nilai tetap dibanding service sebelumnya.");
-          }
-          if (currentNumeric !== null) {
-            noteParts.push(currentNumeric < meggerMinimum
-              ? `Di bawah batas minimum ${meggerMinimum} Mohm.`
-              : `Masih di atas batas minimum ${meggerMinimum} Mohm.`);
-          }
-          return `
-            <div class="detail-analysis-item">
-              <strong>${escapeHtml(entry.inspectionDateLabel)}</strong>
-              <span>Megger ${escapeHtml(entry.rawValue || "-")} | PIC ${escapeHtml(entry.pic || "-")} | ${escapeHtml(noteParts.join(" "))}</span>
-            </div>
-          `;
-        }).join("")}
-      </div>
-      ${buildCarbonBrushMeggerAuditHtml(item, history, meggerTrend, meggerMinimum)}
-    </section>
-  `;
-}
+        ${buildCarbonBrushMeggerAuditHtml(item, history, meggerTrend, meggerMinimum)}
+      </section>
+    `;
+  }
 
 async function createServiceInspectionImage(item) {
   const payloadLines = formatServicePayloadLines(item);
