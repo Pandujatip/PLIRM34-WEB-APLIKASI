@@ -4061,13 +4061,15 @@ function buildCarbonBrushTrendSvg(history, threshold) {
       <rect x="${padding.left}" y="${padding.top}" width="${chartWidth}" height="${chartHeight}" rx="14" fill="rgba(255,255,255,0.02)"></rect>
       <line x1="${padding.left}" y1="${thresholdLowY}" x2="${width - padding.right}" y2="${thresholdLowY}" stroke="rgba(255,107,120,0.7)" stroke-dasharray="6 6"></line>
       <line x1="${padding.left}" y1="${thresholdHighY}" x2="${width - padding.right}" y2="${thresholdHighY}" stroke="rgba(115,224,169,0.7)" stroke-dasharray="6 6"></line>
-      <polyline fill="none" stroke="rgba(124,199,255,0.95)" stroke-width="3" points="${polyline}"></polyline>
-      ${points.map((point) => `
-        <g>
-          <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point ${point.bucket ? `is-${point.bucket}` : ""}"></circle>
-          <text x="${point.x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.label)}</text>
-        </g>
-      `).join("")}
+        <polyline fill="none" stroke="rgba(124,199,255,0.95)" stroke-width="3" points="${polyline}"></polyline>
+        ${points.map((point) => `
+          <g>
+            <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point ${point.bucket ? `is-${point.bucket}` : ""}">
+              <title>${escapeHtml(`${point.label} | Nilai ${point.value}`)}</title>
+            </circle>
+            <text x="${point.x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.label)}</text>
+          </g>
+        `).join("")}
       <text x="${padding.left}" y="${thresholdLowY - 8}" class="trend-threshold low">Batas merah ${threshold.low}</text>
       <text x="${padding.left}" y="${thresholdHighY - 8}" class="trend-threshold high">Batas hijau ${threshold.high}</text>
     </svg>
@@ -4156,14 +4158,16 @@ function buildCarbonBrushMeggerTrendSvg(history) {
     <svg class="trend-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafik tren megger carbon brush">
       <rect x="${padding.left}" y="${padding.top}" width="${chartWidth}" height="${chartHeight}" rx="14" fill="rgba(255,255,255,0.02)"></rect>
       <line x1="${padding.left}" y1="${thresholdY}" x2="${width - padding.right}" y2="${thresholdY}" stroke="rgba(255,107,120,0.82)" stroke-dasharray="6 6"></line>
-      <polyline fill="none" stroke="${trendStroke}" stroke-width="3" points="${polyline}"></polyline>
-      ${points.map((point) => `
-        <g>
-          <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point ${point.value < meggerMinimum ? "is-low" : "is-high"}"></circle>
-          <text x="${point.x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.label)}</text>
-          <text x="${point.x}" y="${point.y - 10}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.value)}</text>
-        </g>
-      `).join("")}
+        <polyline fill="none" stroke="${trendStroke}" stroke-width="3" points="${polyline}"></polyline>
+        ${points.map((point) => `
+          <g>
+            <circle cx="${point.x}" cy="${point.y}" r="5.5" class="trend-point ${point.value < meggerMinimum ? "is-low" : "is-high"}">
+              <title>${escapeHtml(`${point.label} | Nilai ${point.value} Mohm`)}</title>
+            </circle>
+            <text x="${point.x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.label)}</text>
+            <text x="${point.x}" y="${point.y - 10}" text-anchor="middle" class="trend-axis-label">${escapeHtml(point.value)}</text>
+          </g>
+        `).join("")}
       <text x="${padding.left}" y="${thresholdY - 8}" class="trend-threshold low">Batas minimum IEEE 43: 100 Mohm</text>
       <text x="${padding.left}" y="${padding.top - 6}" class="trend-threshold high">Megger slip ring motor MV 6,3 kV</text>
     </svg>
