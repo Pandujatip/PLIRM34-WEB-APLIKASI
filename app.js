@@ -2286,6 +2286,288 @@ function buildCarbonBrushMatrixHtml(measurements, equipmentName, explicitPlant =
   return `<div class="carbon-brush-matrix-wrap"><table class="carbon-brush-matrix-table">${head}<tbody>${body}</tbody></table></div>`;
 }
 
+function parseMsoMotorNumeric(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const normalized = String(value).replace(",", ".").trim();
+  if (!normalized) {
+    return null;
+  }
+  const numeric = Number.parseFloat(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getMsoMotorHistory(item) {
+  return getServiceItemsFromDom()
+    .filter((entry) =>
+      entry.formType === "service-motor-mso"
+      && String(entry.equipmentName || "").trim().toUpperCase() === String(item.equipmentName || "").trim().toUpperCase())
+    .sort((left, right) => {
+      const leftTime = new Date(left?.payload?.inspectionDate || 0).getTime() || 0;
+      const rightTime = new Date(right?.payload?.inspectionDate || 0).getTime() || 0;
+      return leftTime - rightTime;
+    });
+}
+
+function getMsoMotorVibrationValues(payload = {}, phase = "before") {
+  const suffix = phase === "after" ? "After" : "Before";
+  return [
+    parseMsoMotorNumeric(payload[`vibrasiDsVert${suffix}`]),
+    parseMsoMotorNumeric(payload[`vibrasiDsHor${suffix}`]),
+    parseMsoMotorNumeric(payload[`vibrasiDsAxial${suffix}`]),
+    parseMsoMotorNumeric(payload[`vibrasiNdsVert${suffix}`]),
+    parseMsoMotorNumeric(payload[`vibrasiNdsHor${suffix}`]),
+    parseMsoMotorNumeric(payload[`vibrasiNdsAxial${suffix}`]),
+  ].filter((value) => value !== null);
+}
+
+function getMsoMotorMaxVibration(payload = {}, phase = "before") {
+  const values = getMsoMotorVibrationValues(payload, phase);
+  return values.length ? Math.max(...values) : null;
+}
+
+function getMsoMotorTemperatureValues(payload = {}) {
+  return [
+    parseMsoMotorNumeric(payload.temperaturDs),
+    parseMsoMotorNumeric(payload.temperaturNds),
+  ].filter((value) => value !== null);
+}
+
+function getMsoMotorHealthSnapshot(item) {
+  const payload = item.payload || {};
+  const latestCondition = String(payload.condition || "").toUpperCase();
+  const temperatureDs = parseMsoMotorNumeric(payload.temperaturDs);
+  const temperatureNds = parseMsoMotorNumeric(payload.temperaturNds);
+  const maxTemperature = Math.max(...getMsoMotorTemperatureValues(payload), 0);
+  const maxVibrationBefore = getMsoMotorMaxVibration(payload, "before");
+  const maxVibrationAfter = getMsoMotorMaxVibration(payload, "after");
+  let score = 100;
+  const notes = [];
+
+  if (latestCondition === "BAD") {
+    score -= 35;
+    notes.push("MSO memberi status BAD pada inspeksi terbaru.");
+  }
+  if (maxTemperature >= 70) {
+    score -= 25;
+    notes.push(`Temperatur maksimum ${maxTemperature} C masuk area kritis.`);
+  } else if (maxTemperature >= 60) {
+    score -= 15;
+    notes.push(`Temperatur maksimum ${maxTemperature} C perlu diawasi.`);
+  }
+  if ((maxVibrationBefore ?? 0) >= 4.5) {
+    score -= 25;
+    notes.push(`Vibrasi before maksimum ${maxVibrationBefore} mm/s tergolong tinggi.`);
+  } else if ((maxVibrationBefore ?? 0) >= 2.8) {
+    score -= 15;
+    notes.push(`Vibrasi before maksimum ${maxVibrationBefore} mm/s masuk watchlist.`);
+  }
+  if (maxVibrationAfter !== null && maxVibrationBefore !== null && maxVibrationAfter >= maxVibrationBefore) {
+    score -= 10;
+    notes.push("Nilai after tidak menunjukkan perbaikan terhadap vibrasi before.");
+  }
+
+  score = Math.max(0, Math.min(100, score));
+  let grade = "Healthy";
+  let gradeClass = "is-healthy";
+  if (score < 55) {
+    grade = "Critical";
+    gradeClass = "is-critical";
+  } else if (score < 75) {
+    grade = "Watchlist";
+    gradeClass = "is-watch";
+  }
+
+  return {
+    score,
+    grade,
+    gradeClass,
+    latestCondition,
+    temperatureDs,
+    temperatureNds,
+    maxTemperature,
+    maxVibrationBefore,
+    maxVibrationAfter,
+    notes,
+  };
+}
+
+function buildMsoMotorTrendSvg(history, series, options = {}) {
+  const width = 860;
+  const height = 260;
+  const padding = { top: 24, right: 24, bottom: 40, left: 54 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const validSeries = series.map((entry) => ({
+    ...entry,
+    points: history.map((historyEntry, index) => ({
+      x: index,
+      label: historyEntry.label,
+      value: entry.getValue(historyEntry),
+    })).filter((point) => point.value !== null),
+  })).filter((entry) => entry.points.length);
+  const thresholds = Array.isArray(options.thresholds) ? options.thresholds : [];
+  const allValues = validSeries.flatMap((entry) => entry.points.map((point) => point.value));
+  if (!allValues.length) {
+    return '<div class="trend-empty">Belum ada histori numerik yang cukup untuk ditampilkan.</div>';
+  }
+
+  const minValue = Math.min(...allValues, ...thresholds.map((entry) => entry.value));
+  const maxValue = Math.max(...allValues, ...thresholds.map((entry) => entry.value));
+  const paddingValue = Math.max((maxValue - minValue) * 0.14, 0.8);
+  const domainMin = Math.max(0, minValue - paddingValue);
+  const domainMax = maxValue + paddingValue;
+  const xStep = history.length > 1 ? chartWidth / (history.length - 1) : chartWidth / 2;
+  const valueToY = (value) => padding.top + ((domainMax - value) / (domainMax - domainMin || 1)) * chartHeight;
+  const colorPalette = ["rgba(124,199,255,0.96)", "rgba(115,224,169,0.96)", "rgba(255,166,66,0.96)", "rgba(255,107,120,0.96)"];
+
+  return `
+    <svg class="trend-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(options.ariaLabel || "Grafik tren motor MSO")}">
+      <rect x="${padding.left}" y="${padding.top}" width="${chartWidth}" height="${chartHeight}" rx="14" fill="rgba(255,255,255,0.02)"></rect>
+      ${thresholds.map((threshold, index) => {
+        const y = valueToY(threshold.value);
+        return `
+          <line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="${threshold.color || "rgba(255,255,255,0.25)"}" stroke-dasharray="6 6"></line>
+          <text x="${padding.left}" y="${y - 8}" class="trend-threshold ${index === 0 ? "low" : "high"}">${escapeHtml(threshold.label)}</text>
+        `;
+      }).join("")}
+      ${validSeries.map((entry, seriesIndex) => {
+        const stroke = entry.color || colorPalette[seriesIndex % colorPalette.length];
+        const points = entry.points.map((point) => ({
+          ...point,
+          xCoord: padding.left + (history.length > 1 ? point.x * xStep : chartWidth / 2),
+          yCoord: valueToY(point.value),
+        }));
+        const polyline = points.map((point) => `${point.xCoord},${point.yCoord}`).join(" ");
+        return `
+          <polyline fill="none" stroke="${stroke}" stroke-width="3" points="${polyline}"></polyline>
+          ${points.map((point) => `
+            <g>
+              <circle cx="${point.xCoord}" cy="${point.yCoord}" r="5" class="trend-point" style="fill:${stroke};"></circle>
+            </g>
+          `).join("")}
+        `;
+      }).join("")}
+      ${history.map((entry, index) => {
+        const x = padding.left + (history.length > 1 ? index * xStep : chartWidth / 2);
+        return `<text x="${x}" y="${height - 14}" text-anchor="middle" class="trend-axis-label">${escapeHtml(entry.label)}</text>`;
+      }).join("")}
+    </svg>
+    <div class="mso-trend-legend">
+      ${validSeries.map((entry, index) => `
+        <span><i style="background:${entry.color || colorPalette[index % colorPalette.length]};"></i>${escapeHtml(entry.label)}</span>
+      `).join("")}
+    </div>
+  `;
+}
+
+function buildMsoMotorAnalyticsHtml(item) {
+  const history = getMsoMotorHistory(item);
+  const latestSnapshot = getMsoMotorHealthSnapshot(item);
+  const badCount = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD").length;
+  const trendHistory = history.map((entry) => ({
+    label: formatInspectionDate(entry.payload?.inspectionDate),
+    payload: entry.payload || {},
+  }));
+  const temperatureTrendHtml = buildMsoMotorTrendSvg(trendHistory, [
+    { label: "Temp DS", getValue: (entry) => parseMsoMotorNumeric(entry.payload.temperaturDs), color: "rgba(255,166,66,0.96)" },
+    { label: "Temp NDS", getValue: (entry) => parseMsoMotorNumeric(entry.payload.temperaturNds), color: "rgba(124,199,255,0.96)" },
+  ], {
+    ariaLabel: "Grafik tren temperatur motor MSO",
+    thresholds: [
+      { value: 60, label: "Watch 60 C", color: "rgba(255,210,79,0.75)" },
+      { value: 70, label: "Critical 70 C", color: "rgba(255,107,120,0.75)" },
+    ],
+  });
+  const vibrationTrendHtml = buildMsoMotorTrendSvg(trendHistory, [
+    { label: "Vib Before Max", getValue: (entry) => getMsoMotorMaxVibration(entry.payload, "before"), color: "rgba(255,107,120,0.96)" },
+    { label: "Vib After Max", getValue: (entry) => getMsoMotorMaxVibration(entry.payload, "after"), color: "rgba(115,224,169,0.96)" },
+  ], {
+    ariaLabel: "Grafik tren vibrasi motor MSO",
+    thresholds: [
+      { value: 2.8, label: "Watch 2.8 mm/s", color: "rgba(255,210,79,0.75)" },
+      { value: 4.5, label: "Critical 4.5 mm/s", color: "rgba(255,107,120,0.75)" },
+    ],
+  });
+
+  const recommendations = [];
+  if (latestSnapshot.latestCondition === "BAD") {
+    recommendations.push("Prioritaskan verifikasi lapangan karena inspeksi terbaru berstatus BAD.");
+  }
+  if ((latestSnapshot.maxVibrationBefore ?? 0) >= 4.5) {
+    recommendations.push("Cek alignment, baseplate, kekencangan baut, dan kondisi bearing karena vibrasi before masuk zona kritis.");
+  } else if ((latestSnapshot.maxVibrationBefore ?? 0) >= 2.8) {
+    recommendations.push("Masukkan motor ke watchlist vibrasi dan bandingkan tren 3 inspeksi terakhir.");
+  }
+  if (latestSnapshot.maxTemperature >= 70) {
+    recommendations.push("Evaluasi beban motor, pendinginan, ventilasi, dan kondisi bearing karena temperatur sudah kritis.");
+  } else if (latestSnapshot.maxTemperature >= 60) {
+    recommendations.push("Monitor kenaikan temperatur pada inspeksi berikutnya dan cek kebersihan jalur pendinginan.");
+  }
+  if (latestSnapshot.maxVibrationAfter !== null && latestSnapshot.maxVibrationBefore !== null && latestSnapshot.maxVibrationAfter >= latestSnapshot.maxVibrationBefore) {
+    recommendations.push("Tindakan after belum efektif. Tinjau ulang metode regrease atau kebutuhan investigasi mekanik lebih lanjut.");
+  }
+  if (badCount >= 3) {
+    recommendations.push(`Motor ini sudah BAD sebanyak ${badCount} kali. Layak masuk prioritas planning tindak lanjut atau shutdown.`);
+  }
+
+  return `
+    <section class="detail-card mso-health-card">
+      <div class="mso-health-head">
+        <div>
+          <h4>Health Snapshot</h4>
+          <p>Penilaian cepat berdasarkan kondisi terbaru, temperatur tertinggi, vibrasi maksimum, dan efektivitas after service.</p>
+        </div>
+        <div class="mso-health-badge ${latestSnapshot.gradeClass}">
+          <strong>${latestSnapshot.score}</strong>
+          <span>${escapeHtml(latestSnapshot.grade)}</span>
+        </div>
+      </div>
+      <div class="detail-grid trend-summary-grid">
+        ${buildDetailGridRows([
+          ["Condition terbaru", latestSnapshot.latestCondition || "-"],
+          ["Temperatur DS", latestSnapshot.temperatureDs ?? "-"],
+          ["Temperatur NDS", latestSnapshot.temperatureNds ?? "-"],
+          ["Temperatur maksimum", latestSnapshot.maxTemperature || "-"],
+          ["Vibrasi before max", latestSnapshot.maxVibrationBefore ?? "-"],
+          ["Vibrasi after max", latestSnapshot.maxVibrationAfter ?? "-"],
+          ["Total histori", `${history.length} inspeksi`],
+          ["Frekuensi BAD", `${badCount} kali`],
+          ["Source", item.payload?.source || "MSO"],
+        ])}
+      </div>
+      <div class="detail-analysis">
+        ${(latestSnapshot.notes.length ? latestSnapshot.notes : ["Kondisi terbaru relatif aman berdasarkan data historis yang tersimpan."]).map((entry) => `<div class="detail-analysis-item">${escapeHtml(entry)}</div>`).join("")}
+      </div>
+    </section>
+    <section class="detail-card carbon-brush-trend-card">
+      <div class="detail-modal-head compact-trend-head">
+        <div>
+          <h4>Trend Temperatur</h4>
+          <p>Pergerakan temperatur DS dan NDS dari histori inspeksi motor MSO.</p>
+        </div>
+      </div>
+      ${temperatureTrendHtml}
+    </section>
+    <section class="detail-card carbon-brush-trend-card">
+      <div class="detail-modal-head compact-trend-head">
+        <div>
+          <h4>Trend Vibrasi</h4>
+          <p>Perbandingan vibrasi maksimum before dan after untuk menilai efektivitas tindakan service.</p>
+        </div>
+      </div>
+      ${vibrationTrendHtml}
+    </section>
+    <section class="detail-card">
+      <h4>Rekomendasi Otomatis</h4>
+      <div class="detail-analysis trend-event-list">
+        ${(recommendations.length ? recommendations : ["Belum ada indikasi kuat untuk tindakan khusus. Lanjutkan monitoring rutin."]).map((entry) => `<div class="detail-analysis-item">${escapeHtml(entry)}</div>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function openServiceDetail(item) {
   if (!serviceDetailModal || !serviceDetailContent || !serviceDetailTitle || !serviceDetailSubtitle) {
     return;
@@ -2316,6 +2598,9 @@ function openServiceDetail(item) {
       ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "", carbonBrushReplacementDraft)}
     `;
   }
+  const msoAnalyticsHtml = item.formType === "service-motor-mso" && String(payload.source || "").toUpperCase() === "MSO"
+    ? buildMsoMotorAnalyticsHtml(item)
+    : "";
 
   const photoEntries = getInspectionPhotoEntries(payload);
   const photoHtml = photoEntries.length > 0
@@ -2351,6 +2636,7 @@ function openServiceDetail(item) {
       <h4>Hasil Inspeksi</h4>
       ${rawHtml}
     </section>
+    ${msoAnalyticsHtml}
     <section class="detail-card">
       <h4>Analisa</h4>
       <div class="detail-analysis">

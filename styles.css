@@ -261,6 +261,71 @@ select {
   gap: 4px;
 }
 
+.mso-health-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.mso-health-badge {
+  min-width: 124px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mso-health-badge strong {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.mso-health-badge span {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.mso-health-badge.is-healthy {
+  border-color: rgba(115, 224, 169, 0.3);
+  background: rgba(115, 224, 169, 0.12);
+}
+
+.mso-health-badge.is-watch {
+  border-color: rgba(255, 210, 79, 0.3);
+  background: rgba(255, 210, 79, 0.12);
+}
+
+.mso-health-badge.is-critical {
+  border-color: rgba(255, 107, 120, 0.32);
+  background: rgba(255, 107, 120, 0.12);
+}
+
+.mso-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.mso-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.mso-trend-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
 .detail-photo {
   max-width: 100%;
   border-radius: 18px;
