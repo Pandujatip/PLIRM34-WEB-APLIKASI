@@ -312,10 +312,33 @@ const apiResourceMap = {
   [storageKeys.bomMotor]: "bom-motor",
   [storageKeys.spb]: "spb",
 };
+const storageKeyByResource = Object.fromEntries(
+  Object.entries(apiResourceMap).map(([storageKey, resourceKey]) => [resourceKey, storageKey]),
+);
+const bootstrapDataKeyByResource = {
+  "negatif-list": "negatif_list",
+  sparepart: "sparepart",
+  service: "service",
+  bom: "bom",
+  "bom-motor": "bom_motor",
+  spb: "spb",
+};
+const sectionResourceMap = {
+  dashboard: ["negatif-list", "service", "spb"],
+  "negatif-list": ["negatif-list"],
+  sparepart: ["sparepart"],
+  service: ["service"],
+  bom: ["bom", "bom-motor"],
+  spb: ["spb"],
+};
 
 const backendState = {
   available: false,
   sessionActive: false,
+  loadedResources: new Set(),
+  resourceCounts: {},
+  pendingResourceLoads: new Map(),
+  skipSectionLoading: false,
   masters: {
     areas: [],
     inspectionTemplates: [],
@@ -350,6 +373,7 @@ let dashboardSlideshowTimer = null;
 let dashboardCarbonBrushAlertIndex = 0;
 let dashboardCarbonBrushAlertTimer = null;
 let idleLogoutTimer = null;
+const MSO_MOTOR_IMPORT_BATCH_SIZE = 240;
 
 const roleLabels = {
   admin: "Admin",
@@ -362,12 +386,6 @@ const roleAccessSummary = {
   organik: "Lihat semua menu kecuali log dan manajemen user, input/edit negatif list dan service",
   team: "Lihat semua modul, edit service",
 };
-
-const defaultAuthUsers = [
-  { username: "admin.plirm34", password: "admin123", role: "admin" },
-  { username: "organik.plirm34", password: "organik123", role: "organik" },
-  { username: "team.plirm34", password: "team123", role: "team" },
-];
 
 const roleSections = {
   admin: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "user-management", "activity-log"],
@@ -1336,6 +1354,10 @@ function openSection(sectionName) {
   if (sectionName === "activity-log") {
     void refreshActivityLogs();
   }
+  if (!backendState.skipSectionLoading) {
+    const neededResources = sectionResourceMap[sectionName] || [];
+    void ensureBackendResourcesLoaded(neededResources);
+  }
 
   if (window.matchMedia("(max-width: 900px)").matches) {
     sidebar?.classList.remove("menu-open");
@@ -1400,6 +1422,7 @@ async function performLogout(reason = "") {
   loginScreen.classList.remove("hidden");
   loginForm.reset();
   activeRole = "admin";
+  clearBackendResourceCaches();
   dashboardInspectionSchedule = {
     calendarName: "PMS PLIRM34",
     timezone: "Asia/Jakarta",
@@ -2046,18 +2069,18 @@ function analyzeServiceItem(item) {
     const pointAnalyses = carbonBrushMeasurementKeys
       .map((pointKey) => analyzeCarbonBrushPointWear(item, pointKey))
       .filter((analysis) => analysis.currentValue !== null);
-    const worstCountdownPoint = pointAnalyses
-      .filter((analysis) => analysis.hasEnoughHistory && analysis.countdownDays !== null)
+    const actualPriorityPoint = [...pointAnalyses]
       .sort((left, right) => {
-        if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
-          return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
+        if ((right.actualStatus?.severity ?? 0) !== (left.actualStatus?.severity ?? 0)) {
+          return (right.actualStatus?.severity ?? 0) - (left.actualStatus?.severity ?? 0);
         }
         return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
       })[0] || null;
-    const closestPoint = [...pointAnalyses]
+    const predictedPoint = pointAnalyses
+      .filter((analysis) => analysis.countdownDays !== null)
       .sort((left, right) => {
-        if ((left.currentValue ?? Number.MAX_SAFE_INTEGER) !== (right.currentValue ?? Number.MAX_SAFE_INTEGER)) {
-          return (left.currentValue ?? Number.MAX_SAFE_INTEGER) - (right.currentValue ?? Number.MAX_SAFE_INTEGER);
+        if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
+          return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
         }
         return String(left.pointKey || "").localeCompare(String(right.pointKey || ""));
       })[0] || null;
@@ -2075,14 +2098,16 @@ function analyzeServiceItem(item) {
     if (stats.attentionPoints?.length) {
       notes.push(`Titik perhatian utama: ${stats.attentionPoints.join(", ")}.`);
     }
-    if (worstCountdownPoint) {
-      const countdownStatus = classifyCarbonBrushCountdownStatus(worstCountdownPoint.countdownDays);
-      const wearRateText = worstCountdownPoint.medianWearRate !== null
-        ? `${worstCountdownPoint.medianWearRate.toFixed(3)} mm/hari`
+    if (actualPriorityPoint) {
+      notes.push(`Titik paling kritis saat ini adalah ${actualPriorityPoint.pointKey} dengan nilai ${actualPriorityPoint.currentValue} mm. Status aktual ${actualPriorityPoint.actualStatus.label.toLowerCase()}; ${actualPriorityPoint.actualStatus.actionLabel.toLowerCase()}.`);
+    }
+    if (predictedPoint) {
+      const wearRateText = predictedPoint.medianWearRate !== null
+        ? `${predictedPoint.medianWearRate.toFixed(3)} mm/hari`
         : "-";
-      notes.push(`Histori titik ${worstCountdownPoint.pointKey} menunjukkan countdown paling dekat: sekitar ${worstCountdownPoint.countdownDays} hari lagi menuju limit ${worstCountdownPoint.thresholdLow}, sisa ${worstCountdownPoint.remainingMm?.toFixed(2) || "-"} mm dengan laju aus median ${wearRateText}. Status saat ini ${countdownStatus.label}; ${countdownStatus.actionLabel.toLowerCase()}.`);
-    } else if (closestPoint) {
-      notes.push(`Titik yang paling dekat ke limit saat ini adalah ${closestPoint.pointKey} dengan nilai ${closestPoint.currentValue}. Countdown belum dihitung karena histori valid per titik belum cukup; lanjutkan pencatatan minimal 3 interval valid pada titik ini.`);
+      notes.push(`Prediksi titik ${predictedPoint.pointKey} menuju limit sekitar ${predictedPoint.countdownDays} hari lagi dengan sisa ${predictedPoint.remainingMm?.toFixed(2) || "-"} mm dan laju aus median ${wearRateText}. Status countdown ${predictedPoint.predictionStatus.label}; kualitas histori ${predictedPoint.predictionQuality.label.toLowerCase()}. ${predictedPoint.predictionQuality.note}`);
+    } else if (actualPriorityPoint) {
+      notes.push(`Countdown titik ${actualPriorityPoint.pointKey} belum layak dipakai karena histori valid belum cukup. Alert utama tetap mengacu pada nilai aktual terhadap threshold carbon brush.`);
     }
     if (meggerValue !== null) {
       if (meggerValue <= meggerMinimum) {
@@ -3650,233 +3675,6 @@ function getDaysBetweenDates(startDate, endDate) {
   return Math.round(diffMs / 86400000);
 }
 
-function getCarbonBrushPointHistory(item, pointKey) {
-  return getServiceItemsFromDom()
-    .filter((entry) =>
-      entry.formType === "service-motor-mv-carbon-brush"
-      && entry.equipmentName === item.equipmentName)
-    .map((entry) => {
-      const payload = entry.payload || {};
-      const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
-      const rawValue = String(payload.measurements?.[pointKey] || "").trim();
-      const numericValue = parseCarbonBrushNumericValue(rawValue);
-      const bucket = classifyCarbonBrushValue(rawValue, entry.equipmentName || "", payload.plant || "");
-      const replacementValue = parseCarbonBrushNumericValue(payload.replacement);
-      const replacedConfirmed = normalizeCarbonBrushReplacedPoints(payload.replacedPoints).includes(pointKey);
-      return {
-        id: entry.id,
-        inspectionDate,
-        inspectionDateLabel: formatInspectionDate(payload.inspectionDate),
-        rawValue,
-        numericValue,
-        bucket,
-        replacementValue,
-        replacedConfirmed,
-        pic: payload.pic || "-",
-      };
-    })
-    .filter((entry) => entry.inspectionDate)
-    .sort((left, right) => left.inspectionDate - right.inspectionDate);
-}
-
-function getCarbonBrushMeggerHistory(item) {
-  return getServiceItemsFromDom()
-    .filter((entry) =>
-      entry.formType === "service-motor-mv-carbon-brush"
-      && entry.equipmentName === item.equipmentName)
-    .map((entry) => {
-      const payload = entry.payload || {};
-      const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
-      const rawValue = String(payload.megger || "").trim();
-      const numericValue = parseCarbonBrushNumericValue(rawValue);
-      return {
-        id: entry.id,
-        inspectionDate,
-        inspectionDateLabel: formatInspectionDate(payload.inspectionDate),
-        rawValue,
-        numericValue,
-        pic: payload.pic || "-",
-      };
-    })
-    .filter((entry) => entry.inspectionDate)
-    .sort((left, right) => left.inspectionDate - right.inspectionDate);
-}
-
-function getMedianValue(values) {
-  const numericValues = values
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value))
-    .sort((left, right) => left - right);
-  if (!numericValues.length) {
-    return null;
-  }
-  const middleIndex = Math.floor(numericValues.length / 2);
-  if (numericValues.length % 2 === 1) {
-    return numericValues[middleIndex];
-  }
-  return (numericValues[middleIndex - 1] + numericValues[middleIndex]) / 2;
-}
-
-function analyzeCarbonBrushPointWear(item, pointKey) {
-  const history = getCarbonBrushPointHistory(item, pointKey).filter((entry) => entry.numericValue !== null);
-  if (history.length < 4) {
-    return {
-      pointKey,
-      history,
-      validIntervals: [],
-      recentIntervals: [],
-      medianWearRate: null,
-      currentValue: history[history.length - 1]?.numericValue ?? null,
-      remainingMm: null,
-      countdownDays: null,
-      thresholdLow: getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "").low,
-      hasEnoughHistory: false,
-    };
-  }
-
-  let currentCycleHistory = history.length ? [history[0]] : [];
-  let currentCycleIntervals = [];
-  for (let index = 1; index < history.length; index += 1) {
-    const previous = history[index - 1];
-    const current = history[index];
-    const valueIncrease = current.numericValue - previous.numericValue;
-    const valueRaised = valueIncrease >= 3;
-    if (current.replacedConfirmed || valueRaised) {
-      currentCycleHistory = [current];
-      currentCycleIntervals = [];
-      continue;
-    }
-    const gapDays = getDaysBetweenDates(previous.inspectionDate, current.inspectionDate);
-    const wearMm = previous.numericValue - current.numericValue;
-    currentCycleHistory.push(current);
-    if (!gapDays || gapDays <= 0 || wearMm <= 0) {
-      continue;
-    }
-    currentCycleIntervals.push({
-      from: previous,
-      to: current,
-      gapDays,
-      wearMm,
-      wearRatePerDay: wearMm / gapDays,
-    });
-  }
-
-  const recentIntervals = currentCycleIntervals.slice(-3);
-  const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
-  const currentValue = currentCycleHistory[currentCycleHistory.length - 1]?.numericValue ?? history[history.length - 1]?.numericValue ?? null;
-  const medianWearRate = recentIntervals.length >= 3 ? getMedianValue(recentIntervals.map((entry) => entry.wearRatePerDay)) : null;
-  const remainingMm = currentValue === null ? null : currentValue - threshold.low;
-  const countdownDays = remainingMm === null
-    ? null
-    : remainingMm <= 0
-      ? 0
-      : medianWearRate && medianWearRate > 0
-        ? Math.max(0, Math.ceil(remainingMm / medianWearRate))
-        : null;
-
-  return {
-    pointKey,
-    history: currentCycleHistory,
-    validIntervals: currentCycleIntervals,
-    recentIntervals,
-    medianWearRate,
-    currentValue,
-    remainingMm,
-    countdownDays,
-    thresholdLow: threshold.low,
-    hasEnoughHistory: recentIntervals.length >= 3,
-  };
-}
-
-function classifyCarbonBrushCountdownStatus(countdownDays) {
-  const config = getCarbonBrushAlertConfig();
-  if (countdownDays === null) {
-    return {
-      label: "Belum cukup histori",
-      className: "is-monitor",
-      actionLabel: "Lengkapi histori titik",
-    };
-  }
-  if (countdownDays <= config.criticalDays) {
-    return {
-      label: "Critical",
-      className: "is-critical",
-      actionLabel: "Prioritaskan rawmill off terdekat",
-    };
-  }
-  if (countdownDays <= config.urgentDays) {
-    return {
-      label: "Urgent",
-      className: "is-urgent",
-      actionLabel: "Koordinasikan window off mulai sekarang",
-    };
-  }
-  if (countdownDays <= config.prepareDays) {
-    return {
-      label: "Prepare",
-      className: "is-prepare",
-      actionLabel: "Siapkan permintaan service berikutnya",
-    };
-  }
-  return {
-    label: "Monitor",
-    className: "is-monitor",
-    actionLabel: "Lanjutkan monitoring periodik",
-  };
-}
-
-function buildCarbonBrushAlertSummary(serviceItems) {
-  const latestByEquipment = new Map();
-  serviceItems
-    .filter((item) => item.formType === "service-motor-mv-carbon-brush")
-    .forEach((item) => {
-      const key = String(item.equipmentName || "").trim().toUpperCase();
-      if (!key) {
-        return;
-      }
-      const currentTime = new Date(item.payload?.inspectionDate || 0).getTime() || 0;
-      const existing = latestByEquipment.get(key);
-      const existingTime = new Date(existing?.payload?.inspectionDate || 0).getTime() || 0;
-      if (!existing || currentTime >= existingTime) {
-        latestByEquipment.set(key, item);
-      }
-    });
-
-  return [...latestByEquipment.values()]
-    .map((item) => {
-      const pointAnalyses = carbonBrushMeasurementKeys
-        .map((pointKey) => analyzeCarbonBrushPointWear(item, pointKey))
-        .filter((analysis) => analysis.hasEnoughHistory && analysis.countdownDays !== null);
-      if (!pointAnalyses.length) {
-        return null;
-      }
-      const worstPoint = [...pointAnalyses].sort((left, right) => {
-        if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
-          return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
-        }
-        return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
-      })[0];
-      const status = classifyCarbonBrushCountdownStatus(worstPoint.countdownDays);
-      return {
-        item,
-        worstPoint,
-        status,
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => {
-      if ((left.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
-        return (left.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER);
-      }
-      return (left.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER);
-    })
-    .slice(0, 5)
-    .map((entry, index) => ({
-      ...entry,
-      rank: index + 1,
-    }));
-}
-
 function analyzeCarbonBrushMeggerTrend(history, meggerMinimum = 100) {
   const numericHistory = history.filter((entry) => entry.numericValue !== null);
   if (numericHistory.length < 2) {
@@ -4124,6 +3922,7 @@ function buildCarbonBrushTrendHtml(item, pointKey) {
   const payload = item.payload || {};
   const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", payload.plant || "");
   const history = getCarbonBrushPointHistory(item, pointKey);
+  const wearAnalysis = analyzeCarbonBrushPointWear(item, pointKey);
   const redDates = history.filter((entry) => entry.bucket === "low");
   const events = detectCarbonBrushReplacementEvents(history, threshold.high);
   const confirmedReplacementDates = history
@@ -4143,6 +3942,11 @@ function buildCarbonBrushTrendHtml(item, pointKey) {
       <div class="detail-grid trend-summary-grid">
         ${buildDetailGridRows([
           ["Total histori", `${history.length} inspeksi`],
+          ["Status aktual", wearAnalysis.actualStatus?.label || "-"],
+          ["Nilai terbaru", wearAnalysis.currentValue ?? "-"],
+          ["Sisa ke limit", wearAnalysis.remainingMm !== null ? `${wearAnalysis.remainingMm.toFixed(2)} mm` : "-"],
+          ["Countdown", wearAnalysis.countdownDays !== null ? `${wearAnalysis.countdownDays} hari` : "-"],
+          ["Kualitas countdown", wearAnalysis.predictionQuality?.label || "-"],
           ["Masuk merah", `${redDates.length} kali`],
           ["Tanggal merah", redDates.length ? redDates.map((entry) => entry.inspectionDateLabel).join(", ") : "-"],
           ["Ganti terkonfirmasi", confirmedReplacementDates.length ? `${confirmedReplacementDates.length} kali` : "0 kali"],
@@ -4153,6 +3957,10 @@ function buildCarbonBrushTrendHtml(item, pointKey) {
         ])}
       </div>
       <div class="detail-analysis trend-event-list">
+        <div class="detail-analysis-item">
+          <strong>Evaluasi Countdown</strong>
+          <span>${escapeHtml(wearAnalysis.predictionQuality?.note || "Belum cukup histori untuk menyusun countdown titik ini.")}</span>
+        </div>
         ${(events.length ? events : [{ dateLabel: "-", daysSincePrevious: null, reason: "Belum ada indikasi penggantian dari histori yang tersimpan." }]).map((event) => `
           <div class="detail-analysis-item">
             <strong>${escapeHtml(event.dateLabel)}</strong>
@@ -4993,7 +4801,7 @@ async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const message = response.status === 413
-      ? "Ukuran upload foto terlalu besar. Kurangi jumlah foto atau gunakan resolusi yang lebih kecil."
+      ? (payload.error || "Payload terlalu besar. Pecah data menjadi batch yang lebih kecil lalu coba lagi.")
       : (payload.error || `HTTP ${response.status}`);
     throw new Error(message);
   }
@@ -5040,23 +4848,101 @@ function cacheUsers(users) {
   writeStorage(storageKeys.users, normalizedUsers);
 }
 
-function cacheBootstrapData(data) {
-  if (!data || typeof data !== "object") {
+function clearBackendResourceCaches() {
+  backendState.loadedResources = new Set();
+  backendState.resourceCounts = {};
+  backendState.pendingResourceLoads = new Map();
+  resourceStorageKeys.forEach((storageKey) => {
+    volatileStorage.delete(storageKey);
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+  });
+}
+
+function markBackendResourcesLoaded(resourceKeys = []) {
+  resourceKeys.forEach((resourceKey) => {
+    if (resourceKey) {
+      backendState.loadedResources.add(resourceKey);
+    }
+  });
+}
+
+function updateBackendResourceCounts(resourceCounts = {}) {
+  if (!resourceCounts || typeof resourceCounts !== "object") {
     return;
   }
+  backendState.resourceCounts = {
+    ...backendState.resourceCounts,
+    ...resourceCounts,
+  };
+}
 
-  const stateEntries = [
-    [storageKeys.negatifList, data.negatif_list],
-    [storageKeys.sparepart, data.sparepart],
-    [storageKeys.service, data.service],
-    [storageKeys.bom, data.bom],
-    [storageKeys.bomMotor, data.bom_motor],
-    [storageKeys.spb, data.spb],
-  ];
+function normalizeItemsForStorage(resourceKey, items) {
+  const list = Array.isArray(items) ? items : [];
+  if (resourceKey === "negatif-list") {
+    return list.map((item) => normalizeNegatifItem(item));
+  }
+  if (resourceKey === "service") {
+    return list.map((item) => normalizeServiceItem(item));
+  }
+  if (resourceKey === "spb") {
+    return list.map((item) => normalizeSpbItem(item));
+  }
+  return list;
+}
 
-  stateEntries.forEach(([key, items]) => {
-    writeStorage(key, Array.isArray(items) ? items : []);
+function writeBackendResource(resourceKey, items) {
+  const storageKey = storageKeyByResource[resourceKey];
+  if (!storageKey) {
+    return;
+  }
+  const normalizedItems = normalizeItemsForStorage(resourceKey, items);
+  writeStorage(storageKey, normalizedItems);
+  updateBackendResourceCounts({
+    [resourceKey]: normalizedItems.length,
   });
+}
+
+function getBackendCount(resourceKey, fallbackCount = 0) {
+  const normalizedFallback = Number.isFinite(fallbackCount) ? fallbackCount : 0;
+  if (!(backendState.available && backendState.sessionActive)) {
+    return normalizedFallback;
+  }
+  if (backendState.loadedResources.has(resourceKey)) {
+    return normalizedFallback;
+  }
+  const serverCount = Number(backendState.resourceCounts?.[resourceKey]);
+  return Number.isFinite(serverCount) ? serverCount : normalizedFallback;
+}
+
+async function ensureBackendResourcesLoaded(resourceKeys = []) {
+  if (!(backendState.available && backendState.sessionActive) || !resourceKeys.length) {
+    return;
+  }
+  const normalizedKeys = [...new Set(resourceKeys.filter((resourceKey) => resourceKey in storageKeyByResource))];
+  const tasks = normalizedKeys.map((resourceKey) => {
+    if (backendState.loadedResources.has(resourceKey)) {
+      return Promise.resolve();
+    }
+    if (backendState.pendingResourceLoads.has(resourceKey)) {
+      return backendState.pendingResourceLoads.get(resourceKey);
+    }
+    const loader = (async () => {
+      const items = await fetchItemsFromBackend(resourceKey);
+      writeBackendResource(resourceKey, items);
+      markBackendResourcesLoaded([resourceKey]);
+    })()
+      .finally(() => {
+        backendState.pendingResourceLoads.delete(resourceKey);
+      });
+    backendState.pendingResourceLoads.set(resourceKey, loader);
+    return loader;
+  });
+  await Promise.all(tasks);
+  loadStoredData();
 }
 
 async function saveItemToBackend(resourceKey, item, isEditing = false) {
@@ -5224,51 +5110,6 @@ async function importCarbonBrushFromSource(sourceUrl, mode) {
       sourceUrl,
       mode,
     },
-  });
-}
-
-async function importLatestMsoMotorFile() {
-  return apiRequest("/admin/import-mso-motor-latest", {
-    method: "POST",
-    body: {},
-  });
-}
-
-async function uploadMsoMotorCsvFile(file) {
-  if (!(file instanceof File)) {
-    throw new Error("File CSV belum dipilih");
-  }
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-  const fileData = btoa(binary);
-  return apiRequest("/admin/upload-mso-motor", {
-    method: "POST",
-    body: {
-      fileName: file.name,
-      fileData,
-    },
-  });
-}
-
-async function importMsoMotorScrapeItems(items, sourceName) {
-  return apiRequest("/admin/import-mso-motor-scrape", {
-    method: "POST",
-    body: {
-      items,
-      sourceName,
-    },
-  });
-}
-
-async function resetMsoMotorItems() {
-  return apiRequest("/admin/reset-mso-motor", {
-    method: "POST",
-    body: {},
   });
 }
 
@@ -5771,175 +5612,6 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
 })();`;
 }
 
-function renderMsoMotorSyncSettings() {
-  const settings = getAppSetting("mso_motor_sync") || {};
-  if (adminMsoMotorDirectory instanceof HTMLInputElement) {
-    adminMsoMotorDirectory.value = String(settings.directory || "/opt/plirm34/imports/mso-motor");
-  }
-  if (adminMsoMotorPattern instanceof HTMLInputElement) {
-    adminMsoMotorPattern.value = String(settings.pattern || "mso-motor-inspections-*.csv");
-  }
-  if (adminMsoMotorStatus) {
-    const lastImportedFile = String(settings.lastImportedFile || "").trim();
-    const lastImportedCount = Number(settings.lastImportedCount || 0);
-    const lastImportedAt = String(settings.lastImportedAt || "").trim();
-    const lastUploadedFile = String(settings.lastUploadedFile || "").trim();
-    const lastUploadedAt = String(settings.lastUploadedAt || "").trim();
-    const lastUploadedSize = Number(settings.lastUploadedSize || 0);
-    if (lastImportedFile) {
-      adminMsoMotorStatus.textContent = `File import terakhir: ${lastImportedFile} | ${lastImportedCount} item | sinkron ${formatActivityLogDate(lastImportedAt)}`;
-    } else if (lastUploadedFile) {
-      adminMsoMotorStatus.textContent = `File upload terakhir: ${lastUploadedFile} | ${formatBytes(lastUploadedSize)} | upload ${formatActivityLogDate(lastUploadedAt)}`;
-    } else {
-      adminMsoMotorStatus.textContent = "Belum ada sinkronisasi MSO motor. Pilih CSV mingguan lalu upload langsung dari web atau letakkan file di folder server.";
-    }
-  }
-}
-
-const msoMotorSyncControls = [
-  adminMsoMotorSaveButton,
-  adminMsoMotorUploadButton,
-  adminMsoMotorUploadImportButton,
-  adminMsoMotorImportButton,
-  adminMsoMotorResetButton,
-  adminMsoMotorCopyScriptButton,
-  adminMsoMotorCopyScrapeOnlyButton,
-  adminMsoMotorImportJsonButton,
-];
-
-let msoMotorProgressTimer = null;
-let msoMotorProgressStartedAt = 0;
-let msoMotorProgressMessage = "";
-let msoMotorProgressDetailText = "";
-
-function formatElapsedSeconds(milliseconds) {
-  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
-  if (totalSeconds < 60) {
-    return `${totalSeconds} detik`;
-  }
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes} menit ${seconds} detik`;
-}
-
-function setMsoMotorControlsBusy(isBusy) {
-  msoMotorSyncControls.forEach((control) => {
-    if (control instanceof HTMLButtonElement) {
-      control.disabled = Boolean(isBusy);
-    }
-  });
-  if (adminMsoMotorJsonInput instanceof HTMLInputElement) {
-    adminMsoMotorJsonInput.disabled = Boolean(isBusy);
-  }
-}
-
-function renderMsoMotorProgress() {
-  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
-    return;
-  }
-  const elapsedLabel = msoMotorProgressStartedAt ? formatElapsedSeconds(Date.now() - msoMotorProgressStartedAt) : "0 detik";
-  if (adminMsoMotorProgressTitle) {
-    adminMsoMotorProgressTitle.textContent = msoMotorProgressMessage || "Memproses sinkronisasi MSO Motor...";
-  }
-  if (adminMsoMotorProgressDetail) {
-    const detailParts = [msoMotorProgressDetailText, `Durasi proses: ${elapsedLabel}`].filter(Boolean);
-    adminMsoMotorProgressDetail.textContent = detailParts.join(" | ");
-  }
-}
-
-function showMsoMotorProgress(message, detail = "") {
-  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
-    return;
-  }
-  msoMotorProgressStartedAt = Date.now();
-  msoMotorProgressMessage = String(message || "Memproses sinkronisasi MSO Motor...");
-  msoMotorProgressDetailText = String(detail || "").trim();
-  adminMsoMotorProgress.classList.remove("hidden", "is-success", "is-error");
-  adminMsoMotorProgress.classList.add("is-busy");
-  if (adminMsoMotorProgressBadge) {
-    adminMsoMotorProgressBadge.textContent = "Berjalan";
-  }
-  setMsoMotorControlsBusy(true);
-  if (msoMotorProgressTimer) {
-    window.clearInterval(msoMotorProgressTimer);
-  }
-  renderMsoMotorProgress();
-  msoMotorProgressTimer = window.setInterval(renderMsoMotorProgress, 1000);
-}
-
-function updateMsoMotorProgress(message, detail = "") {
-  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
-    return;
-  }
-  if (!msoMotorProgressStartedAt) {
-    msoMotorProgressStartedAt = Date.now();
-  }
-  msoMotorProgressMessage = String(message || msoMotorProgressMessage || "Memproses sinkronisasi MSO Motor...");
-  msoMotorProgressDetailText = String(detail || "").trim();
-  adminMsoMotorProgress.classList.remove("hidden", "is-success", "is-error");
-  adminMsoMotorProgress.classList.add("is-busy");
-  if (adminMsoMotorProgressBadge) {
-    adminMsoMotorProgressBadge.textContent = "Berjalan";
-  }
-  renderMsoMotorProgress();
-}
-
-function finishMsoMotorProgress(message, detail = "", tone = "success") {
-  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
-    return;
-  }
-  if (msoMotorProgressTimer) {
-    window.clearInterval(msoMotorProgressTimer);
-    msoMotorProgressTimer = null;
-  }
-  msoMotorProgressMessage = String(message || "Sinkronisasi selesai");
-  msoMotorProgressDetailText = String(detail || "").trim();
-  adminMsoMotorProgress.classList.remove("hidden", "is-busy", "is-success", "is-error");
-  adminMsoMotorProgress.classList.add(tone === "error" ? "is-error" : "is-success");
-  if (adminMsoMotorProgressBadge) {
-    adminMsoMotorProgressBadge.textContent = tone === "error" ? "Gagal" : "Selesai";
-  }
-  renderMsoMotorProgress();
-  setMsoMotorControlsBusy(false);
-  msoMotorProgressStartedAt = 0;
-}
-
-function getStoredUsers() {
-  const storedUsers = readStorage(storageKeys.users);
-  if (Array.isArray(storedUsers) && storedUsers.length > 0) {
-    return storedUsers;
-  }
-  writeStorage(storageKeys.users, defaultAuthUsers);
-  return [...defaultAuthUsers];
-}
-
-function findUserByUsername(username) {
-  return getStoredUsers().find((user) => user.username.toLowerCase() === username.toLowerCase());
-}
-
-function loginWithUser(user) {
-  applyRoleAccess(user.role);
-  currentUser.textContent = user.username;
-  currentRole.textContent = roleLabels[user.role] || "Team";
-  if (playerAvatar) {
-    const initials = String(user.username || "PL")
-      .split(/[.\s_-]+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() || "")
-      .join("")
-      .slice(0, 2) || "PL";
-    playerAvatar.textContent = initials;
-  }
-  saveSession(user.username, user.role);
-  loginScreen.classList.add("hidden");
-  workspace.classList.remove("hidden");
-  sidebar?.classList.remove("menu-open");
-  renderUserManagementTable();
-  openSection("dashboard");
-  resetIdleLogoutTimer();
-}
-
 async function loadAllDataFromBackend() {
   const [negatifItems, sparepartItems, serviceItems, bomItems, bomMotorItems, spbItems] = await Promise.all([
     fetchItemsFromBackend("negatif-list"),
@@ -5950,28 +5622,43 @@ async function loadAllDataFromBackend() {
     fetchItemsFromBackend("spb"),
   ]);
 
-  writeStorage(storageKeys.negatifList, negatifItems.map((item) => normalizeNegatifItem(item)));
-  writeStorage(storageKeys.sparepart, sparepartItems);
-  writeStorage(storageKeys.service, serviceItems.map((item) => normalizeServiceItem(item)));
-  writeStorage(storageKeys.bom, bomItems);
-  writeStorage(storageKeys.bomMotor, bomMotorItems);
-  writeStorage(storageKeys.spb, spbItems.map((item) => normalizeSpbItem(item)));
+  writeBackendResource("negatif-list", negatifItems);
+  writeBackendResource("sparepart", sparepartItems);
+  writeBackendResource("service", serviceItems);
+  writeBackendResource("bom", bomItems);
+  writeBackendResource("bom-motor", bomMotorItems);
+  writeBackendResource("spb", spbItems);
+  markBackendResourcesLoaded(["negatif-list", "sparepart", "service", "bom", "bom-motor", "spb"]);
   loadStoredData();
 }
 
 function hydrateBootstrapData(data = {}) {
-  writeStorage(storageKeys.negatifList, Array.isArray(data.negatif_list) ? data.negatif_list.map((item) => normalizeNegatifItem(item)) : []);
-  writeStorage(storageKeys.sparepart, Array.isArray(data.sparepart) ? data.sparepart : []);
-  writeStorage(storageKeys.service, Array.isArray(data.service) ? data.service.map((item) => normalizeServiceItem(item)) : []);
-  writeStorage(storageKeys.bom, Array.isArray(data.bom) ? data.bom : []);
-  writeStorage(storageKeys.bomMotor, Array.isArray(data.bom_motor) ? data.bom_motor : []);
-  writeStorage(storageKeys.spb, Array.isArray(data.spb) ? data.spb.map((item) => normalizeSpbItem(item)) : []);
+  if (!data || typeof data !== "object") {
+    loadStoredData();
+    return;
+  }
+  const loadedResources = [];
+  Object.entries(bootstrapDataKeyByResource).forEach(([resourceKey, payloadKey]) => {
+    if (!Object.prototype.hasOwnProperty.call(data, payloadKey)) {
+      return;
+    }
+    writeBackendResource(resourceKey, Array.isArray(data[payloadKey]) ? data[payloadKey] : []);
+    loadedResources.push(resourceKey);
+  });
+  markBackendResourcesLoaded(loadedResources);
   loadStoredData();
 }
 
-async function hydrateFromBackendAfterLogin() {
-  const bootstrap = await apiRequest("/bootstrap");
+async function fetchBootstrapPayload(scope = "dashboard") {
+  return apiRequest(`/bootstrap?scope=${encodeURIComponent(scope)}`);
+}
+
+async function hydrateFromBackendAfterLogin(scope = "dashboard") {
+  const bootstrap = await fetchBootstrapPayload(scope);
   backendState.sessionActive = true;
+  backendState.skipSectionLoading = true;
+  clearBackendResourceCaches();
+  updateBackendResourceCounts(bootstrap.resourceCounts || {});
   dashboardInspectionSchedule = {
     calendarName: bootstrap.calendar?.calendarName || "PMS PLIRM34",
     timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
@@ -5986,17 +5673,24 @@ async function hydrateFromBackendAfterLogin() {
     loginWithUser(bootstrap.user);
   }
   hydrateBootstrapData(bootstrap.data || {});
+  if (Array.isArray(bootstrap.loadedResources)) {
+    markBackendResourcesLoaded(bootstrap.loadedResources);
+  }
+  backendState.skipSectionLoading = false;
   runPostLoginBackgroundTasks(bootstrap.user?.role || "");
 }
 
 async function restoreBackendSession() {
   try {
-    const bootstrap = await apiRequest("/bootstrap");
+    const bootstrap = await fetchBootstrapPayload("dashboard");
     if (!bootstrap?.user) {
       return false;
     }
 
     backendState.sessionActive = true;
+    backendState.skipSectionLoading = true;
+    clearBackendResourceCaches();
+    updateBackendResourceCounts(bootstrap.resourceCounts || {});
     dashboardInspectionSchedule = {
       calendarName: bootstrap.calendar?.calendarName || "PMS PLIRM34",
       timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
@@ -6009,12 +5703,17 @@ async function restoreBackendSession() {
     }
     loginWithUser(bootstrap.user);
     hydrateBootstrapData(bootstrap.data || {});
+    if (Array.isArray(bootstrap.loadedResources)) {
+      markBackendResourcesLoaded(bootstrap.loadedResources);
+    }
+    backendState.skipSectionLoading = false;
     runPostLoginBackgroundTasks(bootstrap.user?.role || "");
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
     return true;
   } catch {
     backendState.sessionActive = false;
+    backendState.skipSectionLoading = false;
     return false;
   }
 }
@@ -6560,36 +6259,6 @@ function hydrateCarbonBrushThresholdForm() {
   }
 }
 
-async function refreshAdminMasters() {
-  if (!backendState.available || !backendState.sessionActive || activeRole !== "admin") {
-    return;
-  }
-  try {
-    const [areas, equipmentReferences, templates, appSettings] = await Promise.all([
-      fetchAdminMaster("areas"),
-      fetchAdminMaster("equipment-references"),
-      fetchAdminMaster("inspection-templates"),
-      fetchAdminMaster("app-settings"),
-    ]);
-    backendState.masters.areas = areas;
-    backendState.masters.equipmentReferences = equipmentReferences;
-    backendState.masters.inspectionTemplates = templates;
-    backendState.masters.appSettings = appSettings;
-    renderAdminAreasTable(areas);
-    renderAdminElectricalRoomTable();
-    renderAdminEquipmentSourceFilter(equipmentReferences);
-    applyAdminEquipmentFilter();
-    renderAdminTemplatesTable(templates);
-    hydrateCarbonBrushThresholdForm();
-    hydrateElectricalRoomThresholdForm();
-    renderMsoMotorSyncSettings();
-    renderElectricalRoomReferenceOptions();
-    renderMccReferenceOptions();
-  } catch (error) {
-    console.error("Gagal memuat master admin:", error);
-  }
-}
-
 function getNegatifItemsFromDom() {
   return [...negatifListBody.querySelectorAll("tr")].map((row) => ({
     id: row.dataset.id,
@@ -6729,18 +6398,22 @@ function updateDashboardStats() {
   const currentYear = String(today.getFullYear());
   const openNegatifItems = negatifItems.filter((item) => String(item.workStatus || "").toLowerCase() === "open");
   const todayServiceItems = serviceItems.filter((item) => isSameCalendarDate(item.payload?.inspectionDate, today));
+  const sparepartCount = getBackendCount("sparepart", sparepartItems.length);
+  const bomCount = getBackendCount("bom", bomItems.length);
+  const bomMotorCount = getBackendCount("bom-motor", bomMotorItems.length);
+  const totalBomCount = bomCount + bomMotorCount;
   const currentYearSpbTotal = spbItems
     .filter((item) => extractSpbYear(item) === currentYear)
     .reduce((sum, item) => sum + parseSpbAmount(item.totalEce), 0);
   const electricalCount = serviceItems.filter((item) => item.type === "Electrical").length;
-  const xpScore = (serviceItems.length * 18) + (sparepartItems.length * 7) + ((bomItems.length + bomMotorItems.length) * 5) + (openNegatifItems.length * 11);
+  const xpScore = (serviceItems.length * 18) + (sparepartCount * 7) + (totalBomCount * 5) + (openNegatifItems.length * 11);
   const level = Math.max(1, Math.floor(xpScore / 120) + 1);
   const currentLevelBase = (level - 1) * 120;
   const currentLevelXp = Math.max(0, xpScore - currentLevelBase);
   const xpTarget = 120;
   const xpPercent = Math.max(0, Math.min(100, Math.round((currentLevelXp / xpTarget) * 100)));
   const nextLevelXp = Math.max(0, xpTarget - currentLevelXp);
-  const points = serviceItems.length * 15 + sparepartItems.length * 4 + (bomItems.length + bomMotorItems.length) * 3;
+  const points = serviceItems.length * 15 + sparepartCount * 4 + totalBomCount * 3;
   const rankName = level >= 20
     ? "Diamond Operator"
     : level >= 15
@@ -6775,9 +6448,9 @@ function updateDashboardStats() {
   const moduleScores = {
     dashboard: 100,
     "negatif-list": Math.max(0, 100 - (openNegatifItems.length * 8)),
-    sparepart: Math.min(100, sparepartItems.length * 6),
+    sparepart: Math.min(100, sparepartCount * 6),
     service: Math.min(100, serviceItems.length * 5 + todayServiceItems.length * 12),
-    bom: Math.min(100, (bomItems.length + bomMotorItems.length) * 2),
+    bom: Math.min(100, totalBomCount * 2),
     spb: Math.min(100, spbItems.length * 7),
     "user-management": 95,
     "activity-log": 92,
@@ -6786,8 +6459,8 @@ function updateDashboardStats() {
   statNegatif.textContent = `${openNegatifItems.length} item`;
   statSpbBelumAda.textContent = formatCompactCurrency(currentYearSpbTotal);
   statService.textContent = `${todayServiceItems.length} item`;
-  metricSparepartTotal.textContent = `${sparepartItems.length}`;
-  metricBomTotal.textContent = `${bomItems.length + bomMotorItems.length} mesin`;
+  metricSparepartTotal.textContent = `${sparepartCount}`;
+  metricBomTotal.textContent = `${totalBomCount} mesin`;
   metricServiceElectrical.textContent = `${electricalCount} temuan`;
   metricSpbTotal.textContent = formatCompactCurrency(currentYearSpbTotal);
   if (hudLevelBadge) hudLevelBadge.textContent = `LEVEL ${level}`;
@@ -6947,93 +6620,6 @@ function renderMobileCards(negatifItems, spbItems) {
       spbMobile.append(card);
     });
   }
-}
-
-function syncCarbonBrushAlertBannerDots(activeIndex, totalItems) {
-  if (!dashboardCarbonBrushBannerDots) {
-    return;
-  }
-  dashboardCarbonBrushBannerDots.innerHTML = Array.from({ length: totalItems }, (_, index) => `
-    <button class="carbon-brush-alert-dot ${index === activeIndex ? "is-active" : ""}" type="button" data-carbon-brush-alert-dot="${index}" aria-label="Tampilkan alert ${index + 1}"></button>
-  `).join("");
-}
-
-function showCarbonBrushAlertSlide(activeIndex) {
-  if (!dashboardCarbonBrushBannerViewport) {
-    return;
-  }
-  const slides = [...dashboardCarbonBrushBannerViewport.querySelectorAll(".carbon-brush-alert-slide")];
-  if (!slides.length) {
-    return;
-  }
-  const normalizedIndex = ((activeIndex % slides.length) + slides.length) % slides.length;
-  dashboardCarbonBrushAlertIndex = normalizedIndex;
-  slides.forEach((slide, index) => {
-    slide.classList.toggle("is-active", index === normalizedIndex);
-    slide.setAttribute("aria-hidden", index === normalizedIndex ? "false" : "true");
-  });
-  syncCarbonBrushAlertBannerDots(normalizedIndex, slides.length);
-}
-
-function startCarbonBrushAlertRotation(totalItems) {
-  if (dashboardCarbonBrushAlertTimer) {
-    window.clearInterval(dashboardCarbonBrushAlertTimer);
-    dashboardCarbonBrushAlertTimer = null;
-  }
-  if (totalItems <= 1) {
-    return;
-  }
-  dashboardCarbonBrushAlertTimer = window.setInterval(() => {
-    showCarbonBrushAlertSlide(dashboardCarbonBrushAlertIndex + 1);
-  }, 4200);
-}
-
-function renderCarbonBrushAlertBanner(serviceItems) {
-  if (!dashboardCarbonBrushBanner || !dashboardCarbonBrushBannerViewport) {
-    return;
-  }
-  const alerts = buildCarbonBrushAlertSummary(serviceItems);
-  if (!alerts.length) {
-    dashboardCarbonBrushBanner.classList.add("hidden");
-    dashboardCarbonBrushBannerViewport.innerHTML = "";
-    if (dashboardCarbonBrushBannerDots) {
-      dashboardCarbonBrushBannerDots.innerHTML = "";
-    }
-    if (dashboardCarbonBrushAlertTimer) {
-      window.clearInterval(dashboardCarbonBrushAlertTimer);
-      dashboardCarbonBrushAlertTimer = null;
-    }
-    return;
-  }
-
-  dashboardCarbonBrushBanner.classList.remove("hidden");
-  if (dashboardCarbonBrushBannerSummary) {
-    dashboardCarbonBrushBannerSummary.textContent = `Top ${alerts.length} countdown ke limit`;
-  }
-  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, worstPoint, status, rank }) => `
-    <article class="carbon-brush-alert-slide ${status.className}" data-service-id="${escapeHtml(item.id || "")}" tabindex="0" aria-hidden="true">
-      <div class="carbon-brush-alert-rank">#${rank}</div>
-      <div class="carbon-brush-alert-copy">
-        <div class="carbon-brush-alert-line">
-          <span class="carbon-brush-alert-status ${status.className}">${escapeHtml(status.label)}</span>
-          <span class="carbon-brush-alert-days">${escapeHtml(worstPoint.countdownDays ?? 0)} hari lagi</span>
-        </div>
-        <strong>${escapeHtml(item.equipmentName || "-")}</strong>
-        <p>Titik <strong>${escapeHtml(worstPoint.pointKey)}</strong> diperkirakan menyentuh limit <strong>${escapeHtml(worstPoint.thresholdLow)}</strong> dalam <strong>${escapeHtml(worstPoint.countdownDays ?? 0)} hari</strong>.</p>
-        <div class="carbon-brush-alert-metrics">
-          <span>Nilai sekarang ${escapeHtml(worstPoint.currentValue ?? "-")} mm</span>
-          <span>Sisa ${escapeHtml(worstPoint.remainingMm !== null ? worstPoint.remainingMm.toFixed(2) : "-")} mm</span>
-          <span>Median aus ${escapeHtml(worstPoint.medianWearRate !== null ? worstPoint.medianWearRate.toFixed(3) : "-")} mm/hari</span>
-        </div>
-      </div>
-      <div class="carbon-brush-alert-action">
-        <span>${escapeHtml(status.actionLabel)}</span>
-        <small>Klik untuk buka detail equipment</small>
-      </div>
-    </article>
-  `).join("");
-  showCarbonBrushAlertSlide(0);
-  startCarbonBrushAlertRotation(alerts.length);
 }
 
 function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
@@ -7648,173 +7234,6 @@ function renderNegatifRow(item) {
     <td><span class="tag ${getNegatifAreaTagClass(item.area)}">${escapeHtml(item.area || "-")}</span></td>
   `;
   return row;
-}
-
-function renderServiceCard(item) {
-  serviceItemCache.set(item.id, {
-    ...item,
-    payload: item.payload || {},
-  });
-  const isMsoMotorItem = (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO";
-  const canDeleteService = activeRole !== "team";
-  const card = document.createElement("article");
-  card.className = "service-list-item";
-  card.dataset.openable = "true";
-  card.tabIndex = 0;
-  card.dataset.id = item.id;
-  card.dataset.type = item.type;
-  card.dataset.subtype = item.subtype || item.type;
-  card.dataset.formType = item.formType || "";
-  card.dataset.equipmentName = item.equipmentName || "";
-  card.dataset.description = item.description || "";
-  card.dataset.detail = item.detail || "";
-
-  const carbonBrushStatsPayload = item.formType === "service-motor-mv-carbon-brush"
-    ? (item.payload?.stats || computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || ""))
-    : null;
-  const inspectionDate = formatInspectionDate(item.payload?.inspectionDate);
-  const msoMaxVibration = isMsoMotorItem
-    ? [
-      item.payload?.vibrasiDsVertBefore,
-      item.payload?.vibrasiDsHorBefore,
-      item.payload?.vibrasiDsAxialBefore,
-      item.payload?.vibrasiNdsVertBefore,
-      item.payload?.vibrasiNdsHorBefore,
-      item.payload?.vibrasiNdsAxialBefore,
-    ]
-      .map((value) => Number.parseFloat(String(value || "").replace(",", ".")))
-      .filter((value) => Number.isFinite(value))
-      .sort((left, right) => right - left)[0]
-    : null;
-  const summaryText = item.formType === "service-motor-mv-carbon-brush"
-    ? `Merah ${carbonBrushStatsPayload?.low || 0} | Kuning ${carbonBrushStatsPayload?.medium || 0} | Hijau ${carbonBrushStatsPayload?.high || 0}`
-    : (isMsoMotorItem
-      ? `Condition ${item.payload?.condition || "-"} | Temp DS ${item.payload?.temperaturDs || "-"} | Temp NDS ${item.payload?.temperaturNds || "-"} | Vib max ${msoMaxVibration ?? "-"}`
-      : (item.detail || "-"));
-
-  card.innerHTML = `
-    <div class="service-list-main">
-      <div class="service-list-top">
-        <span class="tag ${getServiceTag(item.type)}">${item.subtype || item.type}</span>
-        <small>${inspectionDate}</small>
-      </div>
-      <strong>${item.equipmentName}</strong>
-      <div class="service-list-meta">
-        <span>${summaryText}</span>
-      </div>
-    </div>
-    <div class="service-list-actions">
-      <button class="table-action compact" data-action="send-service" type="button">Kirim</button>
-      ${isMsoMotorItem ? '<span class="table-action compact muted-action" title="Data sinkron dari MSO">MSO</span>' : '<button class="table-action compact" data-action="edit-service" type="button">Edit</button>'}
-      ${canDeleteService && !isMsoMotorItem ? '<button class="table-action compact danger" data-action="delete-service" type="button">Hapus</button>' : ""}
-    </div>
-  `;
-  return card;
-}
-
-function getSortedServiceItems(items) {
-  return [...items].sort((left, right) => {
-    const leftTime = new Date(left?.payload?.inspectionDate || left?.inspectionDate || 0).getTime() || 0;
-    const rightTime = new Date(right?.payload?.inspectionDate || right?.inspectionDate || 0).getTime() || 0;
-    return rightTime - leftTime;
-  });
-}
-
-function renderServiceBoard(items, options = {}) {
-  if (!serviceCardList) {
-    return;
-  }
-  const previewLimit = Number.isFinite(options.previewLimit) ? options.previewLimit : 5;
-  const syncCache = options.syncCache !== false;
-
-  const groups = [
-    {
-      key: "Electrical",
-      title: "Electrical",
-      sections: [
-        { key: "service-electrical-room", title: "Electrical Room" },
-        { key: "service-motor-mso", title: "Service Motor MSO" },
-        { key: "service-motor-mv-carbon-brush", title: "Motor MV (Carbon Brush)" },
-        { key: "service-mcc", title: "MCC" },
-        { key: "service-ehca", title: "EH/CA" },
-      ],
-    },
-    { key: "Instrument", title: "Instrument" },
-    { key: "DCS", title: "DCS" },
-  ];
-
-  serviceCardList.innerHTML = "";
-  if (syncCache) {
-    serviceItemCache.clear();
-    items.forEach((item) => {
-      if (!item?.id) {
-        return;
-      }
-      serviceItemCache.set(item.id, {
-        ...item,
-        payload: item.payload || {},
-      });
-    });
-  }
-
-  const visibleItems = items.filter((item) => shouldDisplayServiceItem(item));
-
-  groups.forEach((group) => {
-    const column = document.createElement("section");
-    column.className = "service-column";
-    column.dataset.serviceGroup = group.key;
-    const groupItems = visibleItems.filter((item) => item.type === group.key);
-    const previewGroupItems = getSortedServiceItems(groupItems).slice(0, previewLimit);
-    column.innerHTML = `
-      <div class="service-column-head">
-        <div class="service-column-title">
-          <strong>${group.title}</strong>
-          <span>${groupItems.length} item</span>
-        </div>
-        <button class="table-action compact" data-action="detail-service-group" data-service-group="${group.key}" type="button">Detail</button>
-      </div>
-      <div class="service-list-body" data-service-type="${group.key}"></div>
-    `;
-    const body = column.querySelector(".service-list-body");
-
-    if (group.key === "Electrical") {
-      group.sections.forEach((section) => {
-        const sectionItems = groupItems.filter((item) => (item.formType || "") === section.key);
-        const previewSectionItems = getSortedServiceItems(sectionItems).slice(0, previewLimit);
-        const wrapper = document.createElement("section");
-        wrapper.className = "service-subgroup";
-        wrapper.dataset.sectionKey = section.key;
-        wrapper.innerHTML = `
-          <div class="service-subgroup-head">
-            <strong>${section.title}</strong>
-            <span>${sectionItems.length} item</span>
-          </div>
-        `;
-        const sectionBody = document.createElement("div");
-        sectionBody.className = "service-subgroup-body";
-        if (previewSectionItems.length) {
-          previewSectionItems.forEach((entry) => sectionBody.append(renderServiceCard(entry)));
-        } else {
-          const empty = document.createElement("div");
-          empty.className = "service-list-empty";
-          empty.textContent = "Belum ada hasil inspeksi.";
-          sectionBody.append(empty);
-        }
-        wrapper.append(sectionBody);
-        body.append(wrapper);
-      });
-    } else if (previewGroupItems.length) {
-      previewGroupItems.forEach((entry) => body.append(renderServiceCard(entry)));
-    } else {
-      const empty = document.createElement("div");
-      empty.className = "service-list-empty";
-      empty.textContent = "Belum ada hasil inspeksi.";
-      body.append(empty);
-    }
-    serviceCardList.append(column);
-  });
-
-  renderMccReferenceOptions();
 }
 
 function renderSparepartRow(item) {
@@ -8939,7 +8358,14 @@ adminMsoMotorImportJsonButton?.addEventListener("click", async () => {
       throw new Error("File JSON tidak berisi item scrape MSO.");
     }
     updateMsoMotorProgress("Mengirim data ke server...", `${items.length.toLocaleString("id-ID")} item siap diimport dari ${sourceName}.`);
-    const result = await importMsoMotorScrapeItems(items, sourceName);
+    const result = await importMsoMotorScrapeItems(items, sourceName, {
+      onProgress: ({ batchIndex, totalBatches, batchSize, importedSoFar, totalItems }) => {
+        updateMsoMotorProgress(
+          "Mengirim data ke server...",
+          `Batch ${batchIndex}/${totalBatches} | ${batchSize.toLocaleString("id-ID")} item | ${importedSoFar.toLocaleString("id-ID")} / ${totalItems.toLocaleString("id-ID")} item selesai diproses.`,
+        );
+      },
+    });
     updateMsoMotorProgress("Menyegarkan data aplikasi...", `Server sudah memproses ${result.imported || items.length} item. Memuat ulang data terbaru...`);
     await hydrateFromBackendAfterLogin();
     updateDashboardMetrics();

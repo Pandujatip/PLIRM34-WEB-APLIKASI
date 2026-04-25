@@ -27,6 +27,11 @@ SESSION_DURATION_DAYS = 7
 JAKARTA_TIMEZONE = timezone(timedelta(hours=7))
 CALENDAR_FEED_URL = "https://calendar.google.com/calendar/ical/adenairdrop%40gmail.com/public/basic.ics"
 CALENDAR_CACHE_TTL_SECONDS = 600
+MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
+MAX_ADMIN_IMPORT_BODY_BYTES = 6 * 1024 * 1024
+MAX_BACKUP_BODY_BYTES = 12 * 1024 * 1024
+MAX_MSO_UPLOAD_BODY_BYTES = 24 * 1024 * 1024
+MAX_MSO_SCRAPE_BODY_BYTES = 3 * 1024 * 1024
 STATE_KEYS = {
     "negatif-list": "negatif_list",
     "sparepart": "sparepart",
@@ -34,6 +39,10 @@ STATE_KEYS = {
     "bom": "bom",
     "bom-motor": "bom_motor",
     "spb": "spb",
+}
+BOOTSTRAP_SCOPES = {
+    "full": list(STATE_KEYS.keys()),
+    "dashboard": ["negatif-list", "service", "spb"],
 }
 
 RESOURCE_TABLES = {
@@ -422,6 +431,21 @@ CALENDAR_CACHE = {
         "history": [],
     },
 }
+
+
+class RequestBodyTooLarge(ValueError):
+    pass
+
+
+def format_byte_size(value: int) -> str:
+    value_float = float(max(int(value or 0), 0))
+    for unit in ("B", "KB", "MB", "GB"):
+        if value_float < 1024 or unit == "GB":
+            if unit == "B":
+                return f"{int(value_float)} {unit}"
+            return f"{value_float:.1f} {unit}"
+        value_float /= 1024
+    return f"{value_float:.1f} GB"
 
 
 def utc_now() -> datetime:
@@ -1273,14 +1297,48 @@ def build_service_list_payload(payload: dict) -> dict:
     return compact_payload
 
 
-def get_state_snapshot() -> dict:
+def get_state_snapshot(resource_keys: list[str] | None = None) -> dict:
+    selected_keys = [
+        resource_key
+        for resource_key in (resource_keys or list(STATE_KEYS.keys()))
+        if resource_key in STATE_KEYS
+    ]
+    snapshot: dict[str, list[dict]] = {}
+    for resource_key in selected_keys:
+        snapshot_key = STATE_KEYS[resource_key]
+        snapshot[snapshot_key] = load_resource_items(resource_key, include_media=(resource_key != "service"))
+    return snapshot
+
+
+def get_resource_counts(resource_keys: list[str] | None = None) -> dict[str, int]:
+    selected_keys = [
+        resource_key
+        for resource_key in (resource_keys or list(STATE_KEYS.keys()))
+        if resource_key in RESOURCE_TABLES
+    ]
+    counts = {resource_key: 0 for resource_key in selected_keys}
+    if not selected_keys:
+        return counts
+
+    with get_connection() as connection:
+        for resource_key in selected_keys:
+            table_name = RESOURCE_TABLES[resource_key]["table"]
+            row = connection.execute(f"SELECT COUNT(*) AS total FROM {table_name}").fetchone()
+            counts[resource_key] = int(row["total"] or 0) if row else 0
+    return counts
+
+
+def build_bootstrap_payload(user: dict, scope: str = "full") -> dict:
+    resolved_scope = scope if scope in BOOTSTRAP_SCOPES else "full"
+    resource_keys = BOOTSTRAP_SCOPES[resolved_scope]
     return {
-        "negatif_list": load_resource_items("negatif-list"),
-        "sparepart": load_resource_items("sparepart"),
-        "service": load_resource_items("service", include_media=False),
-        "bom": load_resource_items("bom"),
-        "bom_motor": load_resource_items("bom-motor"),
-        "spb": load_resource_items("spb"),
+        "user": user,
+        "data": get_state_snapshot(resource_keys),
+        "calendar": build_calendar_schedule(),
+        "users": list_users() if user["role"] == "admin" else [],
+        "resourceCounts": get_resource_counts(),
+        "loadedResources": resource_keys,
+        "scope": resolved_scope,
     }
 
 
@@ -3343,14 +3401,9 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             user = self._require_user()
             if not user:
                 return
-            self._send_json(
-                {
-                    "user": user,
-                    "data": get_state_snapshot(),
-                    "calendar": build_calendar_schedule(),
-                    "users": list_users() if user["role"] == "admin" else [],
-                }
-            )
+            params = parse_qs(parsed.query or "")
+            requested_scope = str(params.get("scope", ["full"])[0] or "full").strip().lower()
+            self._send_json(build_bootstrap_payload(user, scope=requested_scope))
             return
 
         if parsed.path == "/api/users":
@@ -3457,11 +3510,19 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] {self.address_string()} - {format % args}")
 
-    def _parse_json_body(self) -> dict:
+    def _parse_json_body(self, *, max_bytes: int = MAX_JSON_BODY_BYTES, label: str = "Payload JSON") -> dict:
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             length = 0
+        if max_bytes > 0 and length > max_bytes:
+            self._send_json(
+                {
+                    "error": f"{label} melebihi batas {format_byte_size(max_bytes)}. Pecah data menjadi batch yang lebih kecil lalu coba lagi."
+                },
+                status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            )
+            raise RequestBodyTooLarge(label)
 
         raw = self.rfile.read(length) if length > 0 else b"{}"
         if not raw:
@@ -3607,8 +3668,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
             return
         try:
-            payload = self._parse_json_body()
-        except json.JSONDecodeError:
+            payload = self._parse_json_body(max_bytes=MAX_BACKUP_BODY_BYTES, label="Payload restore backup")
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
         backup = payload.get("backup")
         if not isinstance(backup, dict):
@@ -3648,7 +3709,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         resource_name = path.removeprefix("/api/admin/masters/").strip("/")
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
         item = payload.get("item")
         if not isinstance(item, dict):
@@ -3683,8 +3744,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Resource import tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
             return
         try:
-            payload = self._parse_json_body()
-        except json.JSONDecodeError:
+            payload = self._parse_json_body(max_bytes=MAX_ADMIN_IMPORT_BODY_BYTES, label="Payload import CSV")
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         csv_text = str(payload.get("csvText", "") or "")
@@ -3717,7 +3778,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         source_url = str(payload.get("sourceUrl") or MASTER_REFERENCE_URLS["carbon-brush"]).strip()
@@ -3774,8 +3835,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
             return
         try:
-            payload = self._parse_json_body()
-        except json.JSONDecodeError:
+            payload = self._parse_json_body(max_bytes=MAX_MSO_UPLOAD_BODY_BYTES, label="Upload file MSO")
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         file_name = str(payload.get("fileName") or "").strip()
@@ -3819,8 +3880,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
             return
         try:
-            payload = self._parse_json_body()
-        except json.JSONDecodeError:
+            payload = self._parse_json_body(max_bytes=MAX_MSO_SCRAPE_BODY_BYTES, label="Data scrape MSO per batch")
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         rows = payload.get("items")
@@ -3893,7 +3954,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         source_url = str(payload.get("sourceUrl") or MASTER_REFERENCE_URLS["negatif-list-import"]).strip()
@@ -3977,7 +4038,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         item = payload.get("item")
@@ -4016,7 +4077,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         item = payload.get("item")
@@ -4078,7 +4139,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
     def _handle_login(self):
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         username = str(payload.get("username", "")).strip()
@@ -4110,7 +4171,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
     def _handle_signup(self):
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         username = str(payload.get("username", "")).strip()
@@ -4167,8 +4228,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            payload = self._parse_json_body()
-        except json.JSONDecodeError:
+            payload = self._parse_json_body(max_bytes=MAX_ADMIN_IMPORT_BODY_BYTES, label="Payload sinkronisasi resource")
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         items = payload.get("items")
@@ -4195,7 +4256,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         try:
             payload = self._parse_json_body()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
         next_role = str(payload.get("role", "")).strip()
