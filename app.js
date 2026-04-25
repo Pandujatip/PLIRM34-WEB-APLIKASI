@@ -2638,16 +2638,16 @@ function buildMsoMotorAnalyticsHtml(item) {
   if (latestSnapshot.vibrationBeforeCriticalCount > 0 || latestSnapshot.vibrationBeforeWatchCount > 0) {
     const dominantChannel = latestSnapshot.dominantVibrationBefore;
     if (dominantChannel?.axis === "Axial") {
-      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Fokus ke alignment, thrust, dan indikasi misalignment shaft/kopling.`);
+      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Fokus cek kelurusan shaft dan kopling, kondisi thrust/beban dorong, serta kemungkinan poros tidak center.`);
     } else if (dominantChannel?.axis === "Hor") {
-      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Cek looseness, soft foot, baseplate, dan alignment horizontal.`);
+      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Cek apakah ada bagian yang longgar, kaki motor tidak menapak rata, baut dudukan kendor, dan posisi motor bergeser ke samping.`);
     } else if (dominantChannel?.axis === "Vert") {
-      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Verifikasi fondasi, kekakuan struktur, dan kondisi bearing pada sisi tersebut.`);
+      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Cek fondasi, plat dudukan motor, baut anchor, dan kondisi bearing pada sisi tersebut.`);
     }
     if (dominantChannel?.side === "DS") {
-      recommendations.push("Karena kanal dominan berada di Drive Side, prioritaskan inspeksi bearing DS, coupling, dan kekencangan sisi penggerak.");
+      recommendations.push("Karena titik tertinggi ada di sisi DS, prioritaskan cek bearing sisi kopling/penggerak, kondisi kopling, dan kekencangan baut di sisi penggerak.");
     } else if (dominantChannel?.side === "NDS") {
-      recommendations.push("Karena kanal dominan berada di Non-Drive Side, prioritaskan inspeksi bearing NDS, fan/cooling end, dan kekakuan sisi non-drive.");
+      recommendations.push("Karena titik tertinggi ada di sisi NDS, prioritaskan cek bearing sisi belakang motor, bagian fan/cooling end, serta dudukan motor sisi NDS apakah ada baut kendor atau plat dudukan kurang stabil.");
     }
     if (latestSnapshot.vibrationBeforeCriticalCount > 0) {
       recommendations.push(`Ada ${latestSnapshot.vibrationBeforeCriticalCount} kanal vibrasi kritis. Motor layak diprioritaskan untuk analisa getaran lanjutan.`);
