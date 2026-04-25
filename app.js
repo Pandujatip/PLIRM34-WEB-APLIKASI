@@ -1888,6 +1888,11 @@ function buildDetailGridRows(rows) {
   `).join("");
 }
 
+function shouldHideInspectionDetailValue(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "0" || normalized === "0.0" || normalized === "0.00";
+}
+
 function analyzeServiceItem(item) {
   const payload = item.payload || {};
 
@@ -2815,7 +2820,7 @@ function openServiceDetail(item) {
     ["Equipment", item.equipmentName || "-"],
     ["Tanggal inspeksi", formatInspectionDate(payload.inspectionDate)],
   ];
-  const rawRows = formatServicePayloadLines(item);
+  const rawRows = formatServicePayloadLines(item).filter(([, value]) => !shouldHideInspectionDetailValue(value));
   const analysisRows = analyzeServiceItem(item);
   activeServiceDetailItem = item;
   carbonBrushReplacementEditMode = false;
