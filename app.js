@@ -2823,12 +2823,11 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
       const history = getMsoMotorHistory(item);
       const badCount = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD").length;
       const scoreComponent = 100 - snapshot.score;
-      const badComponent = badCount * 8;
       const vibrationComponent = (snapshot.vibrationBeforeCriticalCount * 14)
         + (snapshot.vibrationBeforeWatchCount * 6)
         + Math.round((snapshot.maxVibrationBefore ?? 0) * 2);
       const temperatureComponent = (snapshot.maxTemperature ?? 0) >= 70 ? 12 : (snapshot.maxTemperature ?? 0) >= 60 ? 6 : 0;
-      const severity = scoreComponent + badComponent + vibrationComponent + temperatureComponent;
+      const severity = scoreComponent + vibrationComponent + temperatureComponent;
       let priorityLabel = "Monitor";
       let priorityClass = "is-monitor";
       if (severity >= 85 || snapshot.grade === "Critical") {
@@ -2847,7 +2846,6 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
         badCount,
         severity,
         scoreComponent,
-        badComponent,
         vibrationComponent,
         temperatureComponent,
         priorityLabel,
@@ -6666,7 +6664,6 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
       priorityClass,
       severity,
       scoreComponent,
-      badComponent,
       vibrationComponent,
       temperatureComponent,
     }) => {
@@ -6682,7 +6679,7 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
         </div>
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
         <span>${escapeHtml(snapshot.grade)} | Score ${snapshot.score} | BAD ${badCount}x</span>
-        <span class="dashboard-watchlist-severity">Severity ${severity} = Score ${scoreComponent} + BAD ${badComponent} + Vib ${vibrationComponent} + Temp ${temperatureComponent}</span>
+        <span class="dashboard-watchlist-severity">Severity ${severity} = Score ${scoreComponent} + Vib ${vibrationComponent} + Temp ${temperatureComponent}</span>
         <small>Temp max ${escapeHtml(snapshot.maxTemperature || "-")} C | Vib dominan ${escapeHtml(snapshot.dominantVibrationBefore?.label || "-")} ${escapeHtml(snapshot.maxVibrationBefore ?? "-")} | Kanal kritis ${snapshot.vibrationBeforeCriticalCount || 0}</small>
       `;
       dashboardMsoWatchlistPreview.append(article);
