@@ -4765,6 +4765,16 @@ function buildMsoMotorBrowserSyncScript(startDate) {
     const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), Number(ss));
     return Number.isNaN(date.getTime()) ? null : date;
   };
+  const formatDateLabel = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
   const getVisibleRows = () => {
     const table = document.getElementById(CONFIG.tableId);
     if (!table) throw new Error("Tabel #mcircle tidak ditemukan.");
@@ -4843,6 +4853,48 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       if (currentFirstKey && currentFirstKey !== previousFirstKey) return;
     }
   };
+  const resetBuiltInSearch = async () => {
+    const searchInput = document.querySelector('#mcircle_filter input[type="search"]');
+    if (!searchInput) return;
+    if (!String(searchInput.value || "").trim()) return;
+    searchInput.value = "";
+    ["input", "change", "keyup", "search"].forEach((eventName) => {
+      searchInput.dispatchEvent(new Event(eventName, { bubbles: true }));
+    });
+    await sleep(1800);
+  };
+  const resetCustomSearch = async () => {
+    const customSearchInput = document.getElementById("customSearchInput");
+    const countInput = document.getElementById("jumlahCustomSearchInput");
+    const customForm = document.getElementById("customfilterform");
+    if (customSearchInput) {
+      customSearchInput.value = "false";
+    }
+    if (countInput) {
+      countInput.value = "";
+    }
+    if (customForm instanceof HTMLFormElement) {
+      customForm.reset();
+    }
+    const extraRows = [...document.querySelectorAll("table.order-list tbody tr")];
+    extraRows.slice(1).forEach((row) => row.remove());
+    if (window.oTable && typeof window.oTable.columns?.adjust === "function") {
+      window.oTable.columns.adjust().draw();
+      await sleep(2200);
+    }
+  };
+  const buildSummary = (rows, pagesRead) => {
+    const parsedDates = rows
+      .map((row) => parseMsoDate(row.tgl))
+      .filter((value) => value instanceof Date && !Number.isNaN(value.getTime()))
+      .sort((left, right) => left.getTime() - right.getTime());
+    return {
+      pagesRead,
+      totalRows: rows.length,
+      firstDate: parsedDates.length ? formatDateLabel(parsedDates[0]) : "-",
+      lastDate: parsedDates.length ? formatDateLabel(parsedDates[parsedDates.length - 1]) : "-",
+    };
+  };
   const ensureMotorFilter = async () => {
     const filterSelect = document.getElementById(CONFIG.filterId);
     if (!filterSelect) throw new Error("Filter inspection #filterDb tidak ditemukan.");
@@ -4915,15 +4967,19 @@ function buildMsoMotorBrowserSyncScript(startDate) {
   });
 
   (async () => {
+    await resetCustomSearch();
+    await resetBuiltInSearch();
     await ensureMotorFilter();
     await setPageLength();
     const collectedRows = [];
     let pageNumber = 1;
+    let pagesRead = 0;
     while (pageNumber <= CONFIG.maxPages) {
       const rows = getVisibleRows();
       const firstKey = rows.length ? normalizeText(rows[0].textContent).slice(0, 160) : "";
       const pageRows = rows.map((row) => readRow(row, pageNumber)).filter(Boolean);
       collectedRows.push(...pageRows);
+      pagesRead += 1;
       console.log("MSO page", pageNumber, pageRows.length);
       const nextButton = getNextButton();
       if (!nextButton) break;
@@ -4937,8 +4993,10 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       alert("Tidak ada data motor sesuai filter tanggal.");
       return;
     }
+    const summary = buildSummary(filteredRows, pagesRead);
+    console.log("MSO scrape summary", summary);
     const payload = await sendRowsToPlirm34(filteredRows);
-    alert("Sinkron selesai: " + (payload.imported || 0) + " item. Baru: " + (payload.created || 0) + ", update: " + (payload.updated || 0));
+    alert("Sinkron selesai: " + (payload.imported || 0) + " item. Baru: " + (payload.created || 0) + ", update: " + (payload.updated || 0) + ". Halaman terbaca: " + summary.pagesRead + ". Rentang data: " + summary.firstDate + " s/d " + summary.lastDate);
     console.log("PLIRM34 sync payload", payload);
   })().catch((error) => {
     console.error(error);
@@ -4970,6 +5028,16 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
     const [, dd, mm, yyyy, hh = "00", mi = "00", ss = "00"] = match;
     const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), Number(ss));
     return Number.isNaN(date.getTime()) ? null : date;
+  };
+  const formatDateLabel = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
   const downloadJson = (filename, payload) => {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
@@ -5060,6 +5128,48 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
       if (currentFirstKey && currentFirstKey !== previousFirstKey) return;
     }
   };
+  const resetBuiltInSearch = async () => {
+    const searchInput = document.querySelector('#mcircle_filter input[type="search"]');
+    if (!searchInput) return;
+    if (!String(searchInput.value || "").trim()) return;
+    searchInput.value = "";
+    ["input", "change", "keyup", "search"].forEach((eventName) => {
+      searchInput.dispatchEvent(new Event(eventName, { bubbles: true }));
+    });
+    await sleep(1800);
+  };
+  const resetCustomSearch = async () => {
+    const customSearchInput = document.getElementById("customSearchInput");
+    const countInput = document.getElementById("jumlahCustomSearchInput");
+    const customForm = document.getElementById("customfilterform");
+    if (customSearchInput) {
+      customSearchInput.value = "false";
+    }
+    if (countInput) {
+      countInput.value = "";
+    }
+    if (customForm instanceof HTMLFormElement) {
+      customForm.reset();
+    }
+    const extraRows = [...document.querySelectorAll("table.order-list tbody tr")];
+    extraRows.slice(1).forEach((row) => row.remove());
+    if (window.oTable && typeof window.oTable.columns?.adjust === "function") {
+      window.oTable.columns.adjust().draw();
+      await sleep(2200);
+    }
+  };
+  const buildSummary = (rows, pagesRead) => {
+    const parsedDates = rows
+      .map((row) => parseMsoDate(row.tgl))
+      .filter((value) => value instanceof Date && !Number.isNaN(value.getTime()))
+      .sort((left, right) => left.getTime() - right.getTime());
+    return {
+      pagesRead,
+      totalRows: rows.length,
+      firstDate: parsedDates.length ? formatDateLabel(parsedDates[0]) : "-",
+      lastDate: parsedDates.length ? formatDateLabel(parsedDates[parsedDates.length - 1]) : "-",
+    };
+  };
   const ensureMotorFilter = async () => {
     const filterSelect = document.getElementById(CONFIG.filterId);
     if (!filterSelect) throw new Error("Filter inspection #filterDb tidak ditemukan.");
@@ -5084,15 +5194,19 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
     return next.classList.contains(CONFIG.disabledClass) ? null : next.querySelector("a") || next;
   };
   (async () => {
+    await resetCustomSearch();
+    await resetBuiltInSearch();
     await ensureMotorFilter();
     await setPageLength();
     const collectedRows = [];
     let pageNumber = 1;
+    let pagesRead = 0;
     while (pageNumber <= CONFIG.maxPages) {
       const rows = getVisibleRows();
       const firstKey = rows.length ? normalizeText(rows[0].textContent).slice(0, 160) : "";
       const pageRows = rows.map((row) => readRow(row, pageNumber)).filter(Boolean);
       collectedRows.push(...pageRows);
+      pagesRead += 1;
       console.log("MSO page", pageNumber, pageRows.length);
       const nextButton = getNextButton();
       if (!nextButton) break;
@@ -5106,12 +5220,15 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
       alert("Tidak ada data motor sesuai filter tanggal.");
       return;
     }
+    const summary = buildSummary(filteredRows, pagesRead);
+    console.log("MSO scrape summary", summary);
     const filename = "mso-motor-scrape-" + CONFIG.startDate + "-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
     downloadJson(filename, {
       sourceName: "MSO Scrape File " + new Date().toISOString(),
+      summary,
       items: filteredRows,
     });
-    alert("Scrape selesai. File JSON berhasil diunduh: " + filename);
+    alert("Scrape selesai. File JSON berhasil diunduh: " + filename + ". Halaman terbaca: " + summary.pagesRead + ". Rentang data: " + summary.firstDate + " s/d " + summary.lastDate + ". Total item: " + summary.totalRows);
   })().catch((error) => {
     console.error(error);
     alert("Gagal scrape MSO: " + (error.message || error));
