@@ -2419,6 +2419,42 @@ function getMsoMotorHistoryInspectionTime(entry) {
   return new Date(entry?.payload?.inspectionDate || 0).getTime() || 0;
 }
 
+function analyzeMsoMotorRegreaseEffectiveness(history) {
+  const inspectionPairs = history.map((entry) => {
+    const payload = entry.payload || {};
+    const before = getMsoMotorMaxVibration(payload, "before");
+    const after = getMsoMotorMaxVibration(payload, "after");
+    return {
+      inspectionDate: payload.inspectionDate || "",
+      label: formatInspectionDate(payload.inspectionDate),
+      before,
+      after,
+      improved: before !== null && after !== null && after < before,
+      stronglyImproved: before !== null && after !== null && before >= 2.8 && after < 2.8,
+      unresolved: before !== null && after !== null && after >= before,
+      highBefore: before !== null && before >= 2.8,
+      lowAfter: after !== null && after < 2.8,
+    };
+  }).filter((entry) => entry.before !== null || entry.after !== null);
+
+  const withCompletePair = inspectionPairs.filter((entry) => entry.before !== null && entry.after !== null);
+  const improvedCount = withCompletePair.filter((entry) => entry.improved).length;
+  const stronglyImprovedCount = withCompletePair.filter((entry) => entry.stronglyImproved).length;
+  const unresolvedCount = withCompletePair.filter((entry) => entry.unresolved).length;
+  const repeatHighBeforeLowAfterCount = withCompletePair.filter((entry) => entry.highBefore && entry.lowAfter).length;
+  const consistentRecovery = withCompletePair.length >= 2 && repeatHighBeforeLowAfterCount >= Math.ceil(withCompletePair.length * 0.6);
+
+  return {
+    inspections: inspectionPairs,
+    pairCount: withCompletePair.length,
+    improvedCount,
+    stronglyImprovedCount,
+    unresolvedCount,
+    repeatHighBeforeLowAfterCount,
+    consistentRecovery,
+  };
+}
+
 function getMsoMotorHealthSnapshot(item) {
   const history = getMsoMotorHistory(item);
   const latestEntry = history.length ? history[history.length - 1] : item;
@@ -2446,6 +2482,7 @@ function getMsoMotorHealthSnapshot(item) {
   const priorDominantVibration = priorHistory.length
     ? Math.max(...priorHistory.map((entry) => getMsoMotorMaxVibration(entry.payload || {}, "before") ?? 0))
     : null;
+  const regreaseEffect = analyzeMsoMotorRegreaseEffectiveness(history);
   const latestIsGood = latestCondition === "GOOD";
   const recentBadCount = recentConditions.filter((condition) => condition === "BAD").length;
   let score = 100;
@@ -2503,6 +2540,14 @@ function getMsoMotorHealthSnapshot(item) {
     score += Math.min(6, Math.round((priorDominantVibration - maxVibrationBefore) * 2));
     notes.push(`Vibrasi dominan terbaru membaik dibanding histori sebelumnya (${maxVibrationBefore} mm/s vs puncak lama ${priorDominantVibration} mm/s).`);
   }
+  if (regreaseEffect.consistentRecovery) {
+    score += 6;
+    notes.push(`Pola histori menunjukkan regrease cukup efektif: pada ${regreaseEffect.repeatHighBeforeLowAfterCount} inspeksi, vibrasi before tinggi lalu turun rendah setelah regrease.`);
+    notes.push("Artinya tindakan regrease memberi perbaikan nyata, tetapi equipment tetap perlu diawasi karena indikasi kenaikan vibrasi sebelum regrease muncul berulang.");
+  } else if (regreaseEffect.unresolvedCount >= 2) {
+    score -= 6;
+    notes.push(`Pada ${regreaseEffect.unresolvedCount} inspeksi, vibrasi after tidak turun dari before. Efektivitas regrease perlu dievaluasi ulang.`);
+  }
 
   score = Math.max(0, Math.min(100, score));
   let grade = "Healthy";
@@ -2532,6 +2577,7 @@ function getMsoMotorHealthSnapshot(item) {
     vibrationAfterCriticalCount: vibrationDiagnostics.afterCriticalCount,
     vibrationAfterWatchCount: vibrationDiagnostics.afterWatchCount,
     vibrationChannels: vibrationDiagnostics.channelComparisons,
+    regreaseEffect,
     historyCount: history.length,
     recentBadCount,
     daysSinceLatestBad,
@@ -2671,6 +2717,10 @@ function buildMsoMotorAnalyticsHtml(item) {
   if (latestSnapshot.maxVibrationAfter !== null && latestSnapshot.maxVibrationBefore !== null && latestSnapshot.maxVibrationAfter >= latestSnapshot.maxVibrationBefore) {
     recommendations.push("Tindakan after belum efektif. Tinjau ulang metode regrease atau kebutuhan investigasi mekanik lebih lanjut.");
   }
+  if (latestSnapshot.regreaseEffect.consistentRecovery) {
+    recommendations.push(`Pola histori menunjukkan setelah regrease, vibrasi sering turun dari before tinggi menjadi after rendah (${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount} inspeksi).`);
+    recommendations.push("Artinya regrease masih efektif sebagai tindakan korektif cepat, tetapi equipment punya kecenderungan vibrasi naik lagi sebelum jadwal berikutnya sehingga akar masalah mekanik tetap perlu dicari.");
+  }
   if (badCount >= 3) {
     recommendations.push(`Motor ini sudah BAD sebanyak ${badCount} kali. Layak masuk prioritas planning tindak lanjut atau shutdown.`);
   }
@@ -2699,6 +2749,8 @@ function buildMsoMotorAnalyticsHtml(item) {
           ["Kanal after dominan", latestSnapshot.dominantVibrationAfter?.label || "-"],
           ["Kanal before kritis", `${latestSnapshot.vibrationBeforeCriticalCount || 0} kanal`],
           ["Kanal before watch", `${latestSnapshot.vibrationBeforeWatchCount || 0} kanal`],
+          ["Pair before/after", `${latestSnapshot.regreaseEffect.pairCount || 0} inspeksi`],
+          ["Before tinggi -> after rendah", `${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount || 0} inspeksi`],
           ["Total histori", `${history.length} inspeksi`],
           ["Frekuensi BAD", `${badCount} kali`],
           ["BAD 3 inspeksi terakhir", `${latestSnapshot.recentBadCount || 0} kali`],
