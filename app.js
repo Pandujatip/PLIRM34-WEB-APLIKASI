@@ -2650,10 +2650,11 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
       const snapshot = getMsoMotorHealthSnapshot(item);
       const history = getMsoMotorHistory(item);
       const badCount = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD").length;
-      const severity = (100 - snapshot.score)
-        + (badCount * 8)
-        + ((snapshot.maxVibrationBefore ?? 0) * 4)
-        + ((snapshot.maxTemperature ?? 0) >= 70 ? 12 : (snapshot.maxTemperature ?? 0) >= 60 ? 6 : 0);
+      const scoreComponent = 100 - snapshot.score;
+      const badComponent = badCount * 8;
+      const vibrationComponent = Math.round((snapshot.maxVibrationBefore ?? 0) * 4);
+      const temperatureComponent = (snapshot.maxTemperature ?? 0) >= 70 ? 12 : (snapshot.maxTemperature ?? 0) >= 60 ? 6 : 0;
+      const severity = scoreComponent + badComponent + vibrationComponent + temperatureComponent;
       let priorityLabel = "Monitor";
       let priorityClass = "is-monitor";
       if (severity >= 85 || snapshot.grade === "Critical") {
@@ -2671,6 +2672,10 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
         snapshot,
         badCount,
         severity,
+        scoreComponent,
+        badComponent,
+        vibrationComponent,
+        temperatureComponent,
         priorityLabel,
         priorityClass,
       };
@@ -6468,7 +6473,19 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
         </article>
       `;
     }
-    watchlistItems.forEach(({ item, snapshot, badCount, rank, priorityLabel, priorityClass }) => {
+    watchlistItems.forEach(({
+      item,
+      snapshot,
+      badCount,
+      rank,
+      priorityLabel,
+      priorityClass,
+      severity,
+      scoreComponent,
+      badComponent,
+      vibrationComponent,
+      temperatureComponent,
+    }) => {
       const article = document.createElement("article");
       article.className = `dashboard-watchlist-item ${priorityClass}`;
       article.dataset.serviceId = item.id || "";
@@ -6481,6 +6498,7 @@ function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
         </div>
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
         <span>${escapeHtml(snapshot.grade)} | Score ${snapshot.score} | BAD ${badCount}x</span>
+        <span class="dashboard-watchlist-severity">Severity ${severity} = Score ${scoreComponent} + BAD ${badComponent} + Vib ${vibrationComponent} + Temp ${temperatureComponent}</span>
         <small>Temp max ${escapeHtml(snapshot.maxTemperature || "-")} C | Vib max ${escapeHtml(snapshot.maxVibrationBefore ?? "-")} | ${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</small>
       `;
       dashboardMsoWatchlistPreview.append(article);

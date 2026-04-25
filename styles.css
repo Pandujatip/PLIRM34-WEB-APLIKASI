@@ -2253,6 +2253,14 @@ th.sort-desc::after {
   border: 1px solid rgba(115, 224, 169, 0.24);
 }
 
+.dashboard-watchlist-severity {
+  display: block;
+  margin-top: 6px;
+  color: #ffd8bd;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .dashboard-watchlist-item:hover,
 .dashboard-watchlist-item:focus-visible {
   transform: translateY(-2px);
