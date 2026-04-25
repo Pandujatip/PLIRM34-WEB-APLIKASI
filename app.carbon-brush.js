@@ -1,8 +1,9 @@
 function getCarbonBrushPointHistory(item, pointKey) {
+  const targetEquipmentKey = normalizeCarbonBrushEquipmentForType(item.equipmentName || "");
   return getServiceItemsFromDom()
     .filter((entry) =>
       entry.formType === "service-motor-mv-carbon-brush"
-      && entry.equipmentName === item.equipmentName)
+      && normalizeCarbonBrushEquipmentForType(entry.equipmentName || "") === targetEquipmentKey)
     .map((entry) => {
       const payload = entry.payload || {};
       const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
@@ -28,10 +29,11 @@ function getCarbonBrushPointHistory(item, pointKey) {
 }
 
 function getCarbonBrushMeggerHistory(item) {
+  const targetEquipmentKey = normalizeCarbonBrushEquipmentForType(item.equipmentName || "");
   return getServiceItemsFromDom()
     .filter((entry) =>
       entry.formType === "service-motor-mv-carbon-brush"
-      && entry.equipmentName === item.equipmentName)
+      && normalizeCarbonBrushEquipmentForType(entry.equipmentName || "") === targetEquipmentKey)
     .map((entry) => {
       const payload = entry.payload || {};
       const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
@@ -194,6 +196,25 @@ function getCarbonBrushDisplayStatus(analysis) {
   };
 }
 
+function getCarbonBrushCycleResetReason(previous, current, threshold) {
+  if (current?.replacedConfirmed) {
+    return "Titik ditandai diganti";
+  }
+  if (!previous || previous.numericValue === null || current?.numericValue === null) {
+    return "";
+  }
+
+  const valueIncrease = current.numericValue - previous.numericValue;
+  const pointRecoveredToSafe = previous.numericValue < threshold.high && current.numericValue >= threshold.high;
+  const strongPointIncrease = valueIncrease >= 5;
+  const moderatePointIncrease = valueIncrease >= 3 && pointRecoveredToSafe;
+
+  if (strongPointIncrease || moderatePointIncrease) {
+    return "Indikasi nilai titik naik setelah penggantian";
+  }
+  return "";
+}
+
 function analyzeCarbonBrushPointWear(item, pointKey) {
   const history = getCarbonBrushPointHistory(item, pointKey).filter((entry) => entry.numericValue !== null);
   const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
@@ -206,6 +227,7 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
       history,
       validIntervals: [],
       recentIntervals: [],
+      cycleResetEvents: [],
       medianWearRate: null,
       currentValue,
       remainingMm,
@@ -222,12 +244,22 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
 
   let currentCycleHistory = history.length ? [history[0]] : [];
   let currentCycleIntervals = [];
+  let cycleResetEvents = [];
   for (let index = 1; index < history.length; index += 1) {
     const previous = history[index - 1];
     const current = history[index];
-    const valueIncrease = current.numericValue - previous.numericValue;
-    const valueRaised = valueIncrease >= 3;
-    if (current.replacedConfirmed || valueRaised) {
+    const resetReason = getCarbonBrushCycleResetReason(previous, current, threshold);
+    if (resetReason) {
+      cycleResetEvents.push({
+        date: current.inspectionDate,
+        dateLabel: current.inspectionDateLabel,
+        pointKey,
+        previousValue: previous.numericValue,
+        currentValue: current.numericValue,
+        increase: current.numericValue - previous.numericValue,
+        confirmed: Boolean(current.replacedConfirmed),
+        reason: resetReason,
+      });
       currentCycleHistory = [current];
       currentCycleIntervals = [];
       continue;
@@ -266,6 +298,7 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
     history: currentCycleHistory,
     validIntervals: currentCycleIntervals,
     recentIntervals,
+    cycleResetEvents,
     medianWearRate,
     currentValue: latestCycleValue,
     remainingMm: latestRemainingMm,

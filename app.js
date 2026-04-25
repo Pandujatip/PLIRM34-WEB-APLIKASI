@@ -3828,35 +3828,36 @@ function detectCarbonBrushReplacementEvents(history, thresholdHigh) {
   for (let index = 1; index < history.length; index += 1) {
     const previous = history[index - 1];
     const current = history[index];
-    const replacementIncreased = (
-      previous.replacementValue !== null
-      && current.replacementValue !== null
-      && current.replacementValue > previous.replacementValue
-    );
     const recoveredFromRed = (
       previous.bucket === "low"
+      && current.numericValue !== null
+      && current.numericValue >= thresholdHigh
+    );
+    const recoveredToSafe = (
+      previous.numericValue !== null
+      && previous.numericValue < thresholdHigh
       && current.numericValue !== null
       && current.numericValue >= thresholdHigh
     );
     const largePositiveJump = (
       previous.numericValue !== null
       && current.numericValue !== null
-      && current.numericValue - previous.numericValue >= 5
-      && previous.bucket !== "high"
+      && (
+        current.numericValue - previous.numericValue >= 5
+        || (current.numericValue - previous.numericValue >= 3 && recoveredToSafe)
+      )
     );
 
-    if (replacementIncreased || recoveredFromRed || largePositiveJump) {
+    if (recoveredFromRed || largePositiveJump) {
       const duplicateConfirmed = events.some((event) => event.dateLabel === current.inspectionDateLabel);
       events.push({
         date: current.inspectionDate,
         dateLabel: current.inspectionDateLabel,
         daysSincePrevious: getDaysBetweenDates(previous.inspectionDate, current.inspectionDate),
         confirmed: duplicateConfirmed,
-        reason: replacementIncreased
-          ? "Counter replacement naik"
-          : recoveredFromRed
+        reason: recoveredFromRed
             ? "Nilai pulih dari merah ke aman"
-            : "Lonjakan nilai setelah titik perhatian",
+            : "Indikasi nilai titik naik setelah penggantian",
       });
     }
   }
