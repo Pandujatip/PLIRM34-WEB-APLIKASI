@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260425-08">
+  <link rel="stylesheet" href="styles.css?v=20260425-09">
 </head>
 <body>
   <div class="app-shell">
@@ -2322,6 +2322,13 @@
                     <button class="btn btn-primary" id="admin-mso-motor-import-json-button" type="button">Import JSON Scrape</button>
                     <div class="form-hint compact-inline">Jika popup diblokir, pakai script scrape-only di MSO, download JSON, lalu upload JSON itu ke PLIRM34.</div>
                   </div>
+                  <div class="mso-sync-progress hidden" id="admin-mso-motor-progress" aria-live="polite" aria-atomic="true">
+                    <div class="mso-sync-progress-head">
+                      <strong id="admin-mso-motor-progress-title">Memproses sinkronisasi MSO Motor...</strong>
+                      <span class="mso-sync-progress-badge" id="admin-mso-motor-progress-badge">Berjalan</span>
+                    </div>
+                    <p id="admin-mso-motor-progress-detail">Sistem sedang memproses file impor.</p>
+                  </div>
                   <p class="form-hint" id="admin-mso-motor-status">Belum ada sinkronisasi MSO motor.</p>
                 </section>
               </div>
@@ -2693,6 +2700,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260425-08"></script>
+  <script src="app.js?v=20260425-09"></script>
 </body>
 </html>

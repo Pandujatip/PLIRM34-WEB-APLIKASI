@@ -84,6 +84,10 @@ const adminMsoMotorCopyScriptButton = document.getElementById("admin-mso-motor-c
 const adminMsoMotorCopyScrapeOnlyButton = document.getElementById("admin-mso-motor-copy-scrape-only-button");
 const adminMsoMotorJsonInput = document.getElementById("admin-mso-motor-json-input");
 const adminMsoMotorImportJsonButton = document.getElementById("admin-mso-motor-import-json-button");
+const adminMsoMotorProgress = document.getElementById("admin-mso-motor-progress");
+const adminMsoMotorProgressTitle = document.getElementById("admin-mso-motor-progress-title");
+const adminMsoMotorProgressBadge = document.getElementById("admin-mso-motor-progress-badge");
+const adminMsoMotorProgressDetail = document.getElementById("admin-mso-motor-progress-detail");
 const adminMsoMotorStatus = document.getElementById("admin-mso-motor-status");
 const adminRestoreInput = document.getElementById("admin-restore-input");
 const adminRestoreButton = document.getElementById("admin-restore-button");
@@ -5085,6 +5089,113 @@ function renderMsoMotorSyncSettings() {
   }
 }
 
+const msoMotorSyncControls = [
+  adminMsoMotorSaveButton,
+  adminMsoMotorUploadButton,
+  adminMsoMotorUploadImportButton,
+  adminMsoMotorImportButton,
+  adminMsoMotorCopyScriptButton,
+  adminMsoMotorCopyScrapeOnlyButton,
+  adminMsoMotorImportJsonButton,
+];
+
+let msoMotorProgressTimer = null;
+let msoMotorProgressStartedAt = 0;
+let msoMotorProgressMessage = "";
+let msoMotorProgressDetailText = "";
+
+function formatElapsedSeconds(milliseconds) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  if (totalSeconds < 60) {
+    return `${totalSeconds} detik`;
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes} menit ${seconds} detik`;
+}
+
+function setMsoMotorControlsBusy(isBusy) {
+  msoMotorSyncControls.forEach((control) => {
+    if (control instanceof HTMLButtonElement) {
+      control.disabled = Boolean(isBusy);
+    }
+  });
+  if (adminMsoMotorJsonInput instanceof HTMLInputElement) {
+    adminMsoMotorJsonInput.disabled = Boolean(isBusy);
+  }
+}
+
+function renderMsoMotorProgress() {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  const elapsedLabel = msoMotorProgressStartedAt ? formatElapsedSeconds(Date.now() - msoMotorProgressStartedAt) : "0 detik";
+  if (adminMsoMotorProgressTitle) {
+    adminMsoMotorProgressTitle.textContent = msoMotorProgressMessage || "Memproses sinkronisasi MSO Motor...";
+  }
+  if (adminMsoMotorProgressDetail) {
+    const detailParts = [msoMotorProgressDetailText, `Durasi proses: ${elapsedLabel}`].filter(Boolean);
+    adminMsoMotorProgressDetail.textContent = detailParts.join(" | ");
+  }
+}
+
+function showMsoMotorProgress(message, detail = "") {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  msoMotorProgressStartedAt = Date.now();
+  msoMotorProgressMessage = String(message || "Memproses sinkronisasi MSO Motor...");
+  msoMotorProgressDetailText = String(detail || "").trim();
+  adminMsoMotorProgress.classList.remove("hidden", "is-success", "is-error");
+  adminMsoMotorProgress.classList.add("is-busy");
+  if (adminMsoMotorProgressBadge) {
+    adminMsoMotorProgressBadge.textContent = "Berjalan";
+  }
+  setMsoMotorControlsBusy(true);
+  if (msoMotorProgressTimer) {
+    window.clearInterval(msoMotorProgressTimer);
+  }
+  renderMsoMotorProgress();
+  msoMotorProgressTimer = window.setInterval(renderMsoMotorProgress, 1000);
+}
+
+function updateMsoMotorProgress(message, detail = "") {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  if (!msoMotorProgressStartedAt) {
+    msoMotorProgressStartedAt = Date.now();
+  }
+  msoMotorProgressMessage = String(message || msoMotorProgressMessage || "Memproses sinkronisasi MSO Motor...");
+  msoMotorProgressDetailText = String(detail || "").trim();
+  adminMsoMotorProgress.classList.remove("hidden", "is-success", "is-error");
+  adminMsoMotorProgress.classList.add("is-busy");
+  if (adminMsoMotorProgressBadge) {
+    adminMsoMotorProgressBadge.textContent = "Berjalan";
+  }
+  renderMsoMotorProgress();
+}
+
+function finishMsoMotorProgress(message, detail = "", tone = "success") {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  if (msoMotorProgressTimer) {
+    window.clearInterval(msoMotorProgressTimer);
+    msoMotorProgressTimer = null;
+  }
+  msoMotorProgressMessage = String(message || "Sinkronisasi selesai");
+  msoMotorProgressDetailText = String(detail || "").trim();
+  adminMsoMotorProgress.classList.remove("hidden", "is-busy", "is-success", "is-error");
+  adminMsoMotorProgress.classList.add(tone === "error" ? "is-error" : "is-success");
+  if (adminMsoMotorProgressBadge) {
+    adminMsoMotorProgressBadge.textContent = tone === "error" ? "Gagal" : "Selesai";
+  }
+  renderMsoMotorProgress();
+  setMsoMotorControlsBusy(false);
+  msoMotorProgressStartedAt = 0;
+}
+
 function getStoredUsers() {
   const storedUsers = readStorage(storageKeys.users);
   if (Array.isArray(storedUsers) && storedUsers.length > 0) {
@@ -7984,24 +8095,35 @@ adminMsoMotorImportJsonButton?.addEventListener("click", async () => {
     return;
   }
   try {
+    showMsoMotorProgress("Membaca file JSON MSO...", `${file.name} | ${formatBytes(file.size || 0)}`);
     const text = await file.text();
+    updateMsoMotorProgress("Memvalidasi isi JSON...", `Ukuran file ${formatBytes(file.size || 0)}.`);
     const payload = JSON.parse(text);
     const items = Array.isArray(payload?.items) ? payload.items : [];
     const sourceName = String(payload?.sourceName || file.name).trim() || file.name;
     if (!items.length) {
       throw new Error("File JSON tidak berisi item scrape MSO.");
     }
+    updateMsoMotorProgress("Mengirim data ke server...", `${items.length.toLocaleString("id-ID")} item siap diimport dari ${sourceName}.`);
     const result = await importMsoMotorScrapeItems(items, sourceName);
+    updateMsoMotorProgress("Menyegarkan data aplikasi...", `Server sudah memproses ${result.imported || items.length} item. Memuat ulang data terbaru...`);
     await hydrateFromBackendAfterLogin();
     updateDashboardMetrics();
     if (activeRole === "admin") {
+      updateMsoMotorProgress("Menyelesaikan sinkronisasi MSO...", "Memperbarui master admin dan status sinkron terbaru...");
       await refreshAdminMasters();
     }
     if (adminMsoMotorJsonInput) {
       adminMsoMotorJsonInput.value = "";
     }
+    finishMsoMotorProgress(
+      "Import JSON MSO selesai.",
+      `${result.imported || 0} item diproses | ${result.created || 0} baru | ${result.updated || 0} update.`,
+      "success",
+    );
     showToast("MSO Motor", `Import JSON selesai: ${result.imported || 0} item (${result.created || 0} baru, ${result.updated || 0} update).`);
   } catch (error) {
+    finishMsoMotorProgress("Import JSON MSO gagal.", error.message || "Terjadi kesalahan saat memproses file JSON hasil scrape.", "error");
     showToast("MSO Motor", error.message || "Gagal import JSON hasil scrape.");
   }
 });
