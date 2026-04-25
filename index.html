@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260425-03">
+  <link rel="stylesheet" href="styles.css?v=20260425-04">
 </head>
 <body>
   <div class="app-shell">
@@ -2297,7 +2297,13 @@
                       <input id="admin-mso-motor-start-date" type="date" value="2026-01-01">
                     </label>
                     <button class="btn btn-secondary" id="admin-mso-motor-copy-script-button" type="button">Copy Script Browser Sync</button>
-                    <div class="form-hint compact-inline">Buka MSO yang sudah login, paste script di Console, lalu data motor langsung dikirim ke PLIRM34.</div>
+                    <button class="btn btn-secondary" id="admin-mso-motor-copy-scrape-only-button" type="button">Copy Script Scrape Only</button>
+                    <label class="search-field compact">
+                      <span>Upload JSON hasil scrape</span>
+                      <input id="admin-mso-motor-json-input" type="file" accept=".json,application/json">
+                    </label>
+                    <button class="btn btn-primary" id="admin-mso-motor-import-json-button" type="button">Import JSON Scrape</button>
+                    <div class="form-hint compact-inline">Jika popup diblokir, pakai script scrape-only di MSO, download JSON, lalu upload JSON itu ke PLIRM34.</div>
                   </div>
                   <p class="form-hint" id="admin-mso-motor-status">Belum ada sinkronisasi MSO motor.</p>
                 </section>
@@ -2670,6 +2676,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260425-03"></script>
+  <script src="app.js?v=20260425-04"></script>
 </body>
 </html>

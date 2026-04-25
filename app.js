@@ -81,6 +81,9 @@ const adminMsoMotorUploadImportButton = document.getElementById("admin-mso-motor
 const adminMsoMotorImportButton = document.getElementById("admin-mso-motor-import-button");
 const adminMsoMotorStartDate = document.getElementById("admin-mso-motor-start-date");
 const adminMsoMotorCopyScriptButton = document.getElementById("admin-mso-motor-copy-script-button");
+const adminMsoMotorCopyScrapeOnlyButton = document.getElementById("admin-mso-motor-copy-scrape-only-button");
+const adminMsoMotorJsonInput = document.getElementById("admin-mso-motor-json-input");
+const adminMsoMotorImportJsonButton = document.getElementById("admin-mso-motor-import-json-button");
 const adminMsoMotorStatus = document.getElementById("admin-mso-motor-status");
 const adminRestoreInput = document.getElementById("admin-restore-input");
 const adminRestoreButton = document.getElementById("admin-restore-button");
@@ -4488,6 +4491,150 @@ function buildMsoMotorBrowserSyncScript(startDate) {
 })();`;
 }
 
+function buildMsoMotorScrapeOnlyScript(startDate) {
+  const safeStartDate = String(startDate || "2026-01-01").trim() || "2026-01-01";
+  return `(() => {
+  const CONFIG = {
+    startDate: ${JSON.stringify(safeStartDate)},
+    pageLength: "100",
+    waitMs: 1400,
+    maxPages: 500,
+    tableId: "mcircle",
+    filterId: "filterDb",
+    pageLengthSelector: 'select[name="mcircle_length"]',
+    nextSelector: "#mcircle_next",
+    disabledClass: "disabled",
+  };
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const normalizeText = (value) => String(value || "").replace(/\\s+/g, " ").trim();
+  const parseMsoDate = (rawValue) => {
+    const raw = normalizeText(rawValue);
+    const match = raw.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})(?:\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?)?$/);
+    if (!match) return null;
+    const [, dd, mm, yyyy, hh = "00", mi = "00", ss = "00"] = match;
+    const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), Number(ss));
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+  const downloadJson = (filename, payload) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+  const getVisibleRows = () => {
+    const table = document.getElementById(CONFIG.tableId);
+    if (!table) throw new Error("Tabel #mcircle tidak ditemukan.");
+    return [...table.querySelectorAll("tbody tr")];
+  };
+  const readRow = (row, pageNumber) => {
+    const cells = [...row.querySelectorAll("td")].map((cell) => normalizeText(cell.textContent));
+    if (!cells.length) return null;
+    return {
+      page: pageNumber,
+      no: cells[0] || "",
+      inspId: cells[1] || "",
+      idAmtrans: cells[2] || "",
+      tgl: cells[3] || "",
+      condition: cells[4] || "",
+      descr: cells[5] || "",
+      photoPath: row.querySelector("td:nth-child(7) a")?.href || "",
+      equptName: cells[7] || "",
+      equipmentDesc: cells[8] || "",
+      creator: cells[9] || "",
+      mplant: cells[10] || "",
+      temperaturDs: cells[11] || "",
+      temperaturNds: cells[12] || "",
+    };
+  };
+  const dedupeRows = (rows) => {
+    const seen = new Set();
+    return rows.filter((row) => {
+      const key = [row.inspId, row.idAmtrans, row.tgl, row.equptName].join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const filterByStartDate = (rows) => {
+    const start = new Date(CONFIG.startDate + "T00:00:00");
+    return rows.filter((row) => {
+      const parsed = parseMsoDate(row.tgl);
+      return parsed && parsed >= start;
+    });
+  };
+  const waitForTableRefresh = async (previousFirstKey) => {
+    const started = Date.now();
+    while (Date.now() - started < 15000) {
+      await sleep(250);
+      const currentRows = getVisibleRows();
+      const currentFirstKey = currentRows.length ? normalizeText(currentRows[0].textContent).slice(0, 160) : "";
+      if (currentFirstKey && currentFirstKey !== previousFirstKey) return;
+    }
+  };
+  const ensureMotorFilter = async () => {
+    const filterSelect = document.getElementById(CONFIG.filterId);
+    if (!filterSelect) throw new Error("Filter inspection #filterDb tidak ditemukan.");
+    if (filterSelect.value !== "1-1") {
+      filterSelect.value = "1-1";
+      filterSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(2200);
+    }
+  };
+  const setPageLength = async () => {
+    const lengthSelect = document.querySelector(CONFIG.pageLengthSelector);
+    if (!lengthSelect) return;
+    if (lengthSelect.value !== CONFIG.pageLength) {
+      lengthSelect.value = CONFIG.pageLength;
+      lengthSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(2200);
+    }
+  };
+  const getNextButton = () => {
+    const next = document.querySelector(CONFIG.nextSelector);
+    if (!next) return null;
+    return next.classList.contains(CONFIG.disabledClass) ? null : next.querySelector("a") || next;
+  };
+  (async () => {
+    await ensureMotorFilter();
+    await setPageLength();
+    const collectedRows = [];
+    let pageNumber = 1;
+    while (pageNumber <= CONFIG.maxPages) {
+      const rows = getVisibleRows();
+      const firstKey = rows.length ? normalizeText(rows[0].textContent).slice(0, 160) : "";
+      const pageRows = rows.map((row) => readRow(row, pageNumber)).filter(Boolean);
+      collectedRows.push(...pageRows);
+      console.log("MSO page", pageNumber, pageRows.length);
+      const nextButton = getNextButton();
+      if (!nextButton) break;
+      nextButton.click();
+      await sleep(CONFIG.waitMs);
+      await waitForTableRefresh(firstKey);
+      pageNumber += 1;
+    }
+    const filteredRows = filterByStartDate(dedupeRows(collectedRows));
+    if (!filteredRows.length) {
+      alert("Tidak ada data motor sesuai filter tanggal.");
+      return;
+    }
+    const filename = "mso-motor-scrape-" + CONFIG.startDate + "-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+    downloadJson(filename, {
+      sourceName: "MSO Scrape File " + new Date().toISOString(),
+      items: filteredRows,
+    });
+    alert("Scrape selesai. File JSON berhasil diunduh: " + filename);
+  })().catch((error) => {
+    console.error(error);
+    alert("Gagal scrape MSO: " + (error.message || error));
+  });
+})();`;
+}
+
 function renderMsoMotorSyncSettings() {
   const settings = getAppSetting("mso_motor_sync") || {};
   if (adminMsoMotorDirectory instanceof HTMLInputElement) {
@@ -7342,6 +7489,55 @@ adminMsoMotorCopyScriptButton?.addEventListener("click", async () => {
     showToast("MSO Motor", `Script browser sync berhasil disalin. Buka MSO, paste di Console, mulai dari ${startDate}.`);
   } catch (error) {
     showToast("MSO Motor", error.message || "Gagal menyalin script browser sync.");
+  }
+});
+
+adminMsoMotorCopyScrapeOnlyButton?.addEventListener("click", async () => {
+  const startDate = String(adminMsoMotorStartDate?.value || "2026-01-01").trim() || "2026-01-01";
+  const scriptText = buildMsoMotorScrapeOnlyScript(startDate);
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(scriptText);
+    } else {
+      const temp = document.createElement("textarea");
+      temp.value = scriptText;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand("copy");
+      temp.remove();
+    }
+    showToast("MSO Motor", `Script scrape-only berhasil disalin. Jalankan di MSO lalu upload JSON hasilnya ke PLIRM34.`);
+  } catch (error) {
+    showToast("MSO Motor", error.message || "Gagal menyalin script scrape-only.");
+  }
+});
+
+adminMsoMotorImportJsonButton?.addEventListener("click", async () => {
+  const file = adminMsoMotorJsonInput?.files?.[0];
+  if (!file) {
+    showToast("MSO Motor", "Pilih file JSON hasil scrape terlebih dahulu.");
+    return;
+  }
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    const sourceName = String(payload?.sourceName || file.name).trim() || file.name;
+    if (!items.length) {
+      throw new Error("File JSON tidak berisi item scrape MSO.");
+    }
+    const result = await importMsoMotorScrapeItems(items, sourceName);
+    await hydrateFromBackendAfterLogin();
+    updateDashboardMetrics();
+    if (activeRole === "admin") {
+      await refreshAdminMasters();
+    }
+    if (adminMsoMotorJsonInput) {
+      adminMsoMotorJsonInput.value = "";
+    }
+    showToast("MSO Motor", `Import JSON selesai: ${result.imported || 0} item (${result.created || 0} baru, ${result.updated || 0} update).`);
+  } catch (error) {
+    showToast("MSO Motor", error.message || "Gagal import JSON hasil scrape.");
   }
 });
 
