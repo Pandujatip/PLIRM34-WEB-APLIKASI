@@ -2923,6 +2923,7 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
   const latestByEquipment = new Map();
   serviceItems
     .filter((item) => item.formType === "service-motor-mso" && String(item.payload?.source || "").toUpperCase() === "MSO")
+    .filter((item) => shouldDisplayMsoMotorEquipment(item.equipmentName))
     .forEach((item) => {
       const key = String(item.equipmentName || "").trim().toUpperCase();
       if (!key) {
@@ -3206,7 +3207,8 @@ function renderServiceGroupDetailContent(serviceType, searchTerm = "", subtypeFi
   const normalizedQuery = String(searchTerm || "").trim().toLowerCase();
   const normalizedSubtype = String(subtypeFilter || "").trim();
   const items = getServiceItemsFromDom()
-    .filter((item) => item.type === serviceType);
+    .filter((item) => item.type === serviceType)
+    .filter((item) => shouldDisplayServiceItem(item));
   const subtypeOptions = [...new Set(items.map((item) => String(item.subtype || item.type || "").trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
   const filteredItems = items.filter((item) => {
     const equipmentName = String(item.equipmentName || "").toLowerCase();
@@ -5158,7 +5160,6 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       return true;
     });
   };
-  const filterEquipmentPrefix = (rows) => rows.filter((row) => /^3/.test(normalizeText(row.equptName)));
   const filterByStartDate = (rows) => {
     const start = new Date(CONFIG.startDate + "T00:00:00");
     return rows.filter((row) => {
@@ -5310,9 +5311,9 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       await waitForTableRefresh(firstKey);
       pageNumber += 1;
     }
-    const filteredRows = filterByStartDate(filterEquipmentPrefix(dedupeRows(collectedRows)));
+    const filteredRows = filterByStartDate(dedupeRows(collectedRows));
     if (!filteredRows.length) {
-      alert("Tidak ada data motor dengan kode equipment diawali angka 3 sesuai filter tanggal.");
+      alert("Tidak ada data motor sesuai filter tanggal.");
       return;
     }
     const summary = buildSummary(filteredRows, pagesRead);
@@ -5434,7 +5435,6 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
       return true;
     });
   };
-  const filterEquipmentPrefix = (rows) => rows.filter((row) => /^3/.test(normalizeText(row.equptName)));
   const filterByStartDate = (rows) => {
     const start = new Date(CONFIG.startDate + "T00:00:00");
     return rows.filter((row) => {
@@ -5538,9 +5538,9 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
       await waitForTableRefresh(firstKey);
       pageNumber += 1;
     }
-    const filteredRows = filterByStartDate(filterEquipmentPrefix(dedupeRows(collectedRows)));
+    const filteredRows = filterByStartDate(dedupeRows(collectedRows));
     if (!filteredRows.length) {
-      alert("Tidak ada data motor dengan kode equipment diawali angka 3 sesuai filter tanggal.");
+      alert("Tidak ada data motor sesuai filter tanggal.");
       return;
     }
     const summary = buildSummary(filteredRows, pagesRead);
@@ -6415,6 +6415,22 @@ function getServiceItemsFromDom() {
   }));
 }
 
+function shouldDisplayMsoMotorEquipment(equipmentName) {
+  return /^3/.test(String(equipmentName || "").trim());
+}
+
+function shouldDisplayServiceItem(item) {
+  if (!item) {
+    return false;
+  }
+  const isMsoMotorItem = (item.formType === "service-motor-mv" || item.formType === "service-motor-mso")
+    && String(item.payload?.source || "").toUpperCase() === "MSO";
+  if (!isMsoMotorItem) {
+    return true;
+  }
+  return shouldDisplayMsoMotorEquipment(item.equipmentName);
+}
+
 function getServiceItemById(itemId) {
   if (!itemId) {
     return null;
@@ -6489,7 +6505,7 @@ function persistSpbList() {
 function updateDashboardStats() {
   const negatifItems = getNegatifItemsFromDom();
   const sparepartItems = getSparepartItemsFromDom();
-  const serviceItems = getServiceItemsFromDom();
+  const serviceItems = getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item));
   const bomItems = getBomItemsFromDom();
   const bomMotorItems = getBomMotorItemsFromDom();
   const spbItems = getSpbItemsFromDom();
@@ -7040,7 +7056,7 @@ function applyServiceFilter() {
   const query = searchService?.value || "";
   const type = filterServiceType?.value || "semua";
   const normalizedQuery = String(query || "").trim().toLowerCase();
-  const allItems = getServiceItemsFromDom();
+  const allItems = getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item));
   const filteredItems = allItems.filter((item) => {
     const searchableText = [
       item.equipmentName || "",
@@ -7437,11 +7453,13 @@ function renderServiceBoard(items, options = {}) {
     });
   }
 
+  const visibleItems = items.filter((item) => shouldDisplayServiceItem(item));
+
   groups.forEach((group) => {
     const column = document.createElement("section");
     column.className = "service-column";
     column.dataset.serviceGroup = group.key;
-    const groupItems = items.filter((item) => item.type === group.key);
+    const groupItems = visibleItems.filter((item) => item.type === group.key);
     const previewGroupItems = getSortedServiceItems(groupItems).slice(0, previewLimit);
     column.innerHTML = `
       <div class="service-column-head">
