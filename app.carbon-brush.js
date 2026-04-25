@@ -205,11 +205,8 @@ function getCarbonBrushCycleResetReason(previous, current, threshold) {
   }
 
   const valueIncrease = current.numericValue - previous.numericValue;
-  const pointRecoveredToSafe = previous.numericValue < threshold.high && current.numericValue >= threshold.high;
-  const strongPointIncrease = valueIncrease >= 5;
-  const moderatePointIncrease = valueIncrease >= 3 && pointRecoveredToSafe;
 
-  if (strongPointIncrease || moderatePointIncrease) {
+  if (valueIncrease >= 3) {
     return "Indikasi nilai titik naik setelah penggantian";
   }
   return "";

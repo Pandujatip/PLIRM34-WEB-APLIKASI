@@ -3833,19 +3833,10 @@ function detectCarbonBrushReplacementEvents(history, thresholdHigh) {
       && current.numericValue !== null
       && current.numericValue >= thresholdHigh
     );
-    const recoveredToSafe = (
-      previous.numericValue !== null
-      && previous.numericValue < thresholdHigh
-      && current.numericValue !== null
-      && current.numericValue >= thresholdHigh
-    );
     const largePositiveJump = (
       previous.numericValue !== null
       && current.numericValue !== null
-      && (
-        current.numericValue - previous.numericValue >= 5
-        || (current.numericValue - previous.numericValue >= 3 && recoveredToSafe)
-      )
+      && current.numericValue - previous.numericValue >= 3
     );
 
     if (recoveredFromRed || largePositiveJump) {
