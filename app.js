@@ -3061,12 +3061,12 @@ function openServiceDetail(item) {
   let rawHtml = `<div class="detail-grid">${buildDetailGridRows(rawRows)}</div>`;
   if (item.formType === "service-motor-mv-carbon-brush") {
     rawHtml = `
+      <div class="detail-grid">${buildCarbonBrushPayloadDetailHtml(item)}</div>
+      <div id="carbon-brush-analysis-slot">${buildCarbonBrushMeggerTrendHtml(item)}</div>
       <div class="detail-toolbar">
         <button class="table-action" type="button" data-action="toggle-carbon-brush-replacement-mode">Tandai Titik Diganti</button>
         <button class="table-action" type="button" data-action="save-carbon-brush-replacements">Simpan Titik Diganti</button>
       </div>
-      <div class="detail-grid">${buildCarbonBrushPayloadDetailHtml(item)}</div>
-      <div id="carbon-brush-analysis-slot">${buildCarbonBrushMeggerTrendHtml(item)}</div>
       ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "", carbonBrushReplacementDraft)}
     `;
   }
