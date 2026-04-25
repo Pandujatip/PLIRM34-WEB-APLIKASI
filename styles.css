@@ -4360,6 +4360,31 @@ h3,
   gap: 14px;
 }
 
+.dashboard-schedule-grid {
+  grid-template-columns: 1.05fr 1.05fr 1.3fr;
+  align-items: stretch;
+}
+
+.dashboard-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.dashboard-reward-grid {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.dashboard-chart-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.dashboard-overview-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
+  align-items: stretch;
+}
+
 .dashboard-schedule-card,
 .dashboard-overview-card,
 .dashboard-chart-card,
@@ -4432,12 +4457,12 @@ h3,
 
 .dashboard-reward-card {
   padding: 18px;
-  min-height: 198px;
+  min-height: 150px;
 }
 
 .dashboard-chart-card {
   padding: 18px;
-  min-height: 220px;
+  min-height: 200px;
   background:
     linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(10, 10, 10, 0.96)),
     linear-gradient(135deg, rgba(255, 106, 0, 0.06), transparent 42%);
@@ -4445,10 +4470,22 @@ h3,
 
 .dashboard-overview-card {
   padding: 18px;
-  min-height: 280px;
+  min-height: 240px;
   background:
     linear-gradient(180deg, rgba(19, 19, 19, 0.98), rgba(11, 11, 11, 0.95)),
     linear-gradient(135deg, rgba(255, 140, 66, 0.08), transparent 46%);
+}
+
+.dashboard-overview-card:first-child .status-list {
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.dashboard-overview-card:last-child .status-list {
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .dashboard-overview-card .table-wrap,
