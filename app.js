@@ -4974,6 +4974,7 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       return true;
     });
   };
+  const filterEquipmentPrefix = (rows) => rows.filter((row) => /^3/.test(normalizeText(row.equptName)));
   const filterByStartDate = (rows) => {
     const start = new Date(CONFIG.startDate + "T00:00:00");
     return rows.filter((row) => {
@@ -5125,9 +5126,9 @@ function buildMsoMotorBrowserSyncScript(startDate) {
       await waitForTableRefresh(firstKey);
       pageNumber += 1;
     }
-    const filteredRows = filterByStartDate(dedupeRows(collectedRows));
+    const filteredRows = filterByStartDate(filterEquipmentPrefix(dedupeRows(collectedRows)));
     if (!filteredRows.length) {
-      alert("Tidak ada data motor sesuai filter tanggal.");
+      alert("Tidak ada data motor dengan kode equipment diawali angka 3 sesuai filter tanggal.");
       return;
     }
     const summary = buildSummary(filteredRows, pagesRead);
@@ -5249,6 +5250,7 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
       return true;
     });
   };
+  const filterEquipmentPrefix = (rows) => rows.filter((row) => /^3/.test(normalizeText(row.equptName)));
   const filterByStartDate = (rows) => {
     const start = new Date(CONFIG.startDate + "T00:00:00");
     return rows.filter((row) => {
@@ -5352,9 +5354,9 @@ function buildMsoMotorScrapeOnlyScript(startDate) {
       await waitForTableRefresh(firstKey);
       pageNumber += 1;
     }
-    const filteredRows = filterByStartDate(dedupeRows(collectedRows));
+    const filteredRows = filterByStartDate(filterEquipmentPrefix(dedupeRows(collectedRows)));
     if (!filteredRows.length) {
-      alert("Tidak ada data motor sesuai filter tanggal.");
+      alert("Tidak ada data motor dengan kode equipment diawali angka 3 sesuai filter tanggal.");
       return;
     }
     const summary = buildSummary(filteredRows, pagesRead);
