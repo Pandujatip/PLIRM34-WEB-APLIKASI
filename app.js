@@ -1583,6 +1583,23 @@ function openInstrumentPane(tabName) {
 }
 
 function normalizeServiceItem(item) {
+  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const isMsoMotorItem = String(payload.source || "").toUpperCase() === "MSO";
+  if (item.formType === "service-motor-mv" && isMsoMotorItem) {
+    return {
+      ...item,
+      subtype: "Motor MSO",
+      formType: "service-motor-mso",
+      payload,
+    };
+  }
+  if (item.formType === "service-motor-mso") {
+    return {
+      ...item,
+      subtype: "Motor MSO",
+      payload,
+    };
+  }
   if (item.formType) {
     return item;
   }
@@ -1960,7 +1977,7 @@ function analyzeServiceItem(item) {
     return notes.length ? notes : ["Kondisi umum electrical room relatif aman berdasarkan isian inspeksi terakhir."];
   }
 
-  if (item.formType === "service-motor-mv") {
+  if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
     const notes = [];
     if ((payload.source || "").toUpperCase() === "MSO") {
       const temperatureDs = parseCarbonBrushNumericValue(payload.temperaturDs);
@@ -2655,7 +2672,7 @@ function formatServicePayloadLines(item) {
     ];
   }
 
-  if (item.formType === "service-motor-mv") {
+  if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
     if ((payload.source || "").toUpperCase() === "MSO") {
       return [
         ["Sumber", payload.source || "-"],
@@ -6260,7 +6277,7 @@ function renderServiceCard(item) {
     ...item,
     payload: item.payload || {},
   });
-  const isMsoMotorItem = item.formType === "service-motor-mv" && String(item.payload?.source || "").toUpperCase() === "MSO";
+  const isMsoMotorItem = (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO";
   const canDeleteService = activeRole !== "team";
   const card = document.createElement("article");
   card.className = "service-list-item";
@@ -6325,7 +6342,7 @@ function renderServiceBoard(items, options = {}) {
       title: "Electrical",
       sections: [
         { key: "service-electrical-room", title: "Electrical Room" },
-        { key: "service-motor-mv", title: "Service Motor MV" },
+        { key: "service-motor-mso", title: "Service Motor MSO" },
         { key: "service-motor-mv-carbon-brush", title: "Motor MV (Carbon Brush)" },
         { key: "service-mcc", title: "MCC" },
         { key: "service-ehca", title: "EH/CA" },
@@ -6787,8 +6804,8 @@ function hydrateServiceForm(item) {
     if (item.formType === "service-electrical-room") {
       openElectricalPane("electrical-room");
     }
-    if (item.formType === "service-motor-mv") {
-      openElectricalPane("motor-mv");
+    if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
+      openElectricalPane("motor-mso");
     }
     if (item.formType === "service-motor-mv-carbon-brush") {
       openElectricalPane("motor-mv-carbon-brush");
@@ -6844,7 +6861,7 @@ function hydrateServiceForm(item) {
     form.transformerSilicaGel.value = payload.transformerSilicaGel || "OK";
   }
 
-  if (item.formType === "service-motor-mv") {
+  if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
     form.vibrationDe.value = payload.vibrationDe || "";
     form.vibrationNde.value = payload.vibrationNde || "";
     form.windingTemperature.value = payload.windingTemperature || "";
@@ -8159,9 +8176,9 @@ forms.forEach((form) => {
       applyServiceFilter();
     }
 
-    if (formType === "service-motor-mv") {
-      setSubmitNote(form, "Inspeksi Motor MV hanya bisa masuk melalui sinkronisasi MSO mingguan.");
-      showToast("Motor MV", "Gunakan Import MSO Mingguan di Manajemen User.");
+    if (formType === "service-motor-mso") {
+      setSubmitNote(form, "Inspeksi Motor MSO hanya bisa masuk melalui sinkronisasi MSO.");
+      showToast("Motor MSO", "Gunakan sinkronisasi atau import MSO di Manajemen User.");
       return;
     }
 
@@ -8902,8 +8919,8 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "delete-service") {
-    if (item.formType === "service-motor-mv" && String(item.payload?.source || "").toUpperCase() === "MSO") {
-      showToast("Motor MV", "Data sinkron MSO tidak dihapus manual dari daftar service.");
+    if ((item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO") {
+      showToast("Motor MSO", "Data sinkron MSO tidak dihapus manual dari daftar service.");
       return;
     }
     if (!confirmDeleteAction("data ini")) {
@@ -8937,8 +8954,8 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "edit-service") {
-    if (item.formType === "service-motor-mv" && String(item.payload?.source || "").toUpperCase() === "MSO") {
-      showToast("Motor MV", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
+    if ((item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO") {
+      showToast("Motor MSO", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
       return;
     }
     hydrateServiceForm(item);

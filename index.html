@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260425-04">
+  <link rel="stylesheet" href="styles.css?v=20260425-05">
 </head>
 <body>
   <div class="app-shell">
@@ -743,7 +743,7 @@
             <div class="service-pane visible" data-service-pane="electrical">
               <div class="service-subtab-bar">
                 <button class="chip-button service-subtab active" data-electrical-tab="electrical-room" type="button">Electrical Room</button>
-                <button class="chip-button service-subtab" data-electrical-tab="motor-mv" type="button">Motor MV</button>
+                <button class="chip-button service-subtab" data-electrical-tab="motor-mso" type="button">Motor MSO</button>
                 <button class="chip-button service-subtab" data-electrical-tab="motor-mv-carbon-brush" type="button">Motor MV (Carbon Brush)</button>
                 <button class="chip-button service-subtab" data-electrical-tab="mcc" type="button">MCC</button>
                 <button class="chip-button service-subtab" data-electrical-tab="ehca" type="button">EH/CA</button>
@@ -929,13 +929,13 @@
                 <button class="btn btn-primary" type="submit">Simpan Electrical Room</button>
               </form>
 
-              <form class="input-form electrical-pane sync-only-form" data-electrical-pane="motor-mv" data-form-type="service-motor-mv">
+              <form class="input-form electrical-pane sync-only-form" data-electrical-pane="motor-mso" data-form-type="service-motor-mso">
                 <div class="card-head compact-head">
-                  <p class="eyebrow">Motor MV</p>
-                  <h3>Sinkron inspeksi motor MV</h3>
+                  <p class="eyebrow">Motor MSO</p>
+                  <h3>Sinkron inspeksi motor dari MSO</h3>
                 </div>
                 <div class="sync-only-note">
-                  <strong>Sumber data motor MV hanya dari MSO.</strong>
+                  <strong>Sumber data motor ini hanya dari MSO.</strong>
                   <span>Letakkan file CSV export mingguan MSO di folder server yang sudah ditentukan, lalu jalankan tombol <strong>Import MSO Mingguan</strong> di menu <strong>Manajemen User &gt; Admin Tools</strong>.</span>
                 </div>
                 <div class="form-grid form-grid-3">
@@ -2676,6 +2676,6 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=20260425-04"></script>
+  <script src="app.js?v=20260425-05"></script>
 </body>
 </html>

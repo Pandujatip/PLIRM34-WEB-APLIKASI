@@ -329,7 +329,7 @@ DEFAULT_INSPECTION_TEMPLATES = [
     ("service", "Electrical", "Electrical Room", "Inspeksi Electrical Room", json.dumps({
         "fields": ["panelDoorCondition", "floorCleanliness", "roomTemperature", "battery", "transformer"]
     }, ensure_ascii=False)),
-    ("service", "Electrical", "Motor MV", "Inspeksi Motor MV", json.dumps({
+    ("service", "Electrical", "Motor MSO", "Inspeksi Motor MSO", json.dumps({
         "fields": ["vibrationDe", "vibrationNde", "windingTemperature", "bearingCondition", "motorCurrent"]
     }, ensure_ascii=False)),
     ("service", "Electrical", "Motor MV (Carbon Brush)", "Inspeksi Carbon Brush", json.dumps({
@@ -1515,8 +1515,8 @@ def build_mso_motor_import_items(csv_text: str, source_name: str = "") -> list[d
             {
                 "id": f"service-mso-motor-{insp_id}",
                 "type": "Electrical",
-                "subtype": "Motor MV",
-                "formType": "service-motor-mv",
+                "subtype": "Motor MSO",
+                "formType": "service-motor-mso",
                 "equipmentName": equipment_name,
                 "description": description or equipment_desc or "-",
                 "detail": " | ".join(detail_parts),
@@ -1579,8 +1579,8 @@ def build_mso_motor_import_items_from_rows(rows: list[dict], source_name: str = 
             {
                 "id": f"service-mso-motor-{insp_id}",
                 "type": "Electrical",
-                "subtype": "Motor MV",
-                "formType": "service-motor-mv",
+                "subtype": "Motor MSO",
+                "formType": "service-motor-mso",
                 "equipmentName": equipment_name,
                 "description": descr or equipment_desc or f"Inspection {condition}",
                 "detail": " | ".join(detail_parts),
@@ -1760,7 +1760,7 @@ def sync_service_detail_tables(connection: sqlite3.Connection, item: dict) -> No
         )
         return
 
-    if form_type == "service-motor-mv":
+    if form_type in {"service-motor-mv", "service-motor-mso"}:
         connection.execute(
             """
             INSERT INTO service_motor_mv_details (
