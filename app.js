@@ -2309,6 +2309,8 @@ function parseMsoMotorNumeric(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+const MSO_MOTOR_INSPECTION_STANDARD_DAYS = 21;
+
 function getMsoMotorHistory(item) {
   return getServiceItemsFromDom()
     .filter((entry) =>
@@ -2419,6 +2421,87 @@ function getMsoMotorHistoryInspectionTime(entry) {
   return new Date(entry?.payload?.inspectionDate || 0).getTime() || 0;
 }
 
+function getDaysBetweenTimestamps(startTime, endTime) {
+  if (!startTime || !endTime || endTime < startTime) {
+    return null;
+  }
+  return Math.round((endTime - startTime) / (1000 * 60 * 60 * 24));
+}
+
+function isProblematicMsoMotorPayload(payload = {}) {
+  const condition = String(payload.condition || "").toUpperCase();
+  const maxTemperature = Math.max(...getMsoMotorTemperatureValues(payload), 0);
+  const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
+  return condition === "BAD"
+    || maxTemperature >= 60
+    || vibrationDiagnostics.beforeCriticalCount > 0
+    || vibrationDiagnostics.beforeWatchCount > 0;
+}
+
+function analyzeMsoMotorInspectionCadence(history) {
+  const sortedHistory = [...history].sort((left, right) => getMsoMotorHistoryInspectionTime(left) - getMsoMotorHistoryInspectionTime(right));
+  const intervals = [];
+  let repeatedProblemWithinStandardCount = 0;
+  let reappearedAfterEffectiveRegreaseCount = 0;
+  for (let index = 1; index < sortedHistory.length; index += 1) {
+    const previousEntry = sortedHistory[index - 1];
+    const currentEntry = sortedHistory[index];
+    const previousTime = getMsoMotorHistoryInspectionTime(previousEntry);
+    const currentTime = getMsoMotorHistoryInspectionTime(currentEntry);
+    const gapDays = getDaysBetweenTimestamps(previousTime, currentTime);
+    if (gapDays === null) {
+      continue;
+    }
+    const previousPayload = previousEntry.payload || {};
+    const currentPayload = currentEntry.payload || {};
+    const previousProblematic = isProblematicMsoMotorPayload(previousPayload);
+    const currentProblematic = isProblematicMsoMotorPayload(currentPayload);
+    const previousBefore = getMsoMotorMaxVibration(previousPayload, "before");
+    const previousAfter = getMsoMotorMaxVibration(previousPayload, "after");
+    const currentBefore = getMsoMotorMaxVibration(currentPayload, "before");
+    const previousRecoveredByRegrease = previousBefore !== null
+      && previousAfter !== null
+      && previousBefore >= 2.8
+      && previousAfter < 2.8;
+    if (gapDays <= MSO_MOTOR_INSPECTION_STANDARD_DAYS && previousProblematic && currentProblematic) {
+      repeatedProblemWithinStandardCount += 1;
+    }
+    if (gapDays <= MSO_MOTOR_INSPECTION_STANDARD_DAYS && previousRecoveredByRegrease && currentBefore !== null && currentBefore >= 2.8) {
+      reappearedAfterEffectiveRegreaseCount += 1;
+    }
+    intervals.push({
+      gapDays,
+      previousProblematic,
+      currentProblematic,
+      previousRecoveredByRegrease,
+    });
+  }
+
+  const latestEntry = sortedHistory.length ? sortedHistory[sortedHistory.length - 1] : null;
+  const latestInspectionTime = getMsoMotorHistoryInspectionTime(latestEntry);
+  const latestGapDays = intervals.length ? intervals[intervals.length - 1].gapDays : null;
+  const averageGapDays = intervals.length
+    ? Math.round(intervals.reduce((total, entry) => total + entry.gapDays, 0) / intervals.length)
+    : null;
+  const daysSinceLatestInspection = latestInspectionTime
+    ? getDaysBetweenTimestamps(latestInspectionTime, Date.now())
+    : null;
+  const overdueDays = daysSinceLatestInspection === null
+    ? 0
+    : Math.max(0, daysSinceLatestInspection - MSO_MOTOR_INSPECTION_STANDARD_DAYS);
+
+  return {
+    standardDays: MSO_MOTOR_INSPECTION_STANDARD_DAYS,
+    latestGapDays,
+    averageGapDays,
+    daysSinceLatestInspection,
+    overdueDays,
+    repeatedProblemWithinStandardCount,
+    reappearedAfterEffectiveRegreaseCount,
+    intervalCount: intervals.length,
+  };
+}
+
 function analyzeMsoMotorRegreaseEffectiveness(history) {
   const inspectionPairs = history.map((entry) => {
     const payload = entry.payload || {};
@@ -2483,6 +2566,7 @@ function getMsoMotorHealthSnapshot(item) {
     ? Math.max(...priorHistory.map((entry) => getMsoMotorMaxVibration(entry.payload || {}, "before") ?? 0))
     : null;
   const regreaseEffect = analyzeMsoMotorRegreaseEffectiveness(history);
+  const cadence = analyzeMsoMotorInspectionCadence(history);
   const latestIsGood = latestCondition === "GOOD";
   const recentBadCount = recentConditions.filter((condition) => condition === "BAD").length;
   let score = 100;
@@ -2548,6 +2632,24 @@ function getMsoMotorHealthSnapshot(item) {
     score -= 6;
     notes.push(`Pada ${regreaseEffect.unresolvedCount} inspeksi, vibrasi after tidak turun dari before. Efektivitas regrease perlu dievaluasi ulang.`);
   }
+  if (cadence.overdueDays > 0) {
+    const cadencePenalty = Math.min(12, 4 + Math.ceil(cadence.overdueDays / 7));
+    score -= cadencePenalty;
+    notes.push(`Inspeksi terakhir sudah lewat ${cadence.daysSinceLatestInspection} hari. Melebihi standar ${cadence.standardDays} hari, jadi perlu segera dikunjungi ulang.`);
+  } else if (cadence.daysSinceLatestInspection !== null) {
+    notes.push(`Inspeksi terakhir masih dalam rentang standar ${cadence.standardDays} hari (${cadence.daysSinceLatestInspection} hari lalu).`);
+  }
+  if (cadence.repeatedProblemWithinStandardCount >= 2) {
+    score -= 10;
+    notes.push(`Dalam ${cadence.repeatedProblemWithinStandardCount} interval yang masih di dalam standar ${cadence.standardDays} hari, masalah tetap muncul berulang. Equipment ini layak dipertimbangkan untuk inspeksi lebih sering dari 21 hari.`);
+  } else if (cadence.repeatedProblemWithinStandardCount === 1) {
+    score -= 5;
+    notes.push(`Ada 1 kejadian masalah tetap muncul lagi meskipun inspeksi masih dalam interval standar ${cadence.standardDays} hari. Frekuensi kunjungan mungkin perlu dipercepat bila pola ini berulang.`);
+  }
+  if (cadence.reappearedAfterEffectiveRegreaseCount > 0) {
+    score -= Math.min(8, cadence.reappearedAfterEffectiveRegreaseCount * 4);
+    notes.push(`Pada ${cadence.reappearedAfterEffectiveRegreaseCount} siklus, vibrasi sempat turun setelah regrease tetapi sudah naik lagi sebelum siklus inspeksi ${cadence.standardDays} hari berikutnya. Ini tanda interval kunjungan bisa terlalu longgar untuk equipment ini.`);
+  }
 
   score = Math.max(0, Math.min(100, score));
   let grade = "Healthy";
@@ -2578,6 +2680,7 @@ function getMsoMotorHealthSnapshot(item) {
     vibrationAfterWatchCount: vibrationDiagnostics.afterWatchCount,
     vibrationChannels: vibrationDiagnostics.channelComparisons,
     regreaseEffect,
+    cadence,
     historyCount: history.length,
     recentBadCount,
     daysSinceLatestBad,
@@ -2721,6 +2824,15 @@ function buildMsoMotorAnalyticsHtml(item) {
     recommendations.push(`Pola histori menunjukkan setelah regrease, vibrasi sering turun dari before tinggi menjadi after rendah (${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount} inspeksi).`);
     recommendations.push("Artinya regrease masih efektif sebagai tindakan korektif cepat, tetapi equipment punya kecenderungan vibrasi naik lagi sebelum jadwal berikutnya sehingga akar masalah mekanik tetap perlu dicari.");
   }
+  if ((latestSnapshot.cadence?.overdueDays || 0) > 0) {
+    recommendations.push(`Jadwal inspeksi sudah lewat ${latestSnapshot.cadence.overdueDays} hari dari standar ${latestSnapshot.cadence.standardDays} hari. Segera lakukan inspeksi ulang agar tren kerusakan tidak terlambat terbaca.`);
+  }
+  if ((latestSnapshot.cadence?.repeatedProblemWithinStandardCount || 0) > 0) {
+    recommendations.push(`Masalah masih muncul lagi dalam interval inspeksi standar ${latestSnapshot.cadence.standardDays} hari. Untuk equipment ini, pertimbangkan interval kunjungan yang lebih rapat dari 21 hari sampai kondisi stabil.`);
+  }
+  if ((latestSnapshot.cadence?.reappearedAfterEffectiveRegreaseCount || 0) > 0) {
+    recommendations.push("Setelah regrease hasilnya sempat bagus, tetapi vibrasi kembali naik sebelum siklus inspeksi berikutnya. Selain cek akar masalah mekanik, interval monitoring perlu dipercepat.");
+  }
   if (badCount >= 3) {
     recommendations.push(`Motor ini sudah BAD sebanyak ${badCount} kali. Layak masuk prioritas planning tindak lanjut atau shutdown.`);
   }
@@ -2751,6 +2863,13 @@ function buildMsoMotorAnalyticsHtml(item) {
           ["Kanal before watch", `${latestSnapshot.vibrationBeforeWatchCount || 0} kanal`],
           ["Pair before/after", `${latestSnapshot.regreaseEffect.pairCount || 0} inspeksi`],
           ["Before tinggi -> after rendah", `${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount || 0} inspeksi`],
+          ["Standar interval", `${latestSnapshot.cadence?.standardDays || MSO_MOTOR_INSPECTION_STANDARD_DAYS} hari`],
+          ["Jarak 2 inspeksi terakhir", latestSnapshot.cadence?.latestGapDays === null ? "-" : `${latestSnapshot.cadence.latestGapDays} hari`],
+          ["Rata-rata jarak inspeksi", latestSnapshot.cadence?.averageGapDays === null ? "-" : `${latestSnapshot.cadence.averageGapDays} hari`],
+          ["Hari sejak inspeksi terakhir", latestSnapshot.cadence?.daysSinceLatestInspection === null ? "-" : `${latestSnapshot.cadence.daysSinceLatestInspection} hari`],
+          ["Lewat dari standar", `${latestSnapshot.cadence?.overdueDays || 0} hari`],
+          ["Masalah berulang <= 21 hari", `${latestSnapshot.cadence?.repeatedProblemWithinStandardCount || 0} kali`],
+          ["Naik lagi setelah regrease <= 21 hari", `${latestSnapshot.cadence?.reappearedAfterEffectiveRegreaseCount || 0} kali`],
           ["Total histori", `${history.length} inspeksi`],
           ["Frekuensi BAD", `${badCount} kali`],
           ["BAD 3 inspeksi terakhir", `${latestSnapshot.recentBadCount || 0} kali`],
