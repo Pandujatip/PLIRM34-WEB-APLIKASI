@@ -3418,11 +3418,11 @@ function renderServiceGroupDetailContent(serviceType, searchTerm = "", subtypeFi
   `;
 }
 
-function closeServiceDetail() {
+function closeServiceDetail(options = {}) {
   if (!serviceDetailModal) {
     return;
   }
-  if (serviceDetailReturnState && activeServiceDetailItem) {
+  if (!options.forceClose && serviceDetailReturnState && activeServiceDetailItem) {
     const returnState = serviceDetailReturnState;
     serviceDetailReturnState = null;
     activeServiceDetailItem = null;
@@ -8968,7 +8968,7 @@ serviceDetailEdit?.addEventListener("click", () => {
     return;
   }
   const item = activeServiceDetailItem;
-  closeServiceDetail();
+  closeServiceDetail({ forceClose: true });
   hydrateServiceForm(item);
   openSection("service");
   openCreatePanel("service");
