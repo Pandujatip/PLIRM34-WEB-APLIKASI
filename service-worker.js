@@ -1,15 +1,15 @@
-const CACHE_NAME = "plirm34-pwa-v20260426-10";
+const CACHE_NAME = "plirm34-pwa-v20260426-11";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260426-24",
+  "/styles.css?v=20260426-25",
   "/app.auth.js?v=20260426-15",
   "/app.carbon-brush.js?v=20260426-15",
   "/app.service.js?v=20260426-16",
   "/app.mso.js?v=20260426-15",
   "/app.dashboard.js?v=20260426-15",
   "/app.admin.js?v=20260426-15",
-  "/app.js?v=20260426-24",
+  "/app.js?v=20260426-25",
   "/manifest.webmanifest",
   "/pwa-icons/icon-192.png",
   "/pwa-icons/icon-512.png",

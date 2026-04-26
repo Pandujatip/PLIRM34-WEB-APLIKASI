@@ -8474,6 +8474,13 @@ if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
+    const submitButton = loginForm.querySelector('button[type="submit"]');
+    const originalSubmitText = submitButton?.textContent || "Login";
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Masuk...";
+    }
+
     const formData = new FormData(loginForm);
     const username = String(formData.get("username") || "user.plirm34").trim();
     const password = String(formData.get("password") || "");
@@ -8489,6 +8496,11 @@ if (loginForm) {
         showToast("Login Berhasil", `Masuk sebagai ${result.user.username} (${roleLabels[result.user.role]}).`);
       } catch (error) {
         showToast("Login Gagal", error.message || "Username atau password tidak cocok.");
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = originalSubmitText;
+        }
       }
       return;
     }
@@ -8496,11 +8508,19 @@ if (loginForm) {
     const matchedUser = findUserByUsername(username);
     if (!matchedUser || matchedUser.password !== password) {
       showToast("Login Gagal", "Username atau password tidak cocok.");
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalSubmitText;
+      }
       return;
     }
 
     loginWithUser(matchedUser);
     showToast("Login Berhasil", `Masuk sebagai ${matchedUser.username} (${roleLabels[matchedUser.role]}).`);
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalSubmitText;
+    }
   });
 }
 
