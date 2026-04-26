@@ -149,8 +149,9 @@ select {
   position: relative;
   min-height: 100svh;
   flex-direction: column;
-  padding: max(18px, env(safe-area-inset-top)) 16px calc(100px + env(safe-area-inset-bottom));
+  padding: max(20px, env(safe-area-inset-top)) 16px calc(112px + env(safe-area-inset-bottom));
   overflow: hidden;
+  font-size: 16px;
 }
 
 .pwa-compact-shell::before {
@@ -183,19 +184,20 @@ select {
 .pwa-app-header h2 {
   margin: 4px 0 2px;
   font-family: "Sora", sans-serif;
-  font-size: clamp(1.65rem, 8vw, 2.3rem);
+  font-size: clamp(2rem, 9vw, 2.65rem);
   line-height: 1;
   letter-spacing: -0.05em;
 }
 
 .pwa-app-header small {
   color: rgba(245, 242, 237, 0.62);
+  font-size: 0.92rem;
 }
 
 .pwa-kicker {
   display: inline-flex;
   color: var(--success);
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.16em;
 }
@@ -211,13 +213,15 @@ select {
   color: var(--text);
   background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
-  min-height: 42px;
-  padding: 0 14px;
+  min-height: 48px;
+  padding: 0 16px;
   font-weight: 800;
+  font-size: 0.92rem;
+  touch-action: manipulation;
 }
 
 .pwa-icon-button {
-  min-width: 44px;
+  min-width: 50px;
 }
 
 .pwa-pages {
@@ -235,14 +239,14 @@ select {
 
 .pwa-status-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: 8px;
   margin-bottom: 14px;
 }
 
 .pwa-status-strip article {
-  min-height: 82px;
-  padding: 12px 10px;
+  min-height: 78px;
+  padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.075);
@@ -254,7 +258,7 @@ select {
 .pwa-card small {
   display: block;
   color: rgba(245, 242, 237, 0.58);
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -262,9 +266,9 @@ select {
 
 .pwa-status-strip strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 6px;
   font-family: "Sora", sans-serif;
-  font-size: 1.05rem;
+  font-size: 1.42rem;
   line-height: 1.05;
 }
 
@@ -281,9 +285,12 @@ select {
   color: #07111f;
   background: linear-gradient(135deg, #73e0a9, #dfffee);
   border-radius: 18px;
-  padding: 13px 10px;
+  min-height: 54px;
+  padding: 14px 10px;
   font-weight: 900;
+  font-size: 0.94rem;
   box-shadow: 0 14px 34px rgba(115, 224, 169, 0.16);
+  touch-action: manipulation;
 }
 
 .pwa-block {
@@ -304,13 +311,14 @@ select {
 
 .pwa-block-head h3 {
   margin: 2px 0 0;
-  font-size: 1.05rem;
+  font-size: 1.22rem;
   letter-spacing: -0.025em;
 }
 
 .pwa-block-head small {
   color: rgba(245, 242, 237, 0.55);
   white-space: nowrap;
+  font-size: 0.84rem;
 }
 
 .pwa-list {
@@ -323,7 +331,8 @@ select {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
-  padding: 15px;
+  min-height: 94px;
+  padding: 17px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.075);
@@ -331,6 +340,7 @@ select {
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.18);
   overflow: hidden;
   animation: pwaRise 420ms ease both;
+  touch-action: manipulation;
 }
 
 .pwa-card::before {
@@ -354,25 +364,25 @@ select {
 
 .pwa-card strong {
   display: block;
-  margin: 4px 0;
-  font-size: 1rem;
+  margin: 6px 0;
+  font-size: 1.15rem;
   letter-spacing: -0.018em;
 }
 
 .pwa-card p {
   margin: 0;
   color: rgba(245, 242, 237, 0.7);
-  font-size: 0.82rem;
-  line-height: 1.45;
+  font-size: 0.96rem;
+  line-height: 1.5;
 }
 
 .pwa-card-badge {
   align-self: start;
   border-radius: 999px;
-  padding: 6px 9px;
+  padding: 7px 10px;
   color: #07111f;
   background: var(--success);
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -411,7 +421,7 @@ select {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  padding: 8px;
+  padding: 9px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 28px;
   background: rgba(7, 17, 31, 0.86);
@@ -424,7 +434,9 @@ select {
   border-radius: 20px;
   color: rgba(245, 242, 237, 0.62);
   background: transparent;
-  padding: 10px 4px;
+  min-height: 58px;
+  padding: 11px 4px;
+  touch-action: manipulation;
 }
 
 .pwa-bottom-nav button.is-active {
@@ -439,13 +451,19 @@ select {
 }
 
 .pwa-bottom-nav strong {
-  font-size: 0.75rem;
+  font-size: 0.86rem;
 }
 
 .pwa-bottom-nav span {
   margin-top: 2px;
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   opacity: 0.78;
+}
+
+@media (min-width: 430px) {
+  .pwa-status-strip {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 @keyframes pwaRise {
