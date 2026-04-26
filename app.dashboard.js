@@ -39,7 +39,7 @@ function startCarbonBrushAlertRotation(totalItems) {
 
 function getCarbonBrushPlanningActionText(activeStatus, planningPoints) {
   if (!Array.isArray(planningPoints) || !planningPoints.length) {
-    return activeStatus.actionLabel || "Lanjutkan monitoring periodik";
+    return activeStatus.actionLabel || "Tidak ada titik lain dengan estimasi dekat dari titik utama.";
   }
   const pointText = planningPoints
     .map((point) => `${point.pointKey} (${point.countdownDays} hari)`)

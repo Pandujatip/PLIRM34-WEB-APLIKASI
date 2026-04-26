@@ -399,20 +399,6 @@ function buildCarbonBrushAlertSummary(serviceItems) {
       if (!alertPointAnalyses.length) {
         return null;
       }
-      const planningPoints = pointAnalyses
-        .filter((analysis) =>
-          !analysis.latestReplacedConfirmed
-          && analysis.countdownDays !== null
-          && analysis.countdownDays >= 14
-          && analysis.countdownDays <= 30
-          && isCarbonBrushPredictionUsable(analysis))
-        .sort((left, right) => {
-          if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
-            return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
-          }
-          return String(left.pointKey || "").localeCompare(String(right.pointKey || ""));
-        })
-        .slice(0, 8);
       const worstPoint = [...alertPointAnalyses].sort((left, right) => {
         const leftPriority = getCarbonBrushAlertPriority(left);
         const rightPriority = getCarbonBrushAlertPriority(right);
@@ -427,6 +413,22 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         }
         return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
       })[0];
+      const planningBaseDays = worstPoint.countdownDays !== null ? worstPoint.countdownDays : 0;
+      const planningPoints = pointAnalyses
+        .filter((analysis) =>
+          analysis.pointKey !== worstPoint.pointKey
+          && !analysis.latestReplacedConfirmed
+          && analysis.countdownDays !== null
+          && analysis.countdownDays >= planningBaseDays
+          && analysis.countdownDays <= planningBaseDays + 30
+          && isCarbonBrushPredictionUsable(analysis))
+        .sort((left, right) => {
+          if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
+            return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
+          }
+          return String(left.pointKey || "").localeCompare(String(right.pointKey || ""));
+        })
+        .slice(0, 8);
       return {
         item,
         worstPoint,
