@@ -151,7 +151,7 @@ select {
   flex-direction: column;
   padding: max(20px, env(safe-area-inset-top)) 16px calc(112px + env(safe-area-inset-bottom));
   overflow: hidden;
-  font-size: 16px;
+  font-size: 20px;
 }
 
 .pwa-compact-shell::before {
@@ -439,7 +439,7 @@ select {
 
 .pwa-form-field span {
   color: rgba(245, 242, 237, 0.66);
-  font-size: 0.78rem;
+  font-size: 1.05rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -448,18 +448,18 @@ select {
 .pwa-form-field input,
 .pwa-form-field textarea {
   width: 100%;
-  min-height: 54px;
+  min-height: 72px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   color: var(--text);
   background: rgba(7, 17, 31, 0.72);
-  padding: 13px 14px;
-  font-size: 1rem;
+  padding: 18px 18px;
+  font-size: 1.35rem;
   outline: none;
 }
 
 .pwa-form-field textarea {
-  min-height: 86px;
+  min-height: 118px;
   resize: vertical;
 }
 
@@ -473,10 +473,10 @@ select {
 .pwa-carbon-type-info {
   border: 1px solid rgba(115, 224, 169, 0.2);
   border-radius: 18px;
-  padding: 12px 13px;
+  padding: 18px;
   color: rgba(245, 242, 237, 0.68);
   background: rgba(115, 224, 169, 0.08);
-  font-size: 0.9rem;
+  font-size: 1.25rem;
   line-height: 1.45;
 }
 
@@ -498,7 +498,7 @@ select {
 
 .pwa-carbon-type-info strong {
   margin-bottom: 4px;
-  font-size: 0.95rem;
+  font-size: 1.32rem;
 }
 
 .pwa-carbon-summary {
@@ -509,10 +509,10 @@ select {
 
 .pwa-carbon-summary span {
   border-radius: 999px;
-  padding: 8px 10px;
+  padding: 12px 14px;
   color: rgba(245, 242, 237, 0.82);
   background: rgba(255, 255, 255, 0.08);
-  font-size: 0.82rem;
+  font-size: 1.1rem;
   font-weight: 900;
 }
 
@@ -539,7 +539,7 @@ select {
 
 .pwa-carbon-input-toolbar button,
 .pwa-submit-button {
-  min-height: 52px;
+  min-height: 72px;
   border: 0;
   border-radius: 18px;
   font-weight: 900;
@@ -549,13 +549,14 @@ select {
 .pwa-carbon-input-toolbar button {
   color: var(--text);
   background: rgba(255, 255, 255, 0.1);
+  font-size: 1.15rem;
 }
 
 .pwa-submit-button {
-  min-height: 58px;
+  min-height: 78px;
   color: #07111f;
   background: linear-gradient(135deg, #73e0a9, #dfffee);
-  font-size: 1rem;
+  font-size: 1.28rem;
 }
 
 .pwa-submit-button:disabled {
@@ -564,8 +565,8 @@ select {
 
 .pwa-carbon-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
   max-height: 420px;
   overflow: auto;
   padding-right: 2px;
@@ -579,19 +580,19 @@ select {
 
 .pwa-carbon-point span {
   color: rgba(245, 242, 237, 0.72);
-  font-size: 0.74rem;
+  font-size: 1.08rem;
   font-weight: 900;
 }
 
 .pwa-carbon-point input {
   width: 100%;
-  min-height: 50px;
+  min-height: 76px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   color: var(--text);
   background: rgba(7, 17, 31, 0.76);
-  padding: 10px;
-  font-size: 1.02rem;
+  padding: 14px;
+  font-size: 1.55rem;
   font-weight: 800;
   text-align: center;
   outline: none;
@@ -615,7 +616,7 @@ select {
 .pwa-form-note {
   margin: 0;
   color: rgba(245, 242, 237, 0.62);
-  font-size: 0.88rem;
+  font-size: 1.1rem;
   line-height: 1.45;
 }
 
