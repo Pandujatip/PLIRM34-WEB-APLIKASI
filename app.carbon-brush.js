@@ -161,6 +161,13 @@ function isCarbonBrushPredictionUsable(analysis) {
 }
 
 function getCarbonBrushAlertPriority(analysis) {
+  if (analysis?.latestReplacedConfirmed) {
+    return {
+      actualSeverity: 0,
+      predictionSeverity: 0,
+      hasAlert: false,
+    };
+  }
   const actualSeverity = analysis?.actualStatus?.severity ?? 0;
   const predictionSeverity = isCarbonBrushPredictionUsable(analysis)
     ? (analysis?.predictionStatus?.severity ?? 0)
@@ -217,8 +224,16 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
   const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
   const currentRawValue = String(item.payload?.measurements?.[pointKey] || "").trim();
   const currentValue = parseCarbonBrushNumericValue(currentRawValue);
+  const latestReplacedConfirmed = normalizeCarbonBrushReplacedPoints(item.payload?.replacedPoints).includes(pointKey);
   const remainingMm = currentValue === null ? null : currentValue - threshold.low;
-  const actualStatus = classifyCarbonBrushActualStatus(currentValue, threshold.low, threshold.high);
+  const actualStatus = latestReplacedConfirmed
+    ? {
+      label: "Sudah ditandai diganti",
+      className: "is-monitor",
+      actionLabel: "Alert titik ini direset dari inspeksi terbaru",
+      severity: 0,
+    }
+    : classifyCarbonBrushActualStatus(currentValue, threshold.low, threshold.high);
   if (history.length < 4) {
     return {
       pointKey,
@@ -233,6 +248,7 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
       thresholdLow: threshold.low,
       thresholdHigh: threshold.high,
       hasEnoughHistory: false,
+      latestReplacedConfirmed,
       currentBucket: currentValue === null ? "" : classifyCarbonBrushValue(String(currentValue), item.equipmentName || "", item.payload?.plant || ""),
       actualStatus,
       predictionQuality: classifyCarbonBrushPredictionQuality([]),
@@ -282,7 +298,7 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
   const medianWearRate = recentIntervals.length >= 3 ? getMedianValue(recentIntervals.map((entry) => entry.wearRatePerDay)) : null;
   const latestRemainingMm = latestCycleValue === null ? null : latestCycleValue - threshold.low;
   const predictionQuality = classifyCarbonBrushPredictionQuality(recentIntervals);
-  const countdownDays = latestRemainingMm === null
+  const countdownDays = latestReplacedConfirmed || latestRemainingMm === null
     ? null
     : latestRemainingMm <= 0
       ? 0
@@ -304,8 +320,9 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
     thresholdLow: threshold.low,
     thresholdHigh: threshold.high,
     hasEnoughHistory: recentIntervals.length >= 3,
+    latestReplacedConfirmed,
     currentBucket: latestCycleValue === null ? "" : classifyCarbonBrushValue(String(latestCycleValue), item.equipmentName || "", item.payload?.plant || ""),
-    actualStatus: classifyCarbonBrushActualStatus(latestCycleValue, threshold.low, threshold.high),
+    actualStatus,
     predictionQuality,
     predictionStatus,
   };
