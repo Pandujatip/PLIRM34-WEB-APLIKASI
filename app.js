@@ -358,6 +358,7 @@ let editingBomMotorId = null;
 let editingSpbId = null;
 let activeServiceGroupDetailType = "";
 let activeServiceDetailItem = null;
+let serviceDetailReturnState = null;
 let carbonBrushReplacementEditMode = false;
 let carbonBrushReplacementDraft = [];
 let activeBomPane = "general";
@@ -3096,7 +3097,7 @@ function buildMsoMotorWatchlistSummary(serviceItems) {
     }));
 }
 
-function openServiceDetail(item) {
+function openServiceDetail(item, options = {}) {
   if (!serviceDetailModal || !serviceDetailContent || !serviceDetailTitle || !serviceDetailSubtitle) {
     return;
   }
@@ -3110,6 +3111,7 @@ function openServiceDetail(item) {
   ];
   const rawRows = formatServicePayloadLines(item).filter(([, value]) => !shouldHideInspectionDetailValue(value));
   const analysisRows = analyzeServiceItem(item);
+  serviceDetailReturnState = options.returnToGroup || null;
   activeServiceDetailItem = item;
   carbonBrushReplacementEditMode = false;
   carbonBrushReplacementDraft = normalizeCarbonBrushReplacedPoints(item.payload?.replacedPoints);
@@ -3307,6 +3309,10 @@ function openServiceGroupDetail(serviceType) {
   }
 
   activeServiceGroupDetailType = serviceType;
+  activeServiceDetailItem = null;
+  serviceDetailReturnState = null;
+  carbonBrushReplacementEditMode = false;
+  carbonBrushReplacementDraft = [];
   serviceDetailTitle.textContent = `Detail ${serviceType}`;
   serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${serviceType}. Gunakan pencarian dan filter langsung di halaman ini.`;
 
@@ -3398,8 +3404,27 @@ function closeServiceDetail() {
   if (!serviceDetailModal) {
     return;
   }
+  if (serviceDetailReturnState && activeServiceDetailItem) {
+    const returnState = serviceDetailReturnState;
+    serviceDetailReturnState = null;
+    activeServiceDetailItem = null;
+    carbonBrushReplacementEditMode = false;
+    carbonBrushReplacementDraft = [];
+    activeServiceGroupDetailType = returnState.serviceType || "";
+    serviceDetailTitle.textContent = `Detail ${activeServiceGroupDetailType}`;
+    serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${activeServiceGroupDetailType}. Gunakan pencarian dan filter langsung di halaman ini.`;
+    renderServiceGroupDetailContent(
+      activeServiceGroupDetailType,
+      returnState.searchTerm || "",
+      returnState.subtypeFilter || "",
+    );
+    serviceDetailModal.classList.remove("hidden");
+    serviceDetailModal.setAttribute("aria-hidden", "false");
+    return;
+  }
   activeServiceGroupDetailType = "";
   activeServiceDetailItem = null;
+  serviceDetailReturnState = null;
   carbonBrushReplacementEditMode = false;
   carbonBrushReplacementDraft = [];
   serviceDetailModal.classList.add("hidden");
@@ -10016,7 +10041,15 @@ serviceDetailContent?.addEventListener("click", (event) => {
   }
   const item = getServiceItemsFromDom().find((entry) => entry.id === button.dataset.id);
   if (item) {
-    openServiceDetail(item);
+    const searchInput = serviceDetailContent.querySelector("[data-service-group-search]");
+    const subtypeSelect = serviceDetailContent.querySelector("[data-service-group-subtype]");
+    openServiceDetail(item, {
+      returnToGroup: {
+        serviceType: activeServiceGroupDetailType,
+        searchTerm: searchInput instanceof HTMLInputElement ? searchInput.value : "",
+        subtypeFilter: subtypeSelect instanceof HTMLSelectElement ? subtypeSelect.value : "",
+      },
+    });
   }
 });
 
