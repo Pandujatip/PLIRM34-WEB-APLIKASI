@@ -470,6 +470,37 @@ select {
   box-shadow: 0 0 0 3px rgba(115, 224, 169, 0.16);
 }
 
+.pwa-carbon-type-info {
+  border: 1px solid rgba(115, 224, 169, 0.2);
+  border-radius: 18px;
+  padding: 12px 13px;
+  color: rgba(245, 242, 237, 0.68);
+  background: rgba(115, 224, 169, 0.08);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.pwa-carbon-type-info.is-active {
+  color: #07111f;
+  background: linear-gradient(135deg, rgba(115, 224, 169, 0.9), rgba(223, 255, 238, 0.9));
+}
+
+.pwa-carbon-type-info.is-warning {
+  border-color: rgba(255, 177, 74, 0.35);
+  color: #ffdfa7;
+  background: rgba(255, 177, 74, 0.12);
+}
+
+.pwa-carbon-type-info strong,
+.pwa-carbon-type-info span {
+  display: block;
+}
+
+.pwa-carbon-type-info strong {
+  margin-bottom: 4px;
+  font-size: 0.95rem;
+}
+
 .pwa-carbon-summary {
   display: flex;
   flex-wrap: wrap;

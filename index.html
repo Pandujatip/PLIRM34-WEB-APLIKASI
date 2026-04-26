@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-18">
+  <link rel="stylesheet" href="styles.css?v=20260426-19">
 </head>
 <body>
   <div class="app-shell">
@@ -230,6 +230,9 @@
                     <input id="pwa-carbon-equipment" name="equipmentName" type="text" list="pwa-carbon-equipment-list" placeholder="Contoh: 343FN4 - SIEMENS" required>
                     <datalist id="pwa-carbon-equipment-list"></datalist>
                   </label>
+                  <div class="pwa-carbon-type-info" id="pwa-carbon-type-info">
+                    Pilih equipment untuk menampilkan jenis carbon brush.
+                  </div>
                   <div class="pwa-form-grid-2">
                     <label class="pwa-form-field">
                       <span>Tanggal</span>
@@ -2856,11 +2859,11 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-18"></script>
+  <script src="app.js?v=20260426-19"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260426-04").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-05").catch((error) => {
           console.warn("PWA service worker registration failed", error);
         });
       });

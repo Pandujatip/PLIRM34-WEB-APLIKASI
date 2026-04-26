@@ -150,6 +150,7 @@ const pwaCarbonList = document.getElementById("pwa-carbon-list");
 const pwaCarbonForm = document.getElementById("pwa-carbon-form");
 const pwaCarbonEquipment = document.getElementById("pwa-carbon-equipment");
 const pwaCarbonEquipmentList = document.getElementById("pwa-carbon-equipment-list");
+const pwaCarbonTypeInfo = document.getElementById("pwa-carbon-type-info");
 const pwaCarbonDate = document.getElementById("pwa-carbon-date");
 const pwaCarbonDescription = document.getElementById("pwa-carbon-description");
 const pwaCarbonGrid = document.getElementById("pwa-carbon-grid");
@@ -1373,6 +1374,29 @@ function renderPwaCarbonEquipmentOptions() {
     .join("");
 }
 
+function updatePwaCarbonTypeInfo() {
+  if (!pwaCarbonTypeInfo) {
+    return;
+  }
+  const equipmentName = String(pwaCarbonEquipment?.value || "").trim();
+  const matches = getCarbonBrushTypeMatches(equipmentName);
+  pwaCarbonTypeInfo.classList.remove("is-active", "is-warning");
+  if (!equipmentName) {
+    pwaCarbonTypeInfo.textContent = "Pilih equipment untuk menampilkan jenis carbon brush.";
+    return;
+  }
+  if (!matches.length) {
+    pwaCarbonTypeInfo.classList.add("is-warning");
+    pwaCarbonTypeInfo.textContent = `Belum ada referensi jenis carbon brush untuk ${equipmentName}.`;
+    return;
+  }
+  pwaCarbonTypeInfo.classList.add("is-active");
+  pwaCarbonTypeInfo.innerHTML = `
+    <strong>Jenis carbon brush: ${escapeHtml(equipmentName)}</strong>
+    ${matches.map((item) => `<span>${escapeHtml(item.name)} | SAP ${escapeHtml(item.sapNo)} | ${escapeHtml(item.use)}</span>`).join("")}
+  `;
+}
+
 function collectPwaCarbonMeasurements() {
   return carbonBrushMeasurementKeys.reduce((result, key) => {
     result[key] = String(pwaCarbonGrid?.querySelector(`[name="${key}"]`)?.value || "").trim();
@@ -1441,6 +1465,7 @@ function resetPwaCarbonForm() {
     input.classList.remove("is-low", "is-medium", "is-high");
   });
   updatePwaCarbonFormSummary();
+  updatePwaCarbonTypeInfo();
 }
 
 function collectCarbonBrushMeasurements(form) {
@@ -10409,6 +10434,7 @@ pwaCarbonGrid?.addEventListener("input", (event) => {
 
 pwaCarbonEquipment?.addEventListener("input", () => {
   updatePwaCarbonInputColors();
+  updatePwaCarbonTypeInfo();
 });
 
 pwaCarbonForm?.addEventListener("click", (event) => {
