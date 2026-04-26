@@ -332,6 +332,7 @@ const sectionResourceMap = {
   bom: ["bom", "bom-motor"],
   spb: ["spb"],
 };
+const allBackendResourceKeys = Object.keys(storageKeyByResource);
 
 const backendState = {
   available: false,
@@ -5014,7 +5015,7 @@ async function ensureBackendResourcesLoaded(resourceKeys = []) {
     return loader;
   });
   await Promise.all(tasks);
-  loadStoredData();
+  loadStoredData({ resources: normalizedKeys });
 }
 
 async function saveItemToBackend(resourceKey, item, isEditing = false) {
@@ -5700,8 +5701,8 @@ async function loadAllDataFromBackend() {
   writeBackendResource("bom", bomItems);
   writeBackendResource("bom-motor", bomMotorItems);
   writeBackendResource("spb", spbItems);
-  markBackendResourcesLoaded(["negatif-list", "sparepart", "service", "bom", "bom-motor", "spb"]);
-  loadStoredData();
+  markBackendResourcesLoaded(allBackendResourceKeys);
+  loadStoredData({ resources: allBackendResourceKeys });
 }
 
 function hydrateBootstrapData(data = {}) {
@@ -5718,7 +5719,7 @@ function hydrateBootstrapData(data = {}) {
     loadedResources.push(resourceKey);
   });
   markBackendResourcesLoaded(loadedResources);
-  loadStoredData();
+  loadStoredData({ resources: loadedResources });
 }
 
 async function fetchBootstrapPayload(scope = "dashboard") {
@@ -6459,7 +6460,16 @@ function persistSpbList() {
   writeStorage(storageKeys.spb, items);
 }
 
-function updateDashboardStats() {
+function getActiveSectionName() {
+  return workspace?.dataset?.activeSection
+    || window.localStorage.getItem(storageKeys.lastSection)
+    || "dashboard";
+}
+
+function updateDashboardStats(options = {}) {
+  const activeSectionName = getActiveSectionName();
+  const shouldRenderDashboardVisuals = options.renderDashboardVisuals ?? activeSectionName === "dashboard";
+  const shouldRenderNegatifVisuals = options.renderNegatifVisuals ?? (shouldRenderDashboardVisuals || activeSectionName === "negatif-list");
   const negatifItems = getNegatifItemsFromDom();
   const sparepartItems = getSparepartItemsFromDom();
   const serviceItems = getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item));
@@ -6564,12 +6574,16 @@ function updateDashboardStats() {
     const section = badge.dataset.menuBadge || "";
     badge.textContent = section === "dashboard" ? rankBadge : getModuleRankLabel(moduleScores[section] || 0);
   });
-  renderMiniCharts(negatifItems, serviceItems, spbItems);
-  renderCarbonBrushAlertBanner(serviceItems);
-  renderDashboardPreviews(negatifItems, serviceItems, spbItems);
-  renderMobileCards(negatifItems, spbItems);
-  renderNegatifModuleSummary(negatifItems);
-  renderNegatifCharts(negatifItems);
+  if (shouldRenderDashboardVisuals) {
+    renderMiniCharts(negatifItems, serviceItems, spbItems);
+    renderCarbonBrushAlertBanner(serviceItems);
+    renderDashboardPreviews(negatifItems, serviceItems, spbItems);
+    renderMobileCards(negatifItems, spbItems);
+  }
+  if (shouldRenderNegatifVisuals) {
+    renderNegatifModuleSummary(negatifItems);
+    renderNegatifCharts(negatifItems);
+  }
 }
 
 function renderNegatifModuleSummary(negatifItems) {
@@ -7577,84 +7591,118 @@ function getSpbItemsFromDom() {
   })).map((item) => normalizeSpbItem(item));
 }
 
-function loadStoredData() {
-  const storedNegatif = readStorage(storageKeys.negatifList);
-  if (storedNegatif.length) {
-    negatifListBody.innerHTML = "";
-    const normalizedNegatif = storedNegatif.map((item) => normalizeNegatifItem(item));
-    normalizedNegatif.forEach((item) => {
-      negatifListBody.append(renderNegatifRow(item));
-    });
-    writeStorage(storageKeys.negatifList, normalizedNegatif);
-  } else {
-    negatifListBody.innerHTML = "";
-    persistNegatifList();
-  }
+function loadStoredData(options = {}) {
+  const resourceSet = Array.isArray(options.resources)
+    ? new Set(options.resources)
+    : null;
+  const shouldLoadResource = (resourceKey) => !resourceSet || resourceSet.has(resourceKey);
+  const activeSectionName = getActiveSectionName();
 
-  const storedSparepart = readStorage(storageKeys.sparepart);
-  if (storedSparepart.length) {
-    sparepartBody.innerHTML = "";
-    storedSparepart.forEach((item) => {
-      sparepartBody.append(renderSparepartRow(item));
-    });
-  } else {
-    sparepartBody.innerHTML = "";
-    persistSparepartList();
-  }
-
-  const storedService = readStorage(storageKeys.service);
-  if (storedService.length) {
-    const normalizedService = storedService.map((item) => normalizeServiceItem(item));
-    renderServiceBoard(normalizedService);
-    writeStorage(storageKeys.service, normalizedService);
-  } else {
-    renderServiceBoard([]);
-    persistServiceList();
-  }
-
-  const storedBom = readStorage(storageKeys.bom);
-  if (storedBom.length) {
-    bomList.innerHTML = "";
-    storedBom.forEach((item) => {
-      bomList.append(renderBomCard(item));
-    });
-  } else {
-    bomList.innerHTML = "";
-    persistBomList();
-  }
-
-  const storedBomMotor = readStorage(storageKeys.bomMotor);
-  if (storedBomMotor.length) {
-    if (bomMotorList) {
-      bomMotorList.innerHTML = "";
-      storedBomMotor.forEach((item) => {
-        bomMotorList.append(renderBomMotorCard(item));
+  if (shouldLoadResource("negatif-list")) {
+    const storedNegatif = readStorage(storageKeys.negatifList);
+    if (storedNegatif.length) {
+      negatifListBody.innerHTML = "";
+      const normalizedNegatif = storedNegatif.map((item) => normalizeNegatifItem(item));
+      normalizedNegatif.forEach((item) => {
+        negatifListBody.append(renderNegatifRow(item));
       });
+      writeStorage(storageKeys.negatifList, normalizedNegatif);
+    } else {
+      negatifListBody.innerHTML = "";
+      persistNegatifList();
     }
-  } else if (bomMotorList) {
-    bomMotorList.innerHTML = "";
-    persistBomMotorList();
   }
 
-  const storedSpb = readStorage(storageKeys.spb);
-  if (storedSpb.length) {
-    spbBody.innerHTML = "";
-    const normalizedSpb = storedSpb.map((item) => normalizeSpbItem(item));
-    normalizedSpb.forEach((item) => {
-      spbBody.append(renderSpbRow(item));
-    });
-    writeStorage(storageKeys.spb, normalizedSpb);
-  } else {
-    spbBody.innerHTML = "";
-    persistSpbList();
+  if (shouldLoadResource("sparepart")) {
+    const storedSparepart = readStorage(storageKeys.sparepart);
+    if (storedSparepart.length) {
+      sparepartBody.innerHTML = "";
+      storedSparepart.forEach((item) => {
+        sparepartBody.append(renderSparepartRow(item));
+      });
+    } else {
+      sparepartBody.innerHTML = "";
+      persistSparepartList();
+    }
   }
 
-  updateDashboardStats();
-  applyNegatifListFilter();
-  applySparepartFilter();
-  applyServiceFilter();
-  applyBomFilter();
-  applySpbFilter();
+  if (shouldLoadResource("service")) {
+    const storedService = readStorage(storageKeys.service);
+    if (storedService.length) {
+      const normalizedService = storedService.map((item) => normalizeServiceItem(item));
+      syncServiceItemCache(normalizedService);
+      writeStorage(storageKeys.service, normalizedService);
+    } else {
+      syncServiceItemCache([]);
+      if (activeSectionName === "service") {
+        renderServiceBoard([]);
+      }
+      writeStorage(storageKeys.service, []);
+    }
+  }
+
+  if (shouldLoadResource("bom")) {
+    const storedBom = readStorage(storageKeys.bom);
+    if (storedBom.length) {
+      bomList.innerHTML = "";
+      storedBom.forEach((item) => {
+        bomList.append(renderBomCard(item));
+      });
+    } else {
+      bomList.innerHTML = "";
+      persistBomList();
+    }
+  }
+
+  if (shouldLoadResource("bom-motor")) {
+    const storedBomMotor = readStorage(storageKeys.bomMotor);
+    if (storedBomMotor.length) {
+      if (bomMotorList) {
+        bomMotorList.innerHTML = "";
+        storedBomMotor.forEach((item) => {
+          bomMotorList.append(renderBomMotorCard(item));
+        });
+      }
+    } else if (bomMotorList) {
+      bomMotorList.innerHTML = "";
+      persistBomMotorList();
+    }
+  }
+
+  if (shouldLoadResource("spb")) {
+    const storedSpb = readStorage(storageKeys.spb);
+    if (storedSpb.length) {
+      spbBody.innerHTML = "";
+      const normalizedSpb = storedSpb.map((item) => normalizeSpbItem(item));
+      normalizedSpb.forEach((item) => {
+        spbBody.append(renderSpbRow(item));
+      });
+      writeStorage(storageKeys.spb, normalizedSpb);
+    } else {
+      spbBody.innerHTML = "";
+      persistSpbList();
+    }
+  }
+
+  updateDashboardStats({
+    renderDashboardVisuals: activeSectionName === "dashboard",
+    renderNegatifVisuals: activeSectionName === "dashboard" || activeSectionName === "negatif-list",
+  });
+  if (shouldLoadResource("negatif-list") && activeSectionName === "negatif-list") {
+    applyNegatifListFilter();
+  }
+  if (shouldLoadResource("sparepart") && activeSectionName === "sparepart") {
+    applySparepartFilter();
+  }
+  if (shouldLoadResource("service") && activeSectionName === "service") {
+    applyServiceFilter();
+  }
+  if ((shouldLoadResource("bom") || shouldLoadResource("bom-motor")) && activeSectionName === "bom") {
+    applyBomFilter();
+  }
+  if (shouldLoadResource("spb") && activeSectionName === "spb") {
+    applySpbFilter();
+  }
 }
 
 function hydrateNegatifForm(item) {

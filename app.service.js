@@ -68,6 +68,19 @@ function getSortedServiceItems(items) {
   });
 }
 
+function syncServiceItemCache(items) {
+  serviceItemCache.clear();
+  items.forEach((item) => {
+    if (!item?.id) {
+      return;
+    }
+    serviceItemCache.set(item.id, {
+      ...item,
+      payload: item.payload || {},
+    });
+  });
+}
+
 function renderServiceBoard(items, options = {}) {
   if (!serviceCardList) {
     return;
@@ -93,16 +106,7 @@ function renderServiceBoard(items, options = {}) {
 
   serviceCardList.innerHTML = "";
   if (syncCache) {
-    serviceItemCache.clear();
-    items.forEach((item) => {
-      if (!item?.id) {
-        return;
-      }
-      serviceItemCache.set(item.id, {
-        ...item,
-        payload: item.payload || {},
-      });
-    });
+    syncServiceItemCache(items);
   }
 
   const visibleItems = items.filter((item) => shouldDisplayServiceItem(item));
