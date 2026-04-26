@@ -37,6 +37,16 @@ function startCarbonBrushAlertRotation(totalItems) {
   }, 4200);
 }
 
+function getCarbonBrushPlanningActionText(activeStatus, planningPoints) {
+  if (!Array.isArray(planningPoints) || !planningPoints.length) {
+    return activeStatus.actionLabel || "Lanjutkan monitoring periodik";
+  }
+  const pointText = planningPoints
+    .map((point) => `${point.pointKey} (${point.countdownDays} hari)`)
+    .join(", ");
+  return `Persiapkan sparepart dan sekalian ganti titik: ${pointText}`;
+}
+
 function renderCarbonBrushAlertBanner(serviceItems) {
   if (!dashboardCarbonBrushBanner || !dashboardCarbonBrushBannerViewport) {
     return;
@@ -59,9 +69,10 @@ function renderCarbonBrushAlertBanner(serviceItems) {
   if (dashboardCarbonBrushBannerSummary) {
     dashboardCarbonBrushBannerSummary.textContent = `Top ${alerts.length} prioritas carbon brush`;
   }
-  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, worstPoint, status, displayStatus, predictionStatus, predictionQuality, rank }) => {
+  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, worstPoint, status, displayStatus, predictionStatus, predictionQuality, planningPoints, rank }) => {
     const activeStatus = displayStatus || status;
     const countdownText = worstPoint.countdownDays !== null ? `${worstPoint.countdownDays} hari` : "prediksi belum siap";
+    const actionText = getCarbonBrushPlanningActionText(activeStatus, planningPoints);
     const statusBasisText = activeStatus.source === "prediction"
       ? "Prioritas ini berasal dari prediksi countdown dengan histori yang cukup; nilai aktual tetap menjadi acuan utama."
       : "Prioritas ini berasal dari nilai aktual terhadap threshold carbon brush.";
@@ -83,7 +94,7 @@ function renderCarbonBrushAlertBanner(serviceItems) {
         </div>
       </div>
       <div class="carbon-brush-alert-action">
-        <span>${escapeHtml(activeStatus.actionLabel)}</span>
+        <span>${escapeHtml(actionText)}</span>
         <small>${escapeHtml(predictionQuality?.note || "Countdown menunggu histori yang cukup.")}</small>
         <small>Klik untuk buka detail equipment</small>
       </div>

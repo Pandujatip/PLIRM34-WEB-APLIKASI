@@ -143,7 +143,7 @@ function classifyCarbonBrushActualStatus(currentValue, thresholdLow, thresholdHi
     return {
       label: "Dekat limit",
       className: "is-prepare",
-      actionLabel: "Persiapkan sparepart dan ganti titik yang berpotensi kena limit 14-30 hari ke depan",
+      actionLabel: "Persiapkan sparepart berdasarkan titik yang masuk range planning",
       severity: 2,
     };
   }
@@ -358,7 +358,7 @@ function classifyCarbonBrushCountdownStatus(countdownDays, qualityKey = "insuffi
     return {
       label: "Prepare",
       className: "is-prepare",
-      actionLabel: "Persiapkan sparepart dan ganti titik yang berpotensi kena limit 14-30 hari ke depan",
+      actionLabel: "Persiapkan sparepart berdasarkan titik yang masuk range planning",
       severity: 1,
     };
   }
@@ -399,6 +399,20 @@ function buildCarbonBrushAlertSummary(serviceItems) {
       if (!alertPointAnalyses.length) {
         return null;
       }
+      const planningPoints = pointAnalyses
+        .filter((analysis) =>
+          !analysis.latestReplacedConfirmed
+          && analysis.countdownDays !== null
+          && analysis.countdownDays >= 14
+          && analysis.countdownDays <= 30
+          && isCarbonBrushPredictionUsable(analysis))
+        .sort((left, right) => {
+          if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
+            return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
+          }
+          return String(left.pointKey || "").localeCompare(String(right.pointKey || ""));
+        })
+        .slice(0, 8);
       const worstPoint = [...alertPointAnalyses].sort((left, right) => {
         const leftPriority = getCarbonBrushAlertPriority(left);
         const rightPriority = getCarbonBrushAlertPriority(right);
@@ -420,6 +434,7 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         displayStatus: getCarbonBrushDisplayStatus(worstPoint),
         predictionStatus: worstPoint.predictionStatus,
         predictionQuality: worstPoint.predictionQuality,
+        planningPoints,
       };
     })
     .filter(Boolean)
