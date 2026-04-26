@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-22">
+  <link rel="stylesheet" href="styles.css?v=20260426-23">
 </head>
 <body>
   <div class="app-shell">
@@ -216,7 +216,22 @@
             </section>
 
             <section class="pwa-page" data-pwa-page="service">
-              <section class="pwa-block pwa-block-flush pwa-quick-form-block" id="pwa-carbon-form-block">
+              <section class="pwa-block pwa-block-flush pwa-form-picker">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Pilih form service</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                </div>
+                <div class="pwa-service-choice-grid">
+                  <button type="button" data-pwa-form-choice="carbon">Carbon Brush</button>
+                  <button type="button" data-pwa-form-choice="mcc">MCC</button>
+                  <button type="button" data-pwa-form-choice="electrical-room">Electrical Room</button>
+                </div>
+              </section>
+
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" id="pwa-carbon-form-block" data-pwa-quick-form="carbon">
                 <div class="pwa-block-head">
                   <div>
                     <span>Quick Input</span>
@@ -271,7 +286,7 @@
                   <p class="pwa-form-note" id="pwa-carbon-form-note">Nilai titik hanya angka, contoh 43.8. Tanda koma otomatis dibaca sebagai desimal.</p>
                 </form>
               </section>
-              <section class="pwa-block pwa-block-flush pwa-quick-form-block">
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="mcc">
                 <div class="pwa-block-head">
                   <div>
                     <span>Quick Input</span>
@@ -321,7 +336,7 @@
                 </form>
               </section>
 
-              <section class="pwa-block pwa-block-flush pwa-quick-form-block">
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="electrical-room">
                 <div class="pwa-block-head">
                   <div>
                     <span>Quick Input</span>
@@ -2975,11 +2990,11 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-22"></script>
+  <script src="app.js?v=20260426-23"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260426-08").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-09").catch((error) => {
           console.warn("PWA service worker registration failed", error);
         });
       });

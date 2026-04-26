@@ -413,6 +413,32 @@ select {
   gap: 10px;
 }
 
+.pwa-form-picker {
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(18px);
+}
+
+.pwa-service-choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.pwa-service-choice-grid button {
+  min-height: 78px;
+  border: 0;
+  border-radius: 20px;
+  color: #07111f;
+  background: linear-gradient(135deg, #73e0a9, #dfffee);
+  font-size: 1.22rem;
+  font-weight: 950;
+  text-align: left;
+  padding: 0 18px;
+  touch-action: manipulation;
+}
+
 .pwa-quick-form-block {
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);

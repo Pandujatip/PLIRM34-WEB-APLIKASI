@@ -132,6 +132,7 @@ const dashboardCarbonBrushBannerSummary = document.getElementById("dashboard-car
 const pwaCompactShell = document.getElementById("pwa-compact-shell");
 const pwaPages = document.querySelectorAll("[data-pwa-page]");
 const pwaTabs = document.querySelectorAll("[data-pwa-tab]");
+const pwaQuickForms = document.querySelectorAll("[data-pwa-quick-form]");
 const pwaUserLine = document.getElementById("pwa-user-line");
 const pwaRefreshButton = document.getElementById("pwa-refresh-button");
 const pwaOpenWebButton = document.getElementById("pwa-open-web-button");
@@ -6718,6 +6719,17 @@ function openPwaTab(tabName) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function openPwaQuickForm(formName = "") {
+  pwaQuickForms.forEach((formBlock) => {
+    formBlock.classList.toggle("hidden", formBlock.dataset.pwaQuickForm !== formName);
+  });
+  if (formName) {
+    window.setTimeout(() => {
+      document.querySelector(`[data-pwa-quick-form="${formName}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 30);
+  }
+}
+
 function renderPwaEmpty(message) {
   return `<div class="pwa-empty">${escapeHtml(message)}</div>`;
 }
@@ -10471,6 +10483,15 @@ pwaCompactShell?.addEventListener("click", async (event) => {
   const jumpButton = target.closest("[data-pwa-jump]");
   if (jumpButton instanceof HTMLElement) {
     openPwaTab(jumpButton.dataset.pwaJump || "home");
+    if (jumpButton.dataset.pwaJump === "carbon") {
+      openPwaQuickForm("carbon");
+    }
+    return;
+  }
+
+  const formChoice = target.closest("[data-pwa-form-choice]");
+  if (formChoice instanceof HTMLElement) {
+    openPwaQuickForm(formChoice.dataset.pwaFormChoice || "");
     return;
   }
 
@@ -10684,6 +10705,7 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
     appendServiceCard(savedItem);
     renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
     resetPwaCarbonForm();
+    openPwaQuickForm("");
     if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Data carbon brush berhasil disimpan.";
     showToast("Carbon Brush", "Data carbon brush berhasil disimpan.");
   } catch (error) {
@@ -10733,6 +10755,7 @@ pwaMccForm?.addEventListener("submit", async (event) => {
     appendServiceCard(savedItem);
     renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
     resetPwaMccForm();
+    openPwaQuickForm("");
     if (pwaMccFormNote) pwaMccFormNote.textContent = "Data MCC berhasil disimpan.";
     showToast("MCC", "Data MCC berhasil disimpan.");
   } catch (error) {
@@ -10800,6 +10823,7 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
     appendServiceCard(savedItem);
     renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
     resetPwaElectricalRoomForm();
+    openPwaQuickForm("");
     if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = "Data Electrical Room berhasil disimpan.";
     showToast("Electrical Room", "Data Electrical Room berhasil disimpan.");
   } catch (error) {
