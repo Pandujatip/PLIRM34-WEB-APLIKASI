@@ -1555,7 +1555,7 @@ function resetPwaElectricalRoomForm() {
   }
   pwaElectricalRoomForm.reset();
   if (pwaElectricalRoomFormNote) {
-    pwaElectricalRoomFormNote.textContent = "Untuk detail battery cell 1-10, gunakan form web jika diperlukan.";
+    pwaElectricalRoomFormNote.textContent = "Bagian Battery cell, Transformer, dan Foto bisa dibuka hanya saat diperlukan.";
   }
 }
 
@@ -10779,6 +10779,7 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
     showToast("Electrical Room", "Pilih room / panel dari referensi.");
     return;
   }
+  const photoPayload = await getFindingPhotoPayload(formData, {});
   const payload = {
     inspectionDate: new Date().toISOString(),
     panelDoorCondition: String(formData.get("panelDoorCondition") || "OK"),
@@ -10787,22 +10788,22 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
     batteryVdc: String(formData.get("batteryVdc") || "").trim(),
     batteryAmpere: String(formData.get("batteryAmpere") || "").trim(),
     batteryTotalVdc: String(formData.get("batteryTotalVdc") || "").trim(),
-    battery1: "",
-    battery2: "",
-    battery3: "",
-    battery4: "",
-    battery5: "",
-    battery6: "",
-    battery7: "",
-    battery8: "",
-    battery9: "",
-    battery10: "",
-    transformerEquipment: "",
+    battery1: String(formData.get("battery1") || "").trim(),
+    battery2: String(formData.get("battery2") || "").trim(),
+    battery3: String(formData.get("battery3") || "").trim(),
+    battery4: String(formData.get("battery4") || "").trim(),
+    battery5: String(formData.get("battery5") || "").trim(),
+    battery6: String(formData.get("battery6") || "").trim(),
+    battery7: String(formData.get("battery7") || "").trim(),
+    battery8: String(formData.get("battery8") || "").trim(),
+    battery9: String(formData.get("battery9") || "").trim(),
+    battery10: String(formData.get("battery10") || "").trim(),
+    transformerEquipment: String(formData.get("transformerEquipment") || "").trim(),
     transformerWindingTemperature: String(formData.get("transformerWindingTemperature") || "").trim(),
     transformerOilTemperature: String(formData.get("transformerOilTemperature") || "").trim(),
-    transformerOilLevel: "",
-    transformerSilicaGel: "OK",
-    findingPhotos: [],
+    transformerOilLevel: String(formData.get("transformerOilLevel") || "").trim(),
+    transformerSilicaGel: String(formData.get("transformerSilicaGel") || "OK"),
+    ...photoPayload,
   };
   const item = {
     id: createId("service"),

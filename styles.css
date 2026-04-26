@@ -694,6 +694,39 @@ select {
   line-height: 1.45;
 }
 
+.pwa-form-accordion {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.055);
+  overflow: hidden;
+}
+
+.pwa-form-accordion summary {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  color: var(--text);
+  font-size: 1.18rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.pwa-form-accordion[open] summary {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #07111f;
+  background: rgba(115, 224, 169, 0.86);
+}
+
+.pwa-form-accordion .pwa-form-grid-2,
+.pwa-form-accordion .pwa-form-field {
+  padding: 12px;
+}
+
+.pwa-form-accordion .pwa-form-grid-2 .pwa-form-field {
+  padding: 0;
+}
+
 .pwa-bottom-nav {
   position: fixed;
   left: 12px;

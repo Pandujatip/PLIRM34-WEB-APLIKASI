@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-23">
+  <link rel="stylesheet" href="styles.css?v=20260426-24">
 </head>
 <body>
   <div class="app-shell">
@@ -384,6 +384,70 @@
                       <span>Battery ampere</span>
                       <input name="batteryAmpere" type="text" inputmode="decimal" placeholder="Contoh: 4">
                     </label>
+                  </div>
+                  <details class="pwa-form-accordion">
+                    <summary>Battery cell 1-10</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>Battery 1</span>
+                        <input name="battery1" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 2</span>
+                        <input name="battery2" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 3</span>
+                        <input name="battery3" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 4</span>
+                        <input name="battery4" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 5</span>
+                        <input name="battery5" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 6</span>
+                        <input name="battery6" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 7</span>
+                        <input name="battery7" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 8</span>
+                        <input name="battery8" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 9</span>
+                        <input name="battery9" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Battery 10</span>
+                        <input name="battery10" type="text" inputmode="decimal" placeholder="Contoh: 12.5">
+                      </label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Transformer</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>Trafo equipment</span>
+                        <input name="transformerEquipment" type="text" placeholder="Contoh: Trafo 3A">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Oil level</span>
+                        <input name="transformerOilLevel" type="text" placeholder="Contoh: Normal">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Silica gel</span>
+                        <select name="transformerSilicaGel">
+                          <option value="OK">OK</option>
+                          <option value="NOT OK">NOT OK</option>
+                        </select>
+                      </label>
                     <label class="pwa-form-field">
                       <span>Trafo winding</span>
                       <input name="transformerWindingTemperature" type="text" inputmode="decimal" placeholder="Contoh: 58">
@@ -392,13 +456,21 @@
                       <span>Trafo oil</span>
                       <input name="transformerOilTemperature" type="text" inputmode="decimal" placeholder="Contoh: 50">
                     </label>
-                  </div>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Foto temuan</summary>
+                    <label class="pwa-form-field">
+                      <span>Foto</span>
+                      <input name="findingPhoto" type="file" accept="image/*" multiple>
+                    </label>
+                  </details>
                   <label class="pwa-form-field">
                     <span>Keterangan</span>
                     <textarea name="description" rows="2" placeholder="Catatan inspeksi electrical room"></textarea>
                   </label>
                   <button class="pwa-submit-button" id="pwa-electrical-room-submit" type="submit">Simpan Electrical Room</button>
-                  <p class="pwa-form-note" id="pwa-electrical-room-form-note">Untuk detail battery cell 1-10, gunakan form web jika diperlukan.</p>
+                  <p class="pwa-form-note" id="pwa-electrical-room-form-note">Bagian Battery cell, Transformer, dan Foto bisa dibuka hanya saat diperlukan.</p>
                 </form>
               </section>
               <section class="pwa-block pwa-block-flush">
@@ -2990,11 +3062,11 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-23"></script>
+  <script src="app.js?v=20260426-24"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260426-09").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-10").catch((error) => {
           console.warn("PWA service worker registration failed", error);
         });
       });
