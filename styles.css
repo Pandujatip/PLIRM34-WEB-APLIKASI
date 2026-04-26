@@ -116,6 +116,349 @@ select {
   color: var(--muted);
 }
 
+.pwa-compact body {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(115, 224, 169, 0.18), transparent 28%),
+    radial-gradient(circle at 92% 8%, rgba(255, 106, 0, 0.14), transparent 24%),
+    linear-gradient(180deg, #07111f 0%, #09131f 42%, #0b0f17 100%);
+}
+
+.pwa-compact:not(.pwa-web-view) .sidebar,
+.pwa-compact:not(.pwa-web-view) .topbar,
+.pwa-compact:not(.pwa-web-view) .panel-section {
+  display: none !important;
+}
+
+.pwa-compact:not(.pwa-web-view) .main-content {
+  width: 100%;
+  min-height: 100svh;
+  padding: 0;
+  margin: 0;
+}
+
+.pwa-compact:not(.pwa-web-view) .workspace {
+  display: block;
+  min-height: 100svh;
+}
+
+.pwa-compact:not(.pwa-web-view) #pwa-compact-shell {
+  display: flex !important;
+}
+
+.pwa-compact-shell {
+  position: relative;
+  min-height: 100svh;
+  flex-direction: column;
+  padding: max(18px, env(safe-area-inset-top)) 16px calc(100px + env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+
+.pwa-compact-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 32%),
+    radial-gradient(circle at 50% 100%, rgba(115, 224, 169, 0.12), transparent 28%);
+  opacity: 0.72;
+}
+
+.pwa-app-header,
+.pwa-pages,
+.pwa-bottom-nav {
+  position: relative;
+  z-index: 1;
+}
+
+.pwa-app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  animation: pwaRise 420ms ease both;
+}
+
+.pwa-app-header h2 {
+  margin: 4px 0 2px;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(1.65rem, 8vw, 2.3rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.pwa-app-header small {
+  color: rgba(245, 242, 237, 0.62);
+}
+
+.pwa-kicker {
+  display: inline-flex;
+  color: var(--success);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.pwa-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pwa-icon-button,
+.pwa-text-button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  min-height: 42px;
+  padding: 0 14px;
+  font-weight: 800;
+}
+
+.pwa-icon-button {
+  min-width: 44px;
+}
+
+.pwa-pages {
+  flex: 1;
+}
+
+.pwa-page {
+  display: none;
+}
+
+.pwa-page.is-active {
+  display: block;
+  animation: pwaRise 360ms ease both;
+}
+
+.pwa-status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pwa-status-strip article {
+  min-height: 82px;
+  padding: 12px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.075);
+  backdrop-filter: blur(18px);
+}
+
+.pwa-status-strip span,
+.pwa-block-head span,
+.pwa-card small {
+  display: block;
+  color: rgba(245, 242, 237, 0.58);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pwa-status-strip strong {
+  display: block;
+  margin-top: 8px;
+  font-family: "Sora", sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.05;
+}
+
+.pwa-action-rail {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pwa-action-rail button,
+.pwa-menu-grid button {
+  border: 0;
+  color: #07111f;
+  background: linear-gradient(135deg, #73e0a9, #dfffee);
+  border-radius: 18px;
+  padding: 13px 10px;
+  font-weight: 900;
+  box-shadow: 0 14px 34px rgba(115, 224, 169, 0.16);
+}
+
+.pwa-block {
+  margin: 18px 0;
+}
+
+.pwa-block-flush {
+  margin-top: 4px;
+}
+
+.pwa-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.pwa-block-head h3 {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.025em;
+}
+
+.pwa-block-head small {
+  color: rgba(245, 242, 237, 0.55);
+  white-space: nowrap;
+}
+
+.pwa-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pwa-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.075);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  animation: pwaRise 420ms ease both;
+}
+
+.pwa-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--success);
+  opacity: 0.85;
+}
+
+.pwa-card.is-critical::before,
+.pwa-card.is-priority-1::before {
+  background: var(--danger);
+}
+
+.pwa-card.is-urgent::before,
+.pwa-card.is-priority-2::before {
+  background: var(--warning);
+}
+
+.pwa-card strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 1rem;
+  letter-spacing: -0.018em;
+}
+
+.pwa-card p {
+  margin: 0;
+  color: rgba(245, 242, 237, 0.7);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.pwa-card-badge {
+  align-self: start;
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #07111f;
+  background: var(--success);
+  font-size: 0.7rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.pwa-card.is-critical .pwa-card-badge,
+.pwa-card.is-priority-1 .pwa-card-badge {
+  color: #fff;
+  background: var(--danger);
+}
+
+.pwa-card.is-urgent .pwa-card-badge,
+.pwa-card.is-priority-2 .pwa-card-badge {
+  color: #1b1004;
+  background: var(--warning);
+}
+
+.pwa-empty {
+  padding: 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+  color: rgba(245, 242, 237, 0.62);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.pwa-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.pwa-bottom-nav {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  background: rgba(7, 17, 31, 0.86);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.36);
+}
+
+.pwa-bottom-nav button {
+  border: 0;
+  border-radius: 20px;
+  color: rgba(245, 242, 237, 0.62);
+  background: transparent;
+  padding: 10px 4px;
+}
+
+.pwa-bottom-nav button.is-active {
+  color: #07111f;
+  background: var(--success);
+}
+
+.pwa-bottom-nav strong,
+.pwa-bottom-nav span {
+  display: block;
+  line-height: 1.1;
+}
+
+.pwa-bottom-nav strong {
+  font-size: 0.75rem;
+}
+
+.pwa-bottom-nav span {
+  margin-top: 2px;
+  font-size: 0.62rem;
+  opacity: 0.78;
+}
+
+@keyframes pwaRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .detail-modal-actions {
   display: flex;
   gap: 8px;

@@ -13,10 +13,19 @@
   <link rel="manifest" href="manifest.webmanifest?v=20260426-01">
   <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png">
   <link rel="apple-touch-icon" href="pwa-icons/icon-192.png">
+  <script>
+    (() => {
+      const params = new URLSearchParams(window.location.search);
+      const isStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone;
+      if (isStandalone || params.get("source") === "pwa") {
+        document.documentElement.classList.add("pwa-compact");
+      }
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-15">
+  <link rel="stylesheet" href="styles.css?v=20260426-16">
 </head>
 <body>
   <div class="app-shell">
@@ -135,6 +144,145 @@
             </div>
           </div>
         </header>
+
+        <section class="pwa-compact-shell hidden" id="pwa-compact-shell" aria-label="PLIRM34 mobile app">
+          <header class="pwa-app-header">
+            <div>
+              <span class="pwa-kicker">PLIRM34 FIELD APP</span>
+              <h2>Prioritas Lapangan</h2>
+              <small id="pwa-user-line">Mode mobile compact</small>
+            </div>
+            <div class="pwa-header-actions">
+              <button class="pwa-icon-button" id="pwa-refresh-button" type="button" aria-label="Refresh data">&#8635;</button>
+              <button class="pwa-icon-button" id="pwa-open-web-button" type="button" aria-label="Buka web lengkap">Web</button>
+            </div>
+          </header>
+
+          <div class="pwa-pages">
+            <section class="pwa-page is-active" data-pwa-page="home">
+              <div class="pwa-status-strip">
+                <article>
+                  <span>Negatif Open</span>
+                  <strong id="pwa-stat-negatif">0</strong>
+                </article>
+                <article>
+                  <span>Service Hari Ini</span>
+                  <strong id="pwa-stat-service">0</strong>
+                </article>
+                <article>
+                  <span>SPB Tahun Ini</span>
+                  <strong id="pwa-stat-spb">Rp0</strong>
+                </article>
+              </div>
+
+              <div class="pwa-action-rail">
+                <button type="button" data-pwa-jump="service">Input Service</button>
+                <button type="button" data-pwa-jump="carbon">Carbon Brush</button>
+                <button type="button" data-pwa-jump="mso">Motor MSO</button>
+              </div>
+
+              <section class="pwa-block">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Early Warning</span>
+                    <h3>Carbon brush terdekat</h3>
+                  </div>
+                  <small id="pwa-carbon-count">0 alert</small>
+                </div>
+                <div class="pwa-list pwa-priority-list" id="pwa-carbon-priority"></div>
+              </section>
+
+              <section class="pwa-block">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>MSO Watchlist</span>
+                    <h3>Motor perlu perhatian</h3>
+                  </div>
+                  <small id="pwa-mso-count">0 equipment</small>
+                </div>
+                <div class="pwa-list" id="pwa-mso-priority"></div>
+              </section>
+
+              <section class="pwa-block">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Negatif List</span>
+                    <h3>Open item prioritas</h3>
+                  </div>
+                  <small id="pwa-negatif-count">0 open</small>
+                </div>
+                <div class="pwa-list" id="pwa-negatif-open"></div>
+              </section>
+            </section>
+
+            <section class="pwa-page" data-pwa-page="service">
+              <section class="pwa-block pwa-block-flush">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Service</span>
+                    <h3>Riwayat terbaru</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="service">Buka form</button>
+                </div>
+                <div class="pwa-list" id="pwa-service-latest"></div>
+              </section>
+            </section>
+
+            <section class="pwa-page" data-pwa-page="mso">
+              <section class="pwa-block pwa-block-flush">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Motor MSO</span>
+                    <h3>Ranking 20 equipment</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="service">Detail web</button>
+                </div>
+                <div class="pwa-list" id="pwa-mso-list"></div>
+              </section>
+            </section>
+
+            <section class="pwa-page" data-pwa-page="carbon">
+              <section class="pwa-block pwa-block-flush">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Carbon Brush</span>
+                    <h3>Alert dan planning titik</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="service">Input data</button>
+                </div>
+                <div class="pwa-list" id="pwa-carbon-list"></div>
+              </section>
+            </section>
+
+            <section class="pwa-page" data-pwa-page="more">
+              <section class="pwa-block pwa-block-flush">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Menu</span>
+                    <h3>Akses modul lengkap</h3>
+                  </div>
+                  <small>Mode web tetap tersedia</small>
+                </div>
+                <div class="pwa-menu-grid">
+                  <button type="button" data-pwa-section="dashboard">Dashboard Web</button>
+                  <button type="button" data-pwa-section="negatif-list">Negatif List</button>
+                  <button type="button" data-pwa-section="service">Service</button>
+                  <button type="button" data-pwa-section="spb">SPB</button>
+                  <button type="button" data-pwa-section="bom">BOM</button>
+                  <button type="button" data-pwa-section="user-management">Admin</button>
+                </div>
+              </section>
+            </section>
+          </div>
+
+          <nav class="pwa-bottom-nav" aria-label="Navigasi PWA">
+            <button class="is-active" type="button" data-pwa-tab="home"><strong>Home</strong><span>Prioritas</span></button>
+            <button type="button" data-pwa-tab="service"><strong>Service</strong><span>Log</span></button>
+            <button type="button" data-pwa-tab="mso"><strong>MSO</strong><span>Motor</span></button>
+            <button type="button" data-pwa-tab="carbon"><strong>Carbon</strong><span>Brush</span></button>
+            <button type="button" data-pwa-tab="more"><strong>More</strong><span>Menu</span></button>
+          </nav>
+        </section>
 
         <section class="panel-section visible" data-panel="dashboard">
           <section class="content-card carbon-brush-alert-banner hidden" id="dashboard-carbon-brush-banner">
@@ -2661,7 +2809,7 @@
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260426-01").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-02").catch((error) => {
           console.warn("PWA service worker registration failed", error);
         });
       });

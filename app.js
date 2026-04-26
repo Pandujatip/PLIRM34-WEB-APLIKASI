@@ -129,6 +129,24 @@ const dashboardCarbonBrushBanner = document.getElementById("dashboard-carbon-bru
 const dashboardCarbonBrushBannerViewport = document.getElementById("dashboard-carbon-brush-banner-viewport");
 const dashboardCarbonBrushBannerDots = document.getElementById("dashboard-carbon-brush-banner-dots");
 const dashboardCarbonBrushBannerSummary = document.getElementById("dashboard-carbon-brush-banner-summary");
+const pwaCompactShell = document.getElementById("pwa-compact-shell");
+const pwaPages = document.querySelectorAll("[data-pwa-page]");
+const pwaTabs = document.querySelectorAll("[data-pwa-tab]");
+const pwaUserLine = document.getElementById("pwa-user-line");
+const pwaRefreshButton = document.getElementById("pwa-refresh-button");
+const pwaOpenWebButton = document.getElementById("pwa-open-web-button");
+const pwaStatNegatif = document.getElementById("pwa-stat-negatif");
+const pwaStatService = document.getElementById("pwa-stat-service");
+const pwaStatSpb = document.getElementById("pwa-stat-spb");
+const pwaCarbonCount = document.getElementById("pwa-carbon-count");
+const pwaMsoCount = document.getElementById("pwa-mso-count");
+const pwaNegatifCount = document.getElementById("pwa-negatif-count");
+const pwaCarbonPriority = document.getElementById("pwa-carbon-priority");
+const pwaMsoPriority = document.getElementById("pwa-mso-priority");
+const pwaNegatifOpen = document.getElementById("pwa-negatif-open");
+const pwaServiceLatest = document.getElementById("pwa-service-latest");
+const pwaMsoList = document.getElementById("pwa-mso-list");
+const pwaCarbonList = document.getElementById("pwa-carbon-list");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
 const dashboardInspectionHistory = document.getElementById("dashboard-inspection-history");
@@ -6466,6 +6484,155 @@ function getActiveSectionName() {
     || "dashboard";
 }
 
+function isPwaCompactMode() {
+  return document.documentElement.classList.contains("pwa-compact")
+    && !document.documentElement.classList.contains("pwa-web-view");
+}
+
+function openPwaTab(tabName) {
+  pwaPages.forEach((page) => {
+    page.classList.toggle("is-active", page.dataset.pwaPage === tabName);
+  });
+  pwaTabs.forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.pwaTab === tabName);
+  });
+  pwaCompactShell?.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderPwaEmpty(message) {
+  return `<div class="pwa-empty">${escapeHtml(message)}</div>`;
+}
+
+function getPwaPriorityClass(className = "") {
+  const normalized = String(className || "").toLowerCase();
+  if (normalized.includes("critical") || normalized.includes("priority-1") || normalized.includes("danger")) {
+    return "is-critical";
+  }
+  if (normalized.includes("urgent") || normalized.includes("priority-2") || normalized.includes("warning")) {
+    return "is-urgent";
+  }
+  if (normalized.includes("priority-3")) {
+    return "is-priority-3";
+  }
+  return "is-monitor";
+}
+
+function renderPwaServiceCard(item, metaText = "") {
+  return `
+    <article class="pwa-card" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
+      <div>
+        <small>${escapeHtml(item.subtype || item.type || "Service")}</small>
+        <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+        <p>${escapeHtml(metaText || item.detail || item.description || "-")}</p>
+      </div>
+      <span class="pwa-card-badge">${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</span>
+    </article>
+  `;
+}
+
+function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
+  if (!pwaCompactShell || !isPwaCompactMode()) {
+    return;
+  }
+  const today = new Date();
+  const currentYear = String(today.getFullYear());
+  const openNegatifItems = negatifItems.filter((item) => String(item.workStatus || "").toLowerCase() === "open");
+  const todayServiceItems = serviceItems.filter((item) => isSameCalendarDate(item.payload?.inspectionDate, today));
+  const currentYearSpbTotal = spbItems
+    .filter((item) => extractSpbYear(item) === currentYear)
+    .reduce((sum, item) => sum + parseSpbAmount(item.totalEce), 0);
+  const carbonAlerts = buildCarbonBrushAlertSummary(serviceItems);
+  const msoWatchlist = buildMsoMotorWatchlistSummary(serviceItems);
+  const recentService = getSortedServiceItems(serviceItems).slice(0, 14);
+
+  if (pwaUserLine) {
+    pwaUserLine.textContent = `${currentUser?.textContent || "-"} | ${currentRole?.textContent || "Role"}`;
+  }
+  if (pwaStatNegatif) pwaStatNegatif.textContent = `${openNegatifItems.length}`;
+  if (pwaStatService) pwaStatService.textContent = `${todayServiceItems.length}`;
+  if (pwaStatSpb) pwaStatSpb.textContent = formatCompactCurrency(currentYearSpbTotal);
+  if (pwaCarbonCount) pwaCarbonCount.textContent = `${carbonAlerts.length} alert`;
+  if (pwaMsoCount) pwaMsoCount.textContent = `${msoWatchlist.length} equipment`;
+  if (pwaNegatifCount) pwaNegatifCount.textContent = `${openNegatifItems.length} open`;
+
+  const carbonCardHtml = carbonAlerts.slice(0, 10).map(({ item, worstPoint, displayStatus, status, predictionQuality, planningPoints, rank }) => {
+    const activeStatus = displayStatus || status || {};
+    const pwaClass = getPwaPriorityClass(activeStatus.className);
+    const countdownText = worstPoint.countdownDays !== null ? `${worstPoint.countdownDays} hari` : "Belum cukup histori";
+    const planningText = getCarbonBrushPlanningActionText(activeStatus, planningPoints);
+    return `
+      <article class="pwa-card ${pwaClass}" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
+        <div>
+          <small>#${rank} ${escapeHtml(activeStatus.label || "Monitor")} | ${escapeHtml(countdownText)}</small>
+          <strong>${escapeHtml(item.equipmentName || "-")} - ${escapeHtml(worstPoint.pointKey || "-")}</strong>
+          <p>${escapeHtml(worstPoint.currentValue ?? "-")} mm, limit ${escapeHtml(worstPoint.thresholdLow ?? "-")}. ${escapeHtml(planningText)}</p>
+          <p>${escapeHtml(predictionQuality?.label || "Kualitas data belum cukup")}</p>
+        </div>
+        <span class="pwa-card-badge">${escapeHtml(worstPoint.remainingMm !== null ? `${worstPoint.remainingMm.toFixed(1)} mm` : "Alert")}</span>
+      </article>
+    `;
+  }).join("");
+
+  if (pwaCarbonPriority) {
+    pwaCarbonPriority.innerHTML = carbonCardHtml || renderPwaEmpty("Belum ada carbon brush yang masuk prioritas alert.");
+  }
+  if (pwaCarbonList) {
+    pwaCarbonList.innerHTML = carbonCardHtml || renderPwaEmpty("Belum ada alert carbon brush.");
+  }
+
+  const msoCardHtml = msoWatchlist.map(({ item, snapshot, badCount, rank, priorityLabel, priorityClass, severity }) => `
+    <article class="pwa-card ${escapeHtml(priorityClass)}" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
+      <div>
+        <small>#${rank} ${escapeHtml(priorityLabel)} | Severity ${escapeHtml(severity)}</small>
+        <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+        <p>${escapeHtml(snapshot.grade)} | Score ${escapeHtml(snapshot.score)} | BAD ${escapeHtml(badCount)}x | Temp ${escapeHtml(snapshot.maxTemperature || "-")} C | Vib ${escapeHtml(snapshot.maxVibrationBefore ?? "-")}</p>
+      </div>
+      <span class="pwa-card-badge">${escapeHtml(priorityLabel.replace("Prioritas ", "P"))}</span>
+    </article>
+  `).join("");
+
+  if (pwaMsoPriority) {
+    pwaMsoPriority.innerHTML = msoWatchlist.slice(0, 6).map(({ item, snapshot, badCount, rank, priorityLabel, priorityClass, severity }) => `
+      <article class="pwa-card ${escapeHtml(priorityClass)}" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
+        <div>
+          <small>#${rank} ${escapeHtml(priorityLabel)} | Severity ${escapeHtml(severity)}</small>
+          <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+          <p>${escapeHtml(snapshot.grade)} | Score ${escapeHtml(snapshot.score)} | BAD ${escapeHtml(badCount)}x | Vib ${escapeHtml(snapshot.maxVibrationBefore ?? "-")}</p>
+        </div>
+        <span class="pwa-card-badge">${escapeHtml(priorityLabel.replace("Prioritas ", "P"))}</span>
+      </article>
+    `).join("") || renderPwaEmpty("Belum ada data Motor MSO untuk watchlist.");
+  }
+  if (pwaMsoList) {
+    pwaMsoList.innerHTML = msoCardHtml || renderPwaEmpty("Belum ada data Motor MSO.");
+  }
+
+  if (pwaNegatifOpen) {
+    pwaNegatifOpen.innerHTML = openNegatifItems.slice(0, 6).map((item) => `
+      <article class="pwa-card is-urgent">
+        <div>
+          <small>${escapeHtml(item.area || "-")} | ${escapeHtml(item.pendingMark || "Open")}</small>
+          <strong>${escapeHtml(item.equipment || "-")}</strong>
+          <p>${escapeHtml(item.damageDescription || "-")}</p>
+        </div>
+        <span class="pwa-card-badge">${escapeHtml(formatInspectionDate(item.foundDate))}</span>
+      </article>
+    `).join("") || renderPwaEmpty("Tidak ada negatif list open.");
+  }
+
+  if (pwaServiceLatest) {
+    pwaServiceLatest.innerHTML = recentService.map((item) => renderPwaServiceCard(
+      item,
+      item.formType === "service-motor-mso"
+        ? `MSO ${item.payload?.condition || "-"} | Temp ${item.payload?.temperaturDs || "-"} / ${item.payload?.temperaturNds || "-"}`
+        : (item.formType === "service-motor-mv-carbon-brush"
+          ? `Carbon brush | Megger ${item.payload?.megger || "-"} | PIC ${item.payload?.pic || "-"}`
+          : item.detail || item.description || "-"),
+    )).join("") || renderPwaEmpty("Belum ada data service.");
+  }
+}
+
 function updateDashboardStats(options = {}) {
   const activeSectionName = getActiveSectionName();
   const shouldRenderDashboardVisuals = options.renderDashboardVisuals ?? activeSectionName === "dashboard";
@@ -6584,6 +6751,7 @@ function updateDashboardStats(options = {}) {
     renderNegatifModuleSummary(negatifItems);
     renderNegatifCharts(negatifItems);
   }
+  renderPwaCompactApp(negatifItems, serviceItems, spbItems);
 }
 
 function renderNegatifModuleSummary(negatifItems) {
@@ -10067,6 +10235,65 @@ dashboardCarbonBrushBannerDots?.addEventListener("click", (event) => {
   const index = Number(dot.dataset.carbonBrushAlertDot || 0);
   showCarbonBrushAlertSlide(index);
   startCarbonBrushAlertRotation(dashboardCarbonBrushBannerViewport?.querySelectorAll(".carbon-brush-alert-slide").length || 0);
+});
+
+pwaCompactShell?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const tabButton = target.closest("[data-pwa-tab]");
+  if (tabButton instanceof HTMLElement) {
+    openPwaTab(tabButton.dataset.pwaTab || "home");
+    return;
+  }
+
+  const jumpButton = target.closest("[data-pwa-jump]");
+  if (jumpButton instanceof HTMLElement) {
+    openPwaTab(jumpButton.dataset.pwaJump || "home");
+    return;
+  }
+
+  const sectionButton = target.closest("[data-pwa-section]");
+  if (sectionButton instanceof HTMLElement) {
+    document.documentElement.classList.add("pwa-web-view");
+    openSection(sectionButton.dataset.pwaSection || "dashboard");
+    return;
+  }
+
+  const serviceCard = target.closest("[data-pwa-service-id]");
+  if (serviceCard instanceof HTMLElement) {
+    const item = await resolveServiceItem(serviceCard.dataset.pwaServiceId || "");
+    if (item) {
+      openServiceDetail(item);
+    }
+  }
+});
+
+pwaCompactShell?.addEventListener("keydown", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !(event.key === "Enter" || event.key === " ")) {
+    return;
+  }
+  const serviceCard = target.closest("[data-pwa-service-id]");
+  if (!(serviceCard instanceof HTMLElement)) {
+    return;
+  }
+  event.preventDefault();
+  const item = await resolveServiceItem(serviceCard.dataset.pwaServiceId || "");
+  if (item) {
+    openServiceDetail(item);
+  }
+});
+
+pwaRefreshButton?.addEventListener("click", () => {
+  refreshButton?.click();
+});
+
+pwaOpenWebButton?.addEventListener("click", () => {
+  document.documentElement.classList.add("pwa-web-view");
+  openSection(getActiveSectionName());
 });
 
 serviceDetailContent?.addEventListener("click", (event) => {
