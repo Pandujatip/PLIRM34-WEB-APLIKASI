@@ -150,6 +150,7 @@ const pwaCarbonList = document.getElementById("pwa-carbon-list");
 const pwaCarbonForm = document.getElementById("pwa-carbon-form");
 const pwaCarbonEquipment = document.getElementById("pwa-carbon-equipment");
 const pwaCarbonEquipmentList = document.getElementById("pwa-carbon-equipment-list");
+const pwaCarbonEquipmentDropdown = document.getElementById("pwa-carbon-equipment-dropdown");
 const pwaCarbonTypeInfo = document.getElementById("pwa-carbon-type-info");
 const pwaCarbonDate = document.getElementById("pwa-carbon-date");
 const pwaCarbonDescription = document.getElementById("pwa-carbon-description");
@@ -1395,6 +1396,34 @@ function updatePwaCarbonTypeInfo() {
     <strong>Jenis carbon brush: ${escapeHtml(equipmentName)}</strong>
     ${matches.map((item) => `<span>${escapeHtml(item.name)} | SAP ${escapeHtml(item.sapNo)} | ${escapeHtml(item.use)}</span>`).join("")}
   `;
+}
+
+function hidePwaCarbonEquipmentDropdown() {
+  if (!pwaCarbonEquipmentDropdown) {
+    return;
+  }
+  pwaCarbonEquipmentDropdown.classList.add("hidden");
+  pwaCarbonEquipmentDropdown.innerHTML = "";
+}
+
+function renderPwaCarbonEquipmentDropdown() {
+  if (!pwaCarbonEquipmentDropdown || !pwaCarbonEquipment) {
+    return;
+  }
+  renderPwaCarbonEquipmentOptions();
+  const query = String(pwaCarbonEquipment.value || "").trim().toLowerCase();
+  const matches = carbonBrushEquipmentReferenceList
+    .filter((equipmentName) => !query || equipmentName.toLowerCase().includes(query))
+    .slice(0, 12);
+  if (!matches.length) {
+    pwaCarbonEquipmentDropdown.innerHTML = '<div class="pwa-empty">Equipment tidak ditemukan.</div>';
+    pwaCarbonEquipmentDropdown.classList.remove("hidden");
+    return;
+  }
+  pwaCarbonEquipmentDropdown.innerHTML = matches.map((equipmentName) => `
+    <button class="pwa-typeahead-option" type="button" data-pwa-carbon-equipment-option="${escapeHtml(equipmentName)}">${escapeHtml(equipmentName)}</button>
+  `).join("");
+  pwaCarbonEquipmentDropdown.classList.remove("hidden");
 }
 
 function collectPwaCarbonMeasurements() {
@@ -10433,8 +10462,13 @@ pwaCarbonGrid?.addEventListener("input", (event) => {
 });
 
 pwaCarbonEquipment?.addEventListener("input", () => {
+  renderPwaCarbonEquipmentDropdown();
   updatePwaCarbonInputColors();
   updatePwaCarbonTypeInfo();
+});
+
+pwaCarbonEquipment?.addEventListener("focus", () => {
+  renderPwaCarbonEquipmentDropdown();
 });
 
 pwaCarbonForm?.addEventListener("click", (event) => {
@@ -10456,6 +10490,24 @@ pwaCarbonForm?.addEventListener("click", (event) => {
       input.classList.remove("is-low", "is-medium", "is-high");
     });
     updatePwaCarbonFormSummary();
+  }
+
+  const equipmentOption = target.closest("[data-pwa-carbon-equipment-option]");
+  if (equipmentOption instanceof HTMLElement && pwaCarbonEquipment) {
+    pwaCarbonEquipment.value = equipmentOption.dataset.pwaCarbonEquipmentOption || "";
+    hidePwaCarbonEquipmentDropdown();
+    updatePwaCarbonInputColors();
+    updatePwaCarbonTypeInfo();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  if (!target.closest(".pwa-typeahead-field")) {
+    hidePwaCarbonEquipmentDropdown();
   }
 });
 

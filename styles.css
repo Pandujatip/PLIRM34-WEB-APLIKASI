@@ -437,6 +437,10 @@ select {
   gap: 7px;
 }
 
+.pwa-typeahead-field {
+  position: relative;
+}
+
 .pwa-form-field span {
   color: rgba(245, 242, 237, 0.66);
   font-size: 1.05rem;
@@ -468,6 +472,44 @@ select {
 .pwa-carbon-point input:focus {
   border-color: rgba(115, 224, 169, 0.82);
   box-shadow: 0 0 0 3px rgba(115, 224, 169, 0.16);
+}
+
+.pwa-typeahead-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid rgba(115, 224, 169, 0.26);
+  border-radius: 20px;
+  background: rgba(7, 17, 31, 0.96);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(18px);
+}
+
+.pwa-typeahead-option {
+  width: 100%;
+  min-height: 64px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  background: transparent;
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.pwa-typeahead-option:last-child {
+  border-bottom: 0;
+}
+
+.pwa-typeahead-option:active,
+.pwa-typeahead-option:hover {
+  color: #07111f;
+  background: var(--success);
 }
 
 .pwa-carbon-type-info {

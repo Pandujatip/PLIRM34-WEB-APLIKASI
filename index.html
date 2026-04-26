@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-20">
+  <link rel="stylesheet" href="styles.css?v=20260426-21">
 </head>
 <body>
   <div class="app-shell">
@@ -225,10 +225,11 @@
                   <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
                 </div>
                 <form class="pwa-carbon-form" id="pwa-carbon-form" autocomplete="off">
-                  <label class="pwa-form-field">
+                  <label class="pwa-form-field pwa-typeahead-field">
                     <span>Equipment</span>
-                    <input id="pwa-carbon-equipment" name="equipmentName" type="text" list="pwa-carbon-equipment-list" placeholder="Contoh: 343FN4 - SIEMENS" required>
+                    <input id="pwa-carbon-equipment" name="equipmentName" type="text" placeholder="Ketik kode equipment, lalu pilih" required>
                     <datalist id="pwa-carbon-equipment-list"></datalist>
+                    <div class="pwa-typeahead-list hidden" id="pwa-carbon-equipment-dropdown"></div>
                   </label>
                   <div class="pwa-carbon-type-info" id="pwa-carbon-type-info">
                     Pilih equipment untuk menampilkan jenis carbon brush.
@@ -2859,11 +2860,11 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-19"></script>
+  <script src="app.js?v=20260426-21"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260426-06").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-07").catch((error) => {
           console.warn("PWA service worker registration failed", error);
         });
       });
