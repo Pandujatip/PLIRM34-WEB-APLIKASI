@@ -3557,6 +3557,8 @@ function openServiceGroupDetail(serviceType) {
     return;
   }
 
+  const isAllService = serviceType === "all";
+  const serviceLabel = isAllService ? "Semua Service" : serviceType;
   activeServiceGroupDetailType = serviceType;
   activeServiceDetailItem = null;
   serviceDetailReturnState = null;
@@ -3565,8 +3567,8 @@ function openServiceGroupDetail(serviceType) {
   }
   carbonBrushReplacementEditMode = false;
   carbonBrushReplacementDraft = [];
-  serviceDetailTitle.textContent = `Detail ${serviceType}`;
-  serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${serviceType}. Gunakan pencarian dan filter langsung di halaman ini.`;
+  serviceDetailTitle.textContent = `Detail ${serviceLabel}`;
+  serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${serviceLabel}, urut tanggal terbaru. Gunakan pencarian dan filter langsung di halaman ini.`;
 
   renderServiceGroupDetailContent(serviceType);
 
@@ -3580,11 +3582,13 @@ function renderServiceGroupDetailContent(serviceType, searchTerm = "", subtypeFi
   }
   const normalizedQuery = String(searchTerm || "").trim().toLowerCase();
   const normalizedSubtype = String(subtypeFilter || "").trim();
-  const items = getServiceItemsFromDom()
-    .filter((item) => item.type === serviceType)
-    .filter((item) => shouldDisplayServiceItem(item));
+  const isAllService = serviceType === "all";
+  const serviceLabel = isAllService ? "semua service" : serviceType;
+  const items = getSortedServiceItems(getServiceItemsFromDom()
+    .filter((item) => isAllService || item.type === serviceType)
+    .filter((item) => shouldDisplayServiceItem(item)));
   const subtypeOptions = [...new Set(items.map((item) => String(item.subtype || item.type || "").trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
-  const filteredItems = items.filter((item) => {
+  const filteredItems = getSortedServiceItems(items.filter((item) => {
     const equipmentName = String(item.equipmentName || "").toLowerCase();
     const description = String(item.description || "").toLowerCase();
     const detail = String(item.detail || "").toLowerCase();
@@ -3596,7 +3600,7 @@ function renderServiceGroupDetailContent(serviceType, searchTerm = "", subtypeFi
       || detail.includes(normalizedQuery)
       || subtype.toLowerCase().includes(normalizedQuery);
     return matchesSubtype && matchesQuery;
-  });
+  }));
 
   const filterToolbar = `
     <div class="service-group-filter-bar">
@@ -3622,7 +3626,7 @@ function renderServiceGroupDetailContent(serviceType, searchTerm = "", subtypeFi
     serviceDetailContent.innerHTML = `
       <section class="detail-card">
         <div class="detail-analysis">
-          <div class="detail-analysis-item">Belum ada hasil inspeksi pada kolom ${escapeHtml(serviceType)}.</div>
+          <div class="detail-analysis-item">Belum ada hasil inspeksi pada ${escapeHtml(serviceLabel)}.</div>
         </div>
       </section>
     `;
@@ -3663,11 +3667,12 @@ function closeServiceDetail(options = {}) {
     carbonBrushReplacementEditMode = false;
     carbonBrushReplacementDraft = [];
     activeServiceGroupDetailType = returnState.serviceType || "";
+    const serviceLabel = activeServiceGroupDetailType === "all" ? "Semua Service" : activeServiceGroupDetailType;
     if (serviceDetailEdit) {
       serviceDetailEdit.classList.add("hidden");
     }
-    serviceDetailTitle.textContent = `Detail ${activeServiceGroupDetailType}`;
-    serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${activeServiceGroupDetailType}. Gunakan pencarian dan filter langsung di halaman ini.`;
+    serviceDetailTitle.textContent = `Detail ${serviceLabel}`;
+    serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${serviceLabel}, urut tanggal terbaru. Gunakan pencarian dan filter langsung di halaman ini.`;
     renderServiceGroupDetailContent(
       activeServiceGroupDetailType,
       returnState.searchTerm || "",
@@ -7494,7 +7499,7 @@ function applyServiceFilter() {
 
   renderServiceBoard(filteredItems, {
     syncCache: false,
-    previewLimit: isFiltered ? Number.MAX_SAFE_INTEGER : 5,
+    previewLimit: isFiltered ? Number.MAX_SAFE_INTEGER : 20,
   });
   serviceCardList.classList.toggle("single-focus", (type !== "semua") || (isFiltered && [...new Set(filteredItems.map((item) => item.type))].length <= 1));
 }
@@ -10558,6 +10563,12 @@ pwaCompactShell?.addEventListener("click", async (event) => {
   const formChoice = target.closest("[data-pwa-form-choice]");
   if (formChoice instanceof HTMLElement) {
     openPwaQuickForm(formChoice.dataset.pwaFormChoice || "");
+    return;
+  }
+
+  const hideFormButton = target.closest("[data-pwa-hide-form]");
+  if (hideFormButton instanceof HTMLElement) {
+    openPwaQuickForm("");
     return;
   }
 

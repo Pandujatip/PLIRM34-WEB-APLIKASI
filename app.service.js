@@ -85,86 +85,40 @@ function renderServiceBoard(items, options = {}) {
   if (!serviceCardList) {
     return;
   }
-  const previewLimit = Number.isFinite(options.previewLimit) ? options.previewLimit : 5;
+  const previewLimit = Number.isFinite(options.previewLimit) ? options.previewLimit : 20;
   const syncCache = options.syncCache !== false;
 
-  const groups = [
-    {
-      key: "Electrical",
-      title: "Electrical",
-      sections: [
-        { key: "service-electrical-room", title: "Electrical Room" },
-        { key: "service-motor-mso", title: "Service Motor MSO" },
-        { key: "service-motor-mv-carbon-brush", title: "Motor MV (Carbon Brush)" },
-        { key: "service-mcc", title: "MCC" },
-        { key: "service-ehca", title: "EH/CA" },
-      ],
-    },
-    { key: "Instrument", title: "Instrument" },
-    { key: "DCS", title: "DCS" },
-  ];
-
   serviceCardList.innerHTML = "";
+  serviceCardList.classList.add("service-board-timeline");
   if (syncCache) {
     syncServiceItemCache(items);
   }
 
-  const visibleItems = items.filter((item) => shouldDisplayServiceItem(item));
-
-  groups.forEach((group) => {
-    const column = document.createElement("section");
-    column.className = "service-column";
-    column.dataset.serviceGroup = group.key;
-    const groupItems = visibleItems.filter((item) => item.type === group.key);
-    const previewGroupItems = getSortedServiceItems(groupItems).slice(0, previewLimit);
-    column.innerHTML = `
-      <div class="service-column-head">
-        <div class="service-column-title">
-          <strong>${group.title}</strong>
-          <span>${groupItems.length} item</span>
-        </div>
-        <button class="table-action compact" data-action="detail-service-group" data-service-group="${group.key}" type="button">Detail</button>
+  const visibleItems = getSortedServiceItems(items.filter((item) => shouldDisplayServiceItem(item)));
+  const previewItems = visibleItems.slice(0, previewLimit);
+  const column = document.createElement("section");
+  column.className = "service-column service-timeline-column";
+  column.dataset.serviceGroup = "all";
+  column.innerHTML = `
+    <div class="service-column-head">
+      <div class="service-column-title">
+        <strong>Riwayat Service Terbaru</strong>
+        <span>${visibleItems.length} item, urut tanggal terbaru</span>
       </div>
-      <div class="service-list-body" data-service-type="${group.key}"></div>
-    `;
-    const body = column.querySelector(".service-list-body");
-
-    if (group.key === "Electrical") {
-      group.sections.forEach((section) => {
-        const sectionItems = groupItems.filter((item) => (item.formType || "") === section.key);
-        const previewSectionItems = getSortedServiceItems(sectionItems).slice(0, previewLimit);
-        const wrapper = document.createElement("section");
-        wrapper.className = "service-subgroup";
-        wrapper.dataset.sectionKey = section.key;
-        wrapper.innerHTML = `
-          <div class="service-subgroup-head">
-            <strong>${section.title}</strong>
-            <span>${sectionItems.length} item</span>
-          </div>
-        `;
-        const sectionBody = document.createElement("div");
-        sectionBody.className = "service-subgroup-body";
-        if (previewSectionItems.length) {
-          previewSectionItems.forEach((entry) => sectionBody.append(renderServiceCard(entry)));
-        } else {
-          const empty = document.createElement("div");
-          empty.className = "service-list-empty";
-          empty.textContent = "Belum ada hasil inspeksi.";
-          sectionBody.append(empty);
-        }
-        wrapper.append(sectionBody);
-        body.append(wrapper);
-      });
-    } else if (previewGroupItems.length) {
-      previewGroupItems.forEach((entry) => body.append(renderServiceCard(entry)));
-    } else {
-      const empty = document.createElement("div");
-      empty.className = "service-list-empty";
-      empty.textContent = "Belum ada hasil inspeksi.";
-      body.append(empty);
-    }
-    serviceCardList.append(column);
-  });
+      <button class="table-action compact" data-action="detail-service-group" data-service-group="all" type="button">Detail</button>
+    </div>
+    <div class="service-list-body service-timeline-body" data-service-type="all"></div>
+  `;
+  const body = column.querySelector(".service-list-body");
+  if (previewItems.length) {
+    previewItems.forEach((entry) => body.append(renderServiceCard(entry)));
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "service-list-empty";
+    empty.textContent = "Belum ada hasil inspeksi.";
+    body.append(empty);
+  }
+  serviceCardList.append(column);
 
   renderMccReferenceOptions();
 }

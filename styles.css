@@ -386,6 +386,14 @@ select {
   font-size: 0.84rem;
 }
 
+.pwa-form-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .pwa-list {
   display: grid;
   gap: 10px;
@@ -3397,6 +3405,10 @@ th.sort-desc::after {
   grid-template-columns: 1fr;
 }
 
+.service-board.service-board-timeline {
+  grid-template-columns: 1fr;
+}
+
 .service-column {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
@@ -3435,6 +3447,10 @@ th.sort-desc::after {
   padding: 8px;
   display: grid;
   gap: 8px;
+}
+
+.service-board.service-board-timeline .service-list-body {
+  max-height: 680px;
 }
 
 .service-subgroup {

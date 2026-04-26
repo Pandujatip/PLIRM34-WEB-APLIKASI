@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-26">
+  <link rel="stylesheet" href="styles.css?v=20260426-27">
 </head>
 <body>
   <div class="app-shell">
@@ -237,7 +237,10 @@
                     <span>Quick Input</span>
                     <h3>Inspeksi Carbon Brush</h3>
                   </div>
-                  <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
                 </div>
                 <form class="pwa-carbon-form" id="pwa-carbon-form" autocomplete="off">
                   <label class="pwa-form-field pwa-typeahead-field">
@@ -292,7 +295,10 @@
                     <span>Quick Input</span>
                     <h3>Inspeksi MCC</h3>
                   </div>
-                  <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
                 </div>
                 <form class="pwa-carbon-form" id="pwa-mcc-form" autocomplete="off">
                   <label class="pwa-form-field pwa-typeahead-field">
@@ -342,7 +348,10 @@
                     <span>Quick Input</span>
                     <h3>Inspeksi Electrical Room</h3>
                   </div>
-                  <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
                 </div>
                 <form class="pwa-carbon-form" id="pwa-electrical-room-form" autocomplete="off">
                   <label class="pwa-form-field pwa-typeahead-field">
@@ -3058,16 +3067,16 @@
 
   <script src="app.auth.js?v=20260426-15"></script>
   <script src="app.carbon-brush.js?v=20260426-15"></script>
-  <script src="app.service.js?v=20260426-16"></script>
+  <script src="app.service.js?v=20260426-17"></script>
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-26"></script>
+  <script src="app.js?v=20260426-27"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260426-12").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260426-13").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
