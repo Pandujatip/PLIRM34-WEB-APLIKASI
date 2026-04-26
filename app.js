@@ -7705,7 +7705,17 @@ function hydrateServiceForm(item) {
   }
 
   if (item.formType === "service-motor-mv-carbon-brush") {
-    selectedCarbonBrushEquipmentReference = item.equipmentName || "";
+    const carbonBrushEquipmentName = item.equipmentName || "";
+    if (carbonBrushEquipmentName && !carbonBrushEquipmentReferenceList.includes(carbonBrushEquipmentName)) {
+      carbonBrushEquipmentReferenceList = [...carbonBrushEquipmentReferenceList, carbonBrushEquipmentName]
+        .sort((left, right) => left.localeCompare(right, "id"));
+    }
+    if (carbonBrushEquipmentInput) {
+      carbonBrushEquipmentInput.disabled = false;
+      carbonBrushEquipmentInput.placeholder = "Ketik kode equipment carbon brush";
+    }
+    setCarbonBrushEquipmentValue(carbonBrushEquipmentName);
+    updateCarbonBrushEquipmentStatus(`Mode edit aktif. Referensi carbon brush tersedia: ${carbonBrushEquipmentReferenceList.length} item.`);
     form.inspectionDate.value = String(payload.inspectionDate || "").slice(0, 10);
     form.replacement.value = payload.replacement || "";
     form.megger.value = payload.megger || "";
@@ -7716,7 +7726,7 @@ function hydrateServiceForm(item) {
         input.value = payload.measurements?.[key] || "";
       }
     });
-    updateCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
+    updateCarbonBrushEquipmentMeta(carbonBrushEquipmentName, payload.plant || "");
     updateCarbonBrushMeasurementColors();
   }
 
