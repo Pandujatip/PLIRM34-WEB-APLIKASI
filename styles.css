@@ -116,6 +116,14 @@ select {
   color: var(--muted);
 }
 
+.detail-modal-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .detail-modal-content {
   display: grid;
   gap: 14px;

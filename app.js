@@ -57,6 +57,7 @@ const cemsReferenceHint = document.getElementById("cems-reference-hint");
 const opacityEquipmentReferenceListElement = document.getElementById("opacity-equipment-reference-list");
 const opacityReferenceHint = document.getElementById("opacity-reference-hint");
 const serviceDetailModal = document.getElementById("service-detail-modal");
+const serviceDetailEdit = document.getElementById("service-detail-edit");
 const serviceDetailClose = document.getElementById("service-detail-close");
 const serviceDetailTitle = document.getElementById("service-detail-title");
 const serviceDetailSubtitle = document.getElementById("service-detail-subtitle");
@@ -3113,6 +3114,10 @@ function openServiceDetail(item, options = {}) {
   const analysisRows = analyzeServiceItem(item);
   serviceDetailReturnState = options.returnToGroup || null;
   activeServiceDetailItem = item;
+  if (serviceDetailEdit) {
+    serviceDetailEdit.classList.remove("hidden");
+    serviceDetailEdit.disabled = false;
+  }
   carbonBrushReplacementEditMode = false;
   carbonBrushReplacementDraft = normalizeCarbonBrushReplacedPoints(item.payload?.replacedPoints);
 
@@ -3217,6 +3222,11 @@ function openBomDetail(item) {
 
   serviceDetailTitle.textContent = item.part || item.equipment || "Detail BOM";
   serviceDetailSubtitle.textContent = `${item.equipment || "-"} • detail part BOM dan lampiran foto`;
+  activeServiceDetailItem = null;
+  serviceDetailReturnState = null;
+  if (serviceDetailEdit) {
+    serviceDetailEdit.classList.add("hidden");
+  }
   serviceDetailContent.innerHTML = `
     <section class="detail-card">
       <h4>Informasi Part</h4>
@@ -3278,6 +3288,11 @@ function openBomMotorDetail(item) {
 
   serviceDetailTitle.textContent = item.equipment || "Detail BOM Motor";
   serviceDetailSubtitle.textContent = `${item.manufacture || "-"} • detail motor dan lampiran foto`;
+  activeServiceDetailItem = null;
+  serviceDetailReturnState = null;
+  if (serviceDetailEdit) {
+    serviceDetailEdit.classList.add("hidden");
+  }
   serviceDetailContent.innerHTML = `
     <section class="detail-card">
       <h4>Informasi Motor</h4>
@@ -3311,6 +3326,9 @@ function openServiceGroupDetail(serviceType) {
   activeServiceGroupDetailType = serviceType;
   activeServiceDetailItem = null;
   serviceDetailReturnState = null;
+  if (serviceDetailEdit) {
+    serviceDetailEdit.classList.add("hidden");
+  }
   carbonBrushReplacementEditMode = false;
   carbonBrushReplacementDraft = [];
   serviceDetailTitle.textContent = `Detail ${serviceType}`;
@@ -3411,6 +3429,9 @@ function closeServiceDetail() {
     carbonBrushReplacementEditMode = false;
     carbonBrushReplacementDraft = [];
     activeServiceGroupDetailType = returnState.serviceType || "";
+    if (serviceDetailEdit) {
+      serviceDetailEdit.classList.add("hidden");
+    }
     serviceDetailTitle.textContent = `Detail ${activeServiceGroupDetailType}`;
     serviceDetailSubtitle.textContent = `Daftar penuh hasil inspeksi ${activeServiceGroupDetailType}. Gunakan pencarian dan filter langsung di halaman ini.`;
     renderServiceGroupDetailContent(
@@ -3425,6 +3446,9 @@ function closeServiceDetail() {
   activeServiceGroupDetailType = "";
   activeServiceDetailItem = null;
   serviceDetailReturnState = null;
+  if (serviceDetailEdit) {
+    serviceDetailEdit.classList.add("hidden");
+  }
   carbonBrushReplacementEditMode = false;
   carbonBrushReplacementDraft = [];
   serviceDetailModal.classList.add("hidden");
@@ -8933,6 +8957,22 @@ document.addEventListener("input", (event) => {
 });
 
 serviceDetailClose?.addEventListener("click", closeServiceDetail);
+
+serviceDetailEdit?.addEventListener("click", () => {
+  if (!activeServiceDetailItem) {
+    return;
+  }
+  if ((activeServiceDetailItem.formType === "service-motor-mv" || activeServiceDetailItem.formType === "service-motor-mso")
+    && String(activeServiceDetailItem.payload?.source || "").toUpperCase() === "MSO") {
+    showToast("Motor MSO", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
+    return;
+  }
+  const item = activeServiceDetailItem;
+  closeServiceDetail();
+  hydrateServiceForm(item);
+  openSection("service");
+  openCreatePanel("service");
+});
 
 serviceDetailModal?.addEventListener("click", (event) => {
   const target = event.target;
