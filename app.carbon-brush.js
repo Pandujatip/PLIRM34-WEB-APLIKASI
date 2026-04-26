@@ -143,7 +143,7 @@ function classifyCarbonBrushActualStatus(currentValue, thresholdLow, thresholdHi
     return {
       label: "Dekat limit",
       className: "is-prepare",
-      actionLabel: "Siapkan window rawmill off sebelum titik turun ke merah",
+      actionLabel: "Persiapkan sparepart dan ganti titik yang berpotensi kena limit 14-30 hari ke depan",
       severity: 2,
     };
   }
@@ -358,7 +358,7 @@ function classifyCarbonBrushCountdownStatus(countdownDays, qualityKey = "insuffi
     return {
       label: "Prepare",
       className: "is-prepare",
-      actionLabel: "Siapkan permintaan service berikutnya",
+      actionLabel: "Persiapkan sparepart dan ganti titik yang berpotensi kena limit 14-30 hari ke depan",
       severity: 1,
     };
   }
