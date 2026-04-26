@@ -413,6 +413,181 @@ select {
   gap: 10px;
 }
 
+.pwa-quick-form-block {
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
+}
+
+.pwa-carbon-form {
+  display: grid;
+  gap: 12px;
+}
+
+.pwa-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pwa-form-field {
+  display: grid;
+  gap: 7px;
+}
+
+.pwa-form-field span {
+  color: rgba(245, 242, 237, 0.66);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pwa-form-field input,
+.pwa-form-field textarea {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  color: var(--text);
+  background: rgba(7, 17, 31, 0.72);
+  padding: 13px 14px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.pwa-form-field textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.pwa-form-field input:focus,
+.pwa-form-field textarea:focus,
+.pwa-carbon-point input:focus {
+  border-color: rgba(115, 224, 169, 0.82);
+  box-shadow: 0 0 0 3px rgba(115, 224, 169, 0.16);
+}
+
+.pwa-carbon-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pwa-carbon-summary span {
+  border-radius: 999px;
+  padding: 8px 10px;
+  color: rgba(245, 242, 237, 0.82);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.pwa-carbon-summary .low {
+  color: #fff;
+  background: rgba(255, 107, 120, 0.78);
+}
+
+.pwa-carbon-summary .medium {
+  color: #1b1004;
+  background: rgba(255, 177, 74, 0.88);
+}
+
+.pwa-carbon-summary .high {
+  color: #07111f;
+  background: rgba(115, 224, 169, 0.88);
+}
+
+.pwa-carbon-input-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pwa-carbon-input-toolbar button,
+.pwa-submit-button {
+  min-height: 52px;
+  border: 0;
+  border-radius: 18px;
+  font-weight: 900;
+  touch-action: manipulation;
+}
+
+.pwa-carbon-input-toolbar button {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pwa-submit-button {
+  min-height: 58px;
+  color: #07111f;
+  background: linear-gradient(135deg, #73e0a9, #dfffee);
+  font-size: 1rem;
+}
+
+.pwa-submit-button:disabled {
+  opacity: 0.58;
+}
+
+.pwa-carbon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.pwa-carbon-point {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.pwa-carbon-point span {
+  color: rgba(245, 242, 237, 0.72);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.pwa-carbon-point input {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  color: var(--text);
+  background: rgba(7, 17, 31, 0.76);
+  padding: 10px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  text-align: center;
+  outline: none;
+}
+
+.pwa-carbon-point input.is-low {
+  border-color: rgba(255, 107, 120, 0.85);
+  background: rgba(255, 107, 120, 0.22);
+}
+
+.pwa-carbon-point input.is-medium {
+  border-color: rgba(255, 177, 74, 0.85);
+  background: rgba(255, 177, 74, 0.22);
+}
+
+.pwa-carbon-point input.is-high {
+  border-color: rgba(115, 224, 169, 0.85);
+  background: rgba(115, 224, 169, 0.18);
+}
+
+.pwa-form-note {
+  margin: 0;
+  color: rgba(245, 242, 237, 0.62);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
 .pwa-bottom-nav {
   position: fixed;
   left: 12px;

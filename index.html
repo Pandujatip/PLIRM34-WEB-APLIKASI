@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-17">
+  <link rel="stylesheet" href="styles.css?v=20260426-18">
 </head>
 <body>
   <div class="app-shell">
@@ -216,6 +216,57 @@
             </section>
 
             <section class="pwa-page" data-pwa-page="service">
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block" id="pwa-carbon-form-block">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Inspeksi Carbon Brush</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-carbon-form" autocomplete="off">
+                  <label class="pwa-form-field">
+                    <span>Equipment</span>
+                    <input id="pwa-carbon-equipment" name="equipmentName" type="text" list="pwa-carbon-equipment-list" placeholder="Contoh: 343FN4 - SIEMENS" required>
+                    <datalist id="pwa-carbon-equipment-list"></datalist>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Tanggal</span>
+                      <input id="pwa-carbon-date" name="inspectionDate" type="date" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Replacement</span>
+                      <input id="pwa-carbon-replacement" name="replacement" type="text" placeholder="Contoh: 3">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Megger</span>
+                      <input id="pwa-carbon-megger" name="megger" type="text" placeholder="Contoh: 548">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>PIC</span>
+                      <input id="pwa-carbon-pic" name="pic" type="text" placeholder="Nama PIC">
+                    </label>
+                  </div>
+                  <label class="pwa-form-field">
+                    <span>Keterangan</span>
+                    <textarea id="pwa-carbon-description" name="description" rows="2" placeholder="Catatan singkat inspeksi carbon brush"></textarea>
+                  </label>
+                  <div class="pwa-carbon-summary" id="pwa-carbon-form-summary">
+                    <span class="low">Merah 0</span>
+                    <span class="medium">Kuning 0</span>
+                    <span class="high">Hijau 0</span>
+                    <span>Kosong 81</span>
+                  </div>
+                  <div class="pwa-carbon-input-toolbar">
+                    <button type="button" data-pwa-fill-carbon="50">Isi kosong 50</button>
+                    <button type="button" data-pwa-clear-carbon>Reset titik</button>
+                  </div>
+                  <div class="pwa-carbon-grid" id="pwa-carbon-grid"></div>
+                  <button class="pwa-submit-button" id="pwa-carbon-submit" type="submit">Simpan Carbon Brush</button>
+                  <p class="pwa-form-note" id="pwa-carbon-form-note">Nilai titik hanya angka, contoh 43.8. Tanda koma otomatis dibaca sebagai desimal.</p>
+                </form>
+              </section>
               <section class="pwa-block pwa-block-flush">
                 <div class="pwa-block-head">
                   <div>
@@ -2805,11 +2856,11 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-17"></script>
+  <script src="app.js?v=20260426-18"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260426-03").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-04").catch((error) => {
           console.warn("PWA service worker registration failed", error);
         });
       });

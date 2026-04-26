@@ -147,6 +147,15 @@ const pwaNegatifOpen = document.getElementById("pwa-negatif-open");
 const pwaServiceLatest = document.getElementById("pwa-service-latest");
 const pwaMsoList = document.getElementById("pwa-mso-list");
 const pwaCarbonList = document.getElementById("pwa-carbon-list");
+const pwaCarbonForm = document.getElementById("pwa-carbon-form");
+const pwaCarbonEquipment = document.getElementById("pwa-carbon-equipment");
+const pwaCarbonEquipmentList = document.getElementById("pwa-carbon-equipment-list");
+const pwaCarbonDate = document.getElementById("pwa-carbon-date");
+const pwaCarbonDescription = document.getElementById("pwa-carbon-description");
+const pwaCarbonGrid = document.getElementById("pwa-carbon-grid");
+const pwaCarbonFormSummary = document.getElementById("pwa-carbon-form-summary");
+const pwaCarbonFormNote = document.getElementById("pwa-carbon-form-note");
+const pwaCarbonSubmit = document.getElementById("pwa-carbon-submit");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
 const dashboardInspectionHistory = document.getElementById("dashboard-inspection-history");
@@ -1129,6 +1138,7 @@ async function loadCarbonBrushEquipmentReference() {
         selectedCarbonBrushEquipmentReference = "";
       }
       updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari master backend.`);
+      renderPwaCarbonEquipmentOptions();
       return;
     }
 
@@ -1150,6 +1160,7 @@ async function loadCarbonBrushEquipmentReference() {
         carbonBrushEquipmentInput.value = "";
       }
       updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif dari histori service: ${carbonBrushEquipmentReferenceList.length} item. Master Equipment belum terbaca.`, true);
+      renderPwaCarbonEquipmentOptions();
       return;
     }
 
@@ -1159,6 +1170,7 @@ async function loadCarbonBrushEquipmentReference() {
     selectedCarbonBrushEquipmentReference = "";
     hideCarbonBrushEquipmentResults();
     updateCarbonBrushEquipmentStatus("Gagal memuat referensi carbon brush dari Master Equipment dan belum ada histori service carbon brush.", true);
+    renderPwaCarbonEquipmentOptions();
   }
 }
 
@@ -1342,6 +1354,93 @@ function updateCarbonBrushStatsDisplay(measurements, equipmentName, explicitPlan
     <span class="summary-pill">Kosong: ${stats.empty}</span>
     <span class="summary-pill">Terendah: ${stats.min === null ? "-" : stats.min}</span>
   `;
+}
+
+function renderPwaCarbonEquipmentOptions() {
+  if (!pwaCarbonEquipmentList) {
+    return;
+  }
+  if (!carbonBrushEquipmentReferenceList.length) {
+    carbonBrushEquipmentReferenceList = [...new Set(
+      getServiceItemsFromDom()
+        .filter((item) => item.formType === "service-motor-mv-carbon-brush")
+        .map((item) => String(item.equipmentName || "").trim())
+        .filter(Boolean),
+    )].sort((left, right) => left.localeCompare(right, "id"));
+  }
+  pwaCarbonEquipmentList.innerHTML = carbonBrushEquipmentReferenceList
+    .map((equipmentName) => `<option value="${escapeHtml(equipmentName)}"></option>`)
+    .join("");
+}
+
+function collectPwaCarbonMeasurements() {
+  return carbonBrushMeasurementKeys.reduce((result, key) => {
+    result[key] = String(pwaCarbonGrid?.querySelector(`[name="${key}"]`)?.value || "").trim();
+    return result;
+  }, {});
+}
+
+function updatePwaCarbonFormSummary() {
+  if (!pwaCarbonFormSummary) {
+    return;
+  }
+  const equipmentName = String(pwaCarbonEquipment?.value || "").trim();
+  const meta = decodeCarbonBrushEquipmentMeta(equipmentName);
+  const measurements = collectPwaCarbonMeasurements();
+  const stats = computeCarbonBrushStats(measurements, equipmentName, meta.plant);
+  pwaCarbonFormSummary.innerHTML = `
+    <span class="low">Merah ${stats.low}</span>
+    <span class="medium">Kuning ${stats.medium}</span>
+    <span class="high">Hijau ${stats.high}</span>
+    <span>Kosong ${stats.empty}</span>
+    <span>Terendah ${stats.min === null ? "-" : stats.min}</span>
+  `;
+}
+
+function updatePwaCarbonInputColors() {
+  const equipmentName = String(pwaCarbonEquipment?.value || "").trim();
+  pwaCarbonGrid?.querySelectorAll("[data-pwa-carbon-measurement]").forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    const bucket = classifyCarbonBrushValue(input.value, equipmentName);
+    input.classList.remove("is-low", "is-medium", "is-high");
+    if (bucket) {
+      input.classList.add(`is-${bucket}`);
+    }
+  });
+  updatePwaCarbonFormSummary();
+}
+
+function renderPwaCarbonGrid() {
+  if (!pwaCarbonGrid) {
+    return;
+  }
+  pwaCarbonGrid.innerHTML = carbonBrushMeasurementKeys.map((key) => `
+    <label class="pwa-carbon-point">
+      <span>${key}</span>
+      <input type="text" inputmode="decimal" name="${key}" data-pwa-carbon-measurement="${key}" placeholder="0">
+    </label>
+  `).join("");
+  updatePwaCarbonFormSummary();
+}
+
+function resetPwaCarbonForm() {
+  if (!pwaCarbonForm) {
+    return;
+  }
+  pwaCarbonForm.reset();
+  if (pwaCarbonDate) {
+    pwaCarbonDate.value = new Date().toISOString().slice(0, 10);
+  }
+  if (pwaCarbonDescription) {
+    pwaCarbonDescription.value = "Inspeksi motor MV carbon brush";
+  }
+  pwaCarbonGrid?.querySelectorAll("input").forEach((input) => {
+    input.value = "";
+    input.classList.remove("is-low", "is-medium", "is-high");
+  });
+  updatePwaCarbonFormSummary();
 }
 
 function collectCarbonBrushMeasurements(form) {
@@ -5813,6 +5912,8 @@ async function initializeApplication() {
   const backendReady = await detectBackendAvailability();
   startDashboardSlideshow();
   renderCarbonBrushMeasurementGrid();
+  renderPwaCarbonGrid();
+  resetPwaCarbonForm();
   if (serviceElectricalCarbonBrushForm?.inspectionDate && !serviceElectricalCarbonBrushForm.inspectionDate.value) {
     serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
   }
@@ -6535,6 +6636,7 @@ function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
   if (!pwaCompactShell || !isPwaCompactMode()) {
     return;
   }
+  renderPwaCarbonEquipmentOptions();
   const today = new Date();
   const currentYear = String(today.getFullYear());
   const openNegatifItems = negatifItems.filter((item) => String(item.workStatus || "").toLowerCase() === "open");
@@ -10294,6 +10396,120 @@ pwaRefreshButton?.addEventListener("click", () => {
 pwaOpenWebButton?.addEventListener("click", () => {
   document.documentElement.classList.add("pwa-web-view");
   openSection(getActiveSectionName());
+});
+
+pwaCarbonGrid?.addEventListener("input", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) {
+    return;
+  }
+  target.value = target.value.replace(/[^\d.,-]/g, "");
+  updatePwaCarbonInputColors();
+});
+
+pwaCarbonEquipment?.addEventListener("input", () => {
+  updatePwaCarbonInputColors();
+});
+
+pwaCarbonForm?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  if (target.closest("[data-pwa-fill-carbon]")) {
+    pwaCarbonGrid?.querySelectorAll("input").forEach((input) => {
+      if (!String(input.value || "").trim()) {
+        input.value = "50";
+      }
+    });
+    updatePwaCarbonInputColors();
+  }
+  if (target.closest("[data-pwa-clear-carbon]")) {
+    pwaCarbonGrid?.querySelectorAll("input").forEach((input) => {
+      input.value = "";
+      input.classList.remove("is-low", "is-medium", "is-high");
+    });
+    updatePwaCarbonFormSummary();
+  }
+});
+
+pwaCarbonForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const selectedEquipment = String(pwaCarbonEquipment?.value || "").trim();
+  if (!selectedEquipment) {
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Equipment wajib diisi.";
+    showToast("Carbon Brush", "Equipment wajib diisi.");
+    return;
+  }
+  renderPwaCarbonEquipmentOptions();
+  if (carbonBrushEquipmentReferenceList.length && !carbonBrushEquipmentReferenceList.includes(selectedEquipment)) {
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Equipment belum ada di referensi carbon brush.";
+    showToast("Carbon Brush", "Pilih equipment dari referensi.");
+    return;
+  }
+
+  const measurements = collectPwaCarbonMeasurements();
+  const invalidMeasurements = getInvalidCarbonBrushMeasurements(measurements);
+  if (invalidMeasurements.length) {
+    const sample = invalidMeasurements.slice(0, 6).join(", ");
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = `Nilai titik harus angka saja. Periksa: ${sample}`;
+    showToast("Carbon Brush", "Nilai titik hanya boleh angka.");
+    return;
+  }
+
+  const meta = decodeCarbonBrushEquipmentMeta(selectedEquipment);
+  const stats = computeCarbonBrushStats(measurements, selectedEquipment, meta.plant);
+  const formData = new FormData(pwaCarbonForm);
+  const inspectionDateValue = String(formData.get("inspectionDate") || "").trim() || new Date().toISOString().slice(0, 10);
+  const item = {
+    id: createId("service"),
+    type: "Electrical",
+    subtype: "Motor MV (Carbon Brush)",
+    formType: "service-motor-mv-carbon-brush",
+    equipmentName: selectedEquipment,
+    description: String(formData.get("description") || "Inspeksi motor MV carbon brush").trim() || "Inspeksi motor MV carbon brush",
+    detail: `Merah: ${stats.low} | Kuning: ${stats.medium} | Hijau: ${stats.high} | Terendah: ${stats.min ?? "-"}`,
+    payload: {
+      inspectionDate: inspectionDateValue,
+      plant: meta.plant,
+      location: meta.location,
+      category: meta.category,
+      replacement: String(formData.get("replacement") || "").trim(),
+      megger: String(formData.get("megger") || "").trim(),
+      pic: String(formData.get("pic") || "").trim(),
+      measurements,
+      stats: {
+        low: stats.low,
+        medium: stats.medium,
+        high: stats.high,
+        empty: stats.empty,
+        min: stats.min,
+        attentionPoints: stats.attentionPoints,
+      },
+      findingPhotos: [],
+    },
+  };
+
+  try {
+    if (pwaCarbonSubmit) {
+      pwaCarbonSubmit.disabled = true;
+      pwaCarbonSubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, false);
+    appendServiceCard(savedItem);
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+    resetPwaCarbonForm();
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Data carbon brush berhasil disimpan.";
+    showToast("Carbon Brush", "Data carbon brush berhasil disimpan.");
+  } catch (error) {
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = error.message || "Gagal menyimpan data carbon brush.";
+    showToast("Carbon Brush", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaCarbonSubmit) {
+      pwaCarbonSubmit.disabled = false;
+      pwaCarbonSubmit.textContent = "Simpan Carbon Brush";
+    }
+  }
 });
 
 serviceDetailContent?.addEventListener("click", (event) => {
