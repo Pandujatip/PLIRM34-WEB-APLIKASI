@@ -450,7 +450,8 @@ select {
 }
 
 .pwa-form-field input,
-.pwa-form-field textarea {
+.pwa-form-field textarea,
+.pwa-form-field select {
   width: 100%;
   min-height: 72px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -462,6 +463,10 @@ select {
   outline: none;
 }
 
+.pwa-form-field select {
+  appearance: none;
+}
+
 .pwa-form-field textarea {
   min-height: 118px;
   resize: vertical;
@@ -469,6 +474,7 @@ select {
 
 .pwa-form-field input:focus,
 .pwa-form-field textarea:focus,
+.pwa-form-field select:focus,
 .pwa-carbon-point input:focus {
   border-color: rgba(115, 224, 169, 0.82);
   box-shadow: 0 0 0 3px rgba(115, 224, 169, 0.16);

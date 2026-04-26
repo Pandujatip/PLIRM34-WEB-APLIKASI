@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-21">
+  <link rel="stylesheet" href="styles.css?v=20260426-22">
 </head>
 <body>
   <div class="app-shell">
@@ -269,6 +269,121 @@
                   <div class="pwa-carbon-grid" id="pwa-carbon-grid"></div>
                   <button class="pwa-submit-button" id="pwa-carbon-submit" type="submit">Simpan Carbon Brush</button>
                   <p class="pwa-form-note" id="pwa-carbon-form-note">Nilai titik hanya angka, contoh 43.8. Tanda koma otomatis dibaca sebagai desimal.</p>
+                </form>
+              </section>
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Inspeksi MCC</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-mcc-form" autocomplete="off">
+                  <label class="pwa-form-field pwa-typeahead-field">
+                    <span>Equipment MCC</span>
+                    <input id="pwa-mcc-equipment" name="equipmentName" type="text" placeholder="Ketik equipment MCC, lalu pilih" required>
+                    <div class="pwa-typeahead-list hidden" id="pwa-mcc-equipment-dropdown"></div>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Tanggal</span>
+                      <input id="pwa-mcc-date" name="inspectionDate" type="date" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Test fungsi</span>
+                      <select name="testFunction" required>
+                        <option value="OK">OK</option>
+                        <option value="NOT OK">NOT OK</option>
+                      </select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Visual</span>
+                      <select name="visualCondition" required>
+                        <option value="OK">OK</option>
+                        <option value="NOT OK">NOT OK</option>
+                      </select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Kebersihan part</span>
+                      <select name="partCleanliness" required>
+                        <option value="OK">OK</option>
+                        <option value="NOT OK">NOT OK</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label class="pwa-form-field">
+                    <span>Keterangan</span>
+                    <textarea name="description" rows="2" placeholder="Catatan inspeksi MCC"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-mcc-submit" type="submit">Simpan MCC</button>
+                  <p class="pwa-form-note" id="pwa-mcc-form-note">Pilih equipment MCC dari dropdown agar data rapi.</p>
+                </form>
+              </section>
+
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Inspeksi Electrical Room</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-electrical-room-form" autocomplete="off">
+                  <label class="pwa-form-field pwa-typeahead-field">
+                    <span>Room / Panel</span>
+                    <input id="pwa-electrical-room-name" name="equipmentName" type="text" placeholder="Ketik room/panel, lalu pilih" required>
+                    <div class="pwa-typeahead-list hidden" id="pwa-electrical-room-dropdown"></div>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Pintu panel</span>
+                      <select name="panelDoorCondition" required>
+                        <option value="OK">OK</option>
+                        <option value="NOT OK">NOT OK</option>
+                      </select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Lantai</span>
+                      <select name="floorCleanliness" required>
+                        <option value="Bersih">Bersih</option>
+                        <option value="Kotor">Kotor</option>
+                      </select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Temperatur ruang</span>
+                      <select name="roomTemperature" required>
+                        <option value="Dingin">Dingin</option>
+                        <option value="Tidak dingin">Tidak dingin</option>
+                      </select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Battery total VDC</span>
+                      <input name="batteryTotalVdc" type="text" inputmode="decimal" placeholder="Contoh: 125">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Battery charge VDC</span>
+                      <input name="batteryVdc" type="text" inputmode="decimal" placeholder="Contoh: 125">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Battery ampere</span>
+                      <input name="batteryAmpere" type="text" inputmode="decimal" placeholder="Contoh: 4">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Trafo winding</span>
+                      <input name="transformerWindingTemperature" type="text" inputmode="decimal" placeholder="Contoh: 58">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Trafo oil</span>
+                      <input name="transformerOilTemperature" type="text" inputmode="decimal" placeholder="Contoh: 50">
+                    </label>
+                  </div>
+                  <label class="pwa-form-field">
+                    <span>Keterangan</span>
+                    <textarea name="description" rows="2" placeholder="Catatan inspeksi electrical room"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-electrical-room-submit" type="submit">Simpan Electrical Room</button>
+                  <p class="pwa-form-note" id="pwa-electrical-room-form-note">Untuk detail battery cell 1-10, gunakan form web jika diperlukan.</p>
                 </form>
               </section>
               <section class="pwa-block pwa-block-flush">
@@ -2860,11 +2975,11 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-21"></script>
+  <script src="app.js?v=20260426-22"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260426-07").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-08").catch((error) => {
           console.warn("PWA service worker registration failed", error);
         });
       });

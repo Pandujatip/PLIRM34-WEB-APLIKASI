@@ -158,6 +158,17 @@ const pwaCarbonGrid = document.getElementById("pwa-carbon-grid");
 const pwaCarbonFormSummary = document.getElementById("pwa-carbon-form-summary");
 const pwaCarbonFormNote = document.getElementById("pwa-carbon-form-note");
 const pwaCarbonSubmit = document.getElementById("pwa-carbon-submit");
+const pwaMccForm = document.getElementById("pwa-mcc-form");
+const pwaMccEquipment = document.getElementById("pwa-mcc-equipment");
+const pwaMccEquipmentDropdown = document.getElementById("pwa-mcc-equipment-dropdown");
+const pwaMccDate = document.getElementById("pwa-mcc-date");
+const pwaMccFormNote = document.getElementById("pwa-mcc-form-note");
+const pwaMccSubmit = document.getElementById("pwa-mcc-submit");
+const pwaElectricalRoomForm = document.getElementById("pwa-electrical-room-form");
+const pwaElectricalRoomName = document.getElementById("pwa-electrical-room-name");
+const pwaElectricalRoomDropdown = document.getElementById("pwa-electrical-room-dropdown");
+const pwaElectricalRoomFormNote = document.getElementById("pwa-electrical-room-form-note");
+const pwaElectricalRoomSubmit = document.getElementById("pwa-electrical-room-submit");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
 const dashboardInspectionHistory = document.getElementById("dashboard-inspection-history");
@@ -1406,6 +1417,33 @@ function hidePwaCarbonEquipmentDropdown() {
   pwaCarbonEquipmentDropdown.innerHTML = "";
 }
 
+function hidePwaTypeaheadDropdown(dropdown) {
+  if (!dropdown) {
+    return;
+  }
+  dropdown.classList.add("hidden");
+  dropdown.innerHTML = "";
+}
+
+function renderPwaTypeaheadDropdown(input, dropdown, items, optionName) {
+  if (!input || !dropdown) {
+    return;
+  }
+  const query = String(input.value || "").trim().toLowerCase();
+  const matches = items
+    .filter((item) => !query || item.toLowerCase().includes(query))
+    .slice(0, 12);
+  if (!matches.length) {
+    dropdown.innerHTML = '<div class="pwa-empty">Referensi tidak ditemukan.</div>';
+    dropdown.classList.remove("hidden");
+    return;
+  }
+  dropdown.innerHTML = matches.map((item) => `
+    <button class="pwa-typeahead-option" type="button" data-${optionName}="${escapeHtml(item)}">${escapeHtml(item)}</button>
+  `).join("");
+  dropdown.classList.remove("hidden");
+}
+
 function renderPwaCarbonEquipmentDropdown() {
   if (!pwaCarbonEquipmentDropdown || !pwaCarbonEquipment) {
     return;
@@ -1495,6 +1533,29 @@ function resetPwaCarbonForm() {
   });
   updatePwaCarbonFormSummary();
   updatePwaCarbonTypeInfo();
+}
+
+function resetPwaMccForm() {
+  if (!pwaMccForm) {
+    return;
+  }
+  pwaMccForm.reset();
+  if (pwaMccDate) {
+    pwaMccDate.value = new Date().toISOString().slice(0, 10);
+  }
+  if (pwaMccFormNote) {
+    pwaMccFormNote.textContent = "Pilih equipment MCC dari dropdown agar data rapi.";
+  }
+}
+
+function resetPwaElectricalRoomForm() {
+  if (!pwaElectricalRoomForm) {
+    return;
+  }
+  pwaElectricalRoomForm.reset();
+  if (pwaElectricalRoomFormNote) {
+    pwaElectricalRoomFormNote.textContent = "Untuk detail battery cell 1-10, gunakan form web jika diperlukan.";
+  }
 }
 
 function collectCarbonBrushMeasurements(form) {
@@ -5968,6 +6029,8 @@ async function initializeApplication() {
   renderCarbonBrushMeasurementGrid();
   renderPwaCarbonGrid();
   resetPwaCarbonForm();
+  resetPwaMccForm();
+  resetPwaElectricalRoomForm();
   if (serviceElectricalCarbonBrushForm?.inspectionDate && !serviceElectricalCarbonBrushForm.inspectionDate.value) {
     serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
   }
@@ -10418,6 +10481,20 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const mccOption = target.closest("[data-pwa-mcc-equipment-option]");
+  if (mccOption instanceof HTMLElement && pwaMccEquipment) {
+    pwaMccEquipment.value = mccOption.dataset.pwaMccEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaMccEquipmentDropdown);
+    return;
+  }
+
+  const roomOption = target.closest("[data-pwa-electrical-room-option]");
+  if (roomOption instanceof HTMLElement && pwaElectricalRoomName) {
+    pwaElectricalRoomName.value = roomOption.dataset.pwaElectricalRoomOption || "";
+    hidePwaTypeaheadDropdown(pwaElectricalRoomDropdown);
+    return;
+  }
+
   const serviceCard = target.closest("[data-pwa-service-id]");
   if (serviceCard instanceof HTMLElement) {
     const item = await resolveServiceItem(serviceCard.dataset.pwaServiceId || "");
@@ -10471,6 +10548,22 @@ pwaCarbonEquipment?.addEventListener("focus", () => {
   renderPwaCarbonEquipmentDropdown();
 });
 
+pwaMccEquipment?.addEventListener("input", () => {
+  renderPwaTypeaheadDropdown(pwaMccEquipment, pwaMccEquipmentDropdown, getMccEquipmentReferenceList(), "pwa-mcc-equipment-option");
+});
+
+pwaMccEquipment?.addEventListener("focus", () => {
+  renderPwaTypeaheadDropdown(pwaMccEquipment, pwaMccEquipmentDropdown, getMccEquipmentReferenceList(), "pwa-mcc-equipment-option");
+});
+
+pwaElectricalRoomName?.addEventListener("input", () => {
+  renderPwaTypeaheadDropdown(pwaElectricalRoomName, pwaElectricalRoomDropdown, getElectricalRoomReferenceList(), "pwa-electrical-room-option");
+});
+
+pwaElectricalRoomName?.addEventListener("focus", () => {
+  renderPwaTypeaheadDropdown(pwaElectricalRoomName, pwaElectricalRoomDropdown, getElectricalRoomReferenceList(), "pwa-electrical-room-option");
+});
+
 pwaCarbonForm?.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
@@ -10499,6 +10592,18 @@ pwaCarbonForm?.addEventListener("click", (event) => {
     updatePwaCarbonInputColors();
     updatePwaCarbonTypeInfo();
   }
+
+  const mccOption = target.closest("[data-pwa-mcc-equipment-option]");
+  if (mccOption instanceof HTMLElement && pwaMccEquipment) {
+    pwaMccEquipment.value = mccOption.dataset.pwaMccEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaMccEquipmentDropdown);
+  }
+
+  const roomOption = target.closest("[data-pwa-electrical-room-option]");
+  if (roomOption instanceof HTMLElement && pwaElectricalRoomName) {
+    pwaElectricalRoomName.value = roomOption.dataset.pwaElectricalRoomOption || "";
+    hidePwaTypeaheadDropdown(pwaElectricalRoomDropdown);
+  }
 });
 
 document.addEventListener("click", (event) => {
@@ -10508,6 +10613,8 @@ document.addEventListener("click", (event) => {
   }
   if (!target.closest(".pwa-typeahead-field")) {
     hidePwaCarbonEquipmentDropdown();
+    hidePwaTypeaheadDropdown(pwaMccEquipmentDropdown);
+    hidePwaTypeaheadDropdown(pwaElectricalRoomDropdown);
   }
 });
 
@@ -10586,6 +10693,122 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
     if (pwaCarbonSubmit) {
       pwaCarbonSubmit.disabled = false;
       pwaCarbonSubmit.textContent = "Simpan Carbon Brush";
+    }
+  }
+});
+
+pwaMccForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(pwaMccForm);
+  const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
+  if (!equipmentName) {
+    if (pwaMccFormNote) pwaMccFormNote.textContent = "Equipment MCC wajib diisi.";
+    showToast("MCC", "Equipment wajib diisi.");
+    return;
+  }
+  const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+  const payload = {
+    inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
+    testFunction: normalizeMccStatusValue(formData.get("testFunction")),
+    visualCondition: normalizeMccStatusValue(formData.get("visualCondition")),
+    partCleanliness: normalizeMccStatusValue(formData.get("partCleanliness")),
+    findingPhotos: [],
+  };
+  const item = {
+    id: createId("service"),
+    type: "Electrical",
+    subtype: "MCC",
+    formType: "service-mcc",
+    equipmentName,
+    description: String(formData.get("description") || "-").trim() || "-",
+    detail: buildMccDetailSummary(payload),
+    payload,
+  };
+  try {
+    if (pwaMccSubmit) {
+      pwaMccSubmit.disabled = true;
+      pwaMccSubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, false);
+    appendServiceCard(savedItem);
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+    resetPwaMccForm();
+    if (pwaMccFormNote) pwaMccFormNote.textContent = "Data MCC berhasil disimpan.";
+    showToast("MCC", "Data MCC berhasil disimpan.");
+  } catch (error) {
+    if (pwaMccFormNote) pwaMccFormNote.textContent = error.message || "Gagal menyimpan data MCC.";
+    showToast("MCC", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaMccSubmit) {
+      pwaMccSubmit.disabled = false;
+      pwaMccSubmit.textContent = "Simpan MCC";
+    }
+  }
+});
+
+pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(pwaElectricalRoomForm);
+  const roomName = String(formData.get("equipmentName") || "").trim().toUpperCase();
+  const roomReferences = getElectricalRoomReferenceList();
+  if (!roomName || !roomReferences.includes(roomName)) {
+    if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = "Room / panel wajib dipilih dari dropdown referensi.";
+    showToast("Electrical Room", "Pilih room / panel dari referensi.");
+    return;
+  }
+  const payload = {
+    inspectionDate: new Date().toISOString(),
+    panelDoorCondition: String(formData.get("panelDoorCondition") || "OK"),
+    floorCleanliness: String(formData.get("floorCleanliness") || "Bersih"),
+    roomTemperature: String(formData.get("roomTemperature") || "Dingin"),
+    batteryVdc: String(formData.get("batteryVdc") || "").trim(),
+    batteryAmpere: String(formData.get("batteryAmpere") || "").trim(),
+    batteryTotalVdc: String(formData.get("batteryTotalVdc") || "").trim(),
+    battery1: "",
+    battery2: "",
+    battery3: "",
+    battery4: "",
+    battery5: "",
+    battery6: "",
+    battery7: "",
+    battery8: "",
+    battery9: "",
+    battery10: "",
+    transformerEquipment: "",
+    transformerWindingTemperature: String(formData.get("transformerWindingTemperature") || "").trim(),
+    transformerOilTemperature: String(formData.get("transformerOilTemperature") || "").trim(),
+    transformerOilLevel: "",
+    transformerSilicaGel: "OK",
+    findingPhotos: [],
+  };
+  const item = {
+    id: createId("service"),
+    type: "Electrical",
+    subtype: "Electrical Room",
+    formType: "service-electrical-room",
+    equipmentName: roomName,
+    description: String(formData.get("description") || "-").trim() || "-",
+    detail: `Pintu panel: ${payload.panelDoorCondition} | Lantai: ${payload.floorCleanliness} | Temperature: ${payload.roomTemperature}`,
+    payload,
+  };
+  try {
+    if (pwaElectricalRoomSubmit) {
+      pwaElectricalRoomSubmit.disabled = true;
+      pwaElectricalRoomSubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, false);
+    appendServiceCard(savedItem);
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+    resetPwaElectricalRoomForm();
+    if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = "Data Electrical Room berhasil disimpan.";
+    showToast("Electrical Room", "Data Electrical Room berhasil disimpan.");
+  } catch (error) {
+    if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = error.message || "Gagal menyimpan data Electrical Room.";
+    showToast("Electrical Room", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaElectricalRoomSubmit) {
+      pwaElectricalRoomSubmit.disabled = false;
+      pwaElectricalRoomSubmit.textContent = "Simpan Electrical Room";
     }
   }
 });
