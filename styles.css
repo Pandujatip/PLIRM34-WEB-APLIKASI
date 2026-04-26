@@ -171,6 +171,23 @@ select {
   font-size: 1rem;
 }
 
+.pwa-compact .auth-screen[data-auth-state="restoring"] .auth-form {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.pwa-compact .auth-screen[data-auth-state="restoring"] .auth-card::after {
+  content: attr(data-auth-message);
+  display: block;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 18px;
+  color: #07111f;
+  background: linear-gradient(135deg, #73e0a9, #dfffee);
+  font-weight: 900;
+  text-align: center;
+}
+
 .pwa-compact:not(.pwa-web-view) .sidebar,
 .pwa-compact:not(.pwa-web-view) .topbar,
 .pwa-compact:not(.pwa-web-view) .panel-section {

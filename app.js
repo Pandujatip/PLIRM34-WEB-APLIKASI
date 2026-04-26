@@ -6024,6 +6024,50 @@ async function restoreBackendSession() {
   }
 }
 
+function setPwaLoginBusy(isBusy, message = "") {
+  if (!isPwaCompactMode() || !loginScreen) {
+    return;
+  }
+  const controls = loginForm?.querySelectorAll("input, button") || [];
+  controls.forEach((control) => {
+    control.disabled = Boolean(isBusy);
+  });
+  if (isBusy) {
+    loginScreen.dataset.authState = "restoring";
+    loginScreen.querySelector(".auth-card")?.setAttribute("data-auth-message", message || "Memeriksa sesi aktif...");
+    return;
+  }
+  delete loginScreen.dataset.authState;
+  loginScreen.querySelector(".auth-card")?.removeAttribute("data-auth-message");
+}
+
+async function restorePwaBackendSession() {
+  try {
+    setPwaLoginBusy(true, "Memeriksa sesi aktif...");
+    const result = await apiRequest("/auth/me");
+    if (!result?.user) {
+      return false;
+    }
+    backendState.sessionActive = true;
+    loginWithUser(result.user);
+    openPwaTab("home");
+    window.setTimeout(() => {
+      void hydrateFromBackendAfterLogin("dashboard")
+        .then(() => openPwaTab("home"))
+        .catch((error) => {
+          backendState.sessionActive = false;
+          showToast("PWA", error.message || "Gagal memuat data sesi.");
+        });
+    }, 80);
+    return true;
+  } catch {
+    backendState.sessionActive = false;
+    return false;
+  } finally {
+    setPwaLoginBusy(false);
+  }
+}
+
 async function initializeApplication() {
   const backendReady = await detectBackendAvailability();
   startDashboardSlideshow();
@@ -6042,7 +6086,9 @@ async function initializeApplication() {
   ["negatif-list", "sparepart", "service", "bom", "spb"].forEach(placeCreatePanelNearToolbar);
   getStoredUsers();
   if (backendReady) {
-    const restored = await restoreBackendSession();
+    const restored = isPwaCompactMode()
+      ? await restorePwaBackendSession()
+      : await restoreBackendSession();
     if (!restored) {
       loadStoredData();
     }
