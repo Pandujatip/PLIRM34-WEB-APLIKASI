@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PLIRM34 Digital Workbench</title>
   <meta name="description" content="Aplikasi digitalisasi unit kerja PLIRM34 untuk inspeksi, sparepart, BOM, dan SPB.">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PLIRM34">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest?v=20260426-01">
+  <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png">
+  <link rel="apple-touch-icon" href="pwa-icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
@@ -2650,5 +2658,14 @@
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
   <script src="app.js?v=20260426-16"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260426-01").catch((error) => {
+          console.warn("PWA service worker registration failed", error);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

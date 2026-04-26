@@ -1,0 +1,46 @@
+{
+  "name": "PLIRM34 Digital Workbench",
+  "short_name": "PLIRM34",
+  "description": "Aplikasi digitalisasi unit kerja PLIRM34 untuk inspeksi, sparepart, BOM, SPB, MSO, dan carbon brush.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07111f",
+  "theme_color": "#0f766e",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/pwa-icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/?source=pwa#dashboard",
+      "icons": [{ "src": "/pwa-icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Service",
+      "short_name": "Service",
+      "url": "/?source=pwa#service",
+      "icons": [{ "src": "/pwa-icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
