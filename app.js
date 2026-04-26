@@ -1113,12 +1113,31 @@ async function loadCarbonBrushEquipmentReference() {
 
     throw new Error("Backend master equipment belum aktif");
   } catch {
+    const serviceFallbackReferences = [...new Set(
+      getServiceItemsFromDom()
+        .filter((item) => item.formType === "service-motor-mv-carbon-brush")
+        .map((item) => String(item.equipmentName || "").trim())
+        .filter(Boolean),
+    )].sort((left, right) => left.localeCompare(right, "id"));
+
+    if (serviceFallbackReferences.length) {
+      carbonBrushEquipmentReferenceList = serviceFallbackReferences;
+      carbonBrushEquipmentInput.disabled = false;
+      carbonBrushEquipmentInput.placeholder = "Ketik kode equipment carbon brush";
+      if (!carbonBrushEquipmentReferenceList.includes(selectedCarbonBrushEquipmentReference)) {
+        selectedCarbonBrushEquipmentReference = "";
+        carbonBrushEquipmentInput.value = "";
+      }
+      updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif dari histori service: ${carbonBrushEquipmentReferenceList.length} item. Master Equipment belum terbaca.`, true);
+      return;
+    }
+
     carbonBrushEquipmentReferenceList = [];
     carbonBrushEquipmentInput.disabled = true;
     carbonBrushEquipmentInput.value = "";
     selectedCarbonBrushEquipmentReference = "";
     hideCarbonBrushEquipmentResults();
-    updateCarbonBrushEquipmentStatus("Gagal memuat referensi carbon brush dari Master Equipment. Tambahkan source group carbon-brush di menu admin.", true);
+    updateCarbonBrushEquipmentStatus("Gagal memuat referensi carbon brush dari Master Equipment dan belum ada histori service carbon brush.", true);
   }
 }
 
