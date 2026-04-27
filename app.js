@@ -146,6 +146,9 @@ const pwaCarbonPriority = document.getElementById("pwa-carbon-priority");
 const pwaMsoPriority = document.getElementById("pwa-mso-priority");
 const pwaNegatifOpen = document.getElementById("pwa-negatif-open");
 const pwaServiceLatest = document.getElementById("pwa-service-latest");
+const pwaServiceSearch = document.getElementById("pwa-service-search");
+const pwaServiceCategory = document.getElementById("pwa-service-category");
+const pwaServiceFilterNote = document.getElementById("pwa-service-filter-note");
 const pwaMsoList = document.getElementById("pwa-mso-list");
 const pwaCarbonList = document.getElementById("pwa-carbon-list");
 const pwaCarbonForm = document.getElementById("pwa-carbon-form");
@@ -6929,6 +6932,50 @@ function renderPwaServiceCard(item, metaText = "") {
   `;
 }
 
+function getPwaServiceCategoryLabel(item) {
+  return String(item?.subtype || item?.type || item?.formType || "Service").trim();
+}
+
+function renderPwaServiceCategoryOptions(serviceItems) {
+  if (!pwaServiceCategory) {
+    return;
+  }
+  const currentValue = pwaServiceCategory.value || "";
+  const categories = [...new Set(serviceItems.map(getPwaServiceCategoryLabel).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, "id"));
+  pwaServiceCategory.innerHTML = '<option value="">Semua kategori</option>';
+  categories.forEach((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    pwaServiceCategory.append(option);
+  });
+  if (currentValue && categories.includes(currentValue)) {
+    pwaServiceCategory.value = currentValue;
+  }
+}
+
+function filterPwaServiceItems(serviceItems) {
+  const query = String(pwaServiceSearch?.value || "").trim().toLowerCase();
+  const category = String(pwaServiceCategory?.value || "").trim();
+  return getSortedServiceItems(serviceItems).filter((item) => {
+    const categoryLabel = getPwaServiceCategoryLabel(item);
+    const matchesCategory = !category || categoryLabel === category;
+    const searchableText = [
+      item.equipmentName,
+      item.type,
+      item.subtype,
+      item.formType,
+      item.description,
+      item.detail,
+      item.payload?.condition,
+      item.payload?.creator,
+    ].join(" ").toLowerCase();
+    const matchesQuery = !query || searchableText.includes(query);
+    return matchesCategory && matchesQuery;
+  });
+}
+
 function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
   if (!pwaCompactShell || !isPwaCompactMode()) {
     return;
@@ -6943,7 +6990,10 @@ function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
     .reduce((sum, item) => sum + parseSpbAmount(item.totalEce), 0);
   const carbonAlerts = buildCarbonBrushAlertSummary(serviceItems);
   const msoWatchlist = buildMsoMotorWatchlistSummary(serviceItems);
-  const recentService = getSortedServiceItems(serviceItems).slice(0, 14);
+  renderPwaServiceCategoryOptions(serviceItems);
+  const filteredServiceItems = filterPwaServiceItems(serviceItems);
+  const hasServiceFilter = Boolean(String(pwaServiceSearch?.value || "").trim()) || Boolean(String(pwaServiceCategory?.value || "").trim());
+  const recentService = filteredServiceItems.slice(0, hasServiceFilter ? 50 : 14);
 
   if (pwaUserLine) {
     pwaUserLine.textContent = `${currentUser?.textContent || "-"} | ${currentRole?.textContent || "Role"}`;
@@ -7028,7 +7078,12 @@ function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
         : (item.formType === "service-motor-mv-carbon-brush"
           ? `Carbon brush | Megger ${item.payload?.megger || "-"} | PIC ${item.payload?.pic || "-"}`
           : item.detail || item.description || "-"),
-    )).join("") || renderPwaEmpty("Belum ada data service.");
+    )).join("") || renderPwaEmpty(hasServiceFilter ? "Tidak ada service yang cocok dengan filter." : "Belum ada data service.");
+  }
+  if (pwaServiceFilterNote) {
+    pwaServiceFilterNote.textContent = hasServiceFilter
+      ? `Menampilkan ${filteredServiceItems.length} hasil filter service.`
+      : `Menampilkan 14 service terbaru dari ${serviceItems.length} data.`;
   }
 }
 
@@ -10846,6 +10901,15 @@ pwaOpacityEquipment?.addEventListener("input", () => {
 
 pwaOpacityEquipment?.addEventListener("focus", () => {
   renderPwaTypeaheadDropdown(pwaOpacityEquipment, pwaOpacityEquipmentDropdown, getOpacityEquipmentReferenceList(), "pwa-opacity-equipment-option");
+});
+
+[pwaServiceSearch, pwaServiceCategory].forEach((control) => {
+  control?.addEventListener("input", () => {
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+  });
+  control?.addEventListener("change", () => {
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+  });
 });
 
 pwaCarbonForm?.addEventListener("click", (event) => {

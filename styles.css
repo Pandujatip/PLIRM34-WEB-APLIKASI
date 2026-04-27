@@ -531,6 +531,13 @@ select {
   touch-action: manipulation;
 }
 
+.pwa-service-filter-panel {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
 .pwa-quick-form-block {
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);

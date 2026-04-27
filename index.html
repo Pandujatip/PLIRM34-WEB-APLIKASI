@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260427-05">
+  <link rel="stylesheet" href="styles.css?v=20260427-06">
 </head>
 <body>
   <div class="app-shell">
@@ -790,6 +790,19 @@
                   </div>
                   <button class="pwa-text-button" type="button" data-pwa-section="service">Buka form</button>
                 </div>
+                <div class="pwa-service-filter-panel">
+                  <label class="pwa-form-field">
+                    <span>Cari equipment</span>
+                    <input id="pwa-service-search" type="search" placeholder="Ketik equipment / catatan">
+                  </label>
+                  <label class="pwa-form-field">
+                    <span>Kategori</span>
+                    <select id="pwa-service-category">
+                      <option value="">Semua kategori</option>
+                    </select>
+                  </label>
+                </div>
+                <p class="pwa-form-note" id="pwa-service-filter-note">Menampilkan service terbaru.</p>
                 <div class="pwa-list" id="pwa-service-latest"></div>
               </section>
             </section>
@@ -3371,12 +3384,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260427-05"></script>
+  <script src="app.js?v=20260427-06"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260427-05").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260427-06").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
