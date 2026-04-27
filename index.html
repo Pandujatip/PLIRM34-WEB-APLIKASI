@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260426-27">
+  <link rel="stylesheet" href="styles.css?v=20260427-04">
 </head>
 <body>
   <div class="app-shell">
@@ -3376,7 +3376,7 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260427-03").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260427-04").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

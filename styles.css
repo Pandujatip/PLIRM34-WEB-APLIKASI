@@ -802,15 +802,15 @@ select {
 
 .pwa-bottom-nav {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 10px;
+  right: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-  padding: 9px;
+  gap: 7px;
+  padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 28px;
+  border-radius: 31px;
   background: rgba(7, 17, 31, 0.86);
   backdrop-filter: blur(24px);
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.36);
@@ -818,11 +818,11 @@ select {
 
 .pwa-bottom-nav button {
   border: 0;
-  border-radius: 20px;
+  border-radius: 23px;
   color: rgba(245, 242, 237, 0.62);
   background: transparent;
-  min-height: 58px;
-  padding: 11px 4px;
+  min-height: 76px;
+  padding: 14px 4px 13px;
   touch-action: manipulation;
 }
 
@@ -838,12 +838,13 @@ select {
 }
 
 .pwa-bottom-nav strong {
-  font-size: 0.86rem;
+  font-size: 1.08rem;
+  letter-spacing: -0.03em;
 }
 
 .pwa-bottom-nav span {
-  margin-top: 2px;
-  font-size: 0.7rem;
+  margin-top: 4px;
+  font-size: 0.88rem;
   opacity: 0.78;
 }
 
