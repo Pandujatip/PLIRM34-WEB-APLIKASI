@@ -1055,7 +1055,7 @@ function renderDcsEquipmentResults(query) {
   if (!matches.length) {
     const emptyState = document.createElement("div");
     emptyState.className = "typeahead-empty";
-    emptyState.textContent = "Referensi DCS tidak ditemukan.";
+    emptyState.textContent = "Referensi PLC tidak ditemukan.";
     serviceDcsEquipmentResults.append(emptyState);
     serviceDcsEquipmentResults.classList.remove("hidden");
     return;
@@ -1072,7 +1072,7 @@ function renderDcsEquipmentResults(query) {
     button.addEventListener("click", () => {
       setDcsEquipmentReferenceValue(item.equipmentName, item.description);
       hideDcsEquipmentResults();
-      updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+      updateDcsEquipmentReferenceStatus(`Referensi PLC aktif: ${dcsEquipmentReferenceItems.length} item.`);
     });
     serviceDcsEquipmentResults.append(button);
   });
@@ -1197,7 +1197,7 @@ async function loadDcsEquipmentReference(options = {}) {
   const cacheFresh = dcsEquipmentReferenceItems.length > 0 && (Date.now() - dcsEquipmentReferenceLoadedAt) < 300000;
   if (!force && cacheFresh) {
     setDcsEquipmentInputEnabled(true);
-    updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+    updateDcsEquipmentReferenceStatus(`Referensi PLC aktif: ${dcsEquipmentReferenceItems.length} item.`);
     return dcsEquipmentReferenceItems;
   }
 
@@ -1206,7 +1206,7 @@ async function loadDcsEquipmentReference(options = {}) {
   }
 
   setDcsEquipmentInputEnabled(false);
-  updateDcsEquipmentReferenceStatus("Memuat referensi equipment DCS...");
+  updateDcsEquipmentReferenceStatus("Memuat referensi equipment PLC...");
 
   dcsEquipmentReferencePromise = (async () => {
     try {
@@ -1224,12 +1224,12 @@ async function loadDcsEquipmentReference(options = {}) {
       }
 
       if (!dcsEquipmentReferenceItems.length) {
-        throw new Error("Referensi DCS kosong di Master Equipment");
+        throw new Error("Referensi PLC kosong di Master Equipment");
       }
 
       dcsEquipmentReferenceLoadedAt = Date.now();
       setDcsEquipmentInputEnabled(true);
-      serviceDcsEquipmentInput.placeholder = "Ketik kode equipment DCS, misal 776PLCA3";
+      serviceDcsEquipmentInput.placeholder = "Ketik kode equipment PLC, misal 776PLCA3";
       const currentReference = findDcsEquipmentReference(selectedDcsEquipmentReference || serviceDcsEquipmentInput.value);
       if (currentReference) {
         setDcsEquipmentReferenceValue(currentReference.equipmentName, currentReference.description);
@@ -1237,7 +1237,7 @@ async function loadDcsEquipmentReference(options = {}) {
         setDcsEquipmentReferenceValue("", "");
         selectedDcsEquipmentReference = "";
       }
-      updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+      updateDcsEquipmentReferenceStatus(`Referensi PLC aktif: ${dcsEquipmentReferenceItems.length} item.`);
       return dcsEquipmentReferenceItems;
     } catch (error) {
       dcsEquipmentReferenceItems = [];
@@ -1246,7 +1246,7 @@ async function loadDcsEquipmentReference(options = {}) {
       setDcsEquipmentReferenceValue("", "");
       selectedDcsEquipmentReference = "";
       hideDcsEquipmentResults();
-      updateDcsEquipmentReferenceStatus("Gagal memuat referensi DCS dari Master Equipment. Tambahkan source group dcs-service di menu admin.", true);
+      updateDcsEquipmentReferenceStatus("Gagal memuat referensi PLC dari Master Equipment. Tambahkan source group dcs-service di menu admin.", true);
       throw error;
     } finally {
       dcsEquipmentReferencePromise = null;
@@ -1952,7 +1952,7 @@ function normalizeServiceItem(item) {
   const legacyDcsMatch = String(item.detail || "").match(/Fungsi: (.*) \| Kebersihan: (.*)/);
   return {
     ...item,
-    subtype: "DCS",
+    subtype: "PLC",
     formType: "service-dcs",
     payload: normalizeDcsPayload(item.payload || {}, legacyDcsMatch),
   };
@@ -2601,7 +2601,7 @@ function analyzeServiceItem(item) {
     }
 
     if (/panas|tidak dingin|> ?25|2[6-9]\s*c|[3-9][0-9]\s*c/i.test(payload.roomAcCondition || "") && !/dingin|< ?25/i.test(payload.roomAcCondition || "")) {
-      notes.push("Kondisi AC atau temperatur room belum ideal. Pastikan suhu ruang panel tetap dingin untuk menjaga keandalan perangkat DCS.");
+      notes.push("Kondisi AC atau temperatur room belum ideal. Pastikan suhu ruang panel tetap dingin untuk menjaga keandalan perangkat PLC.");
     }
 
     if (!/bersih/i.test(payload.roomCleanliness || "")) {
@@ -2616,7 +2616,7 @@ function analyzeServiceItem(item) {
       notes.push("Ada tindakan adjustment atau repair pada inspeksi ini. Pastikan hasil perbaikan diverifikasi kembali pada operasi normal.");
     }
 
-    return notes.length ? notes : ["Kondisi DCS dari isian ini belum menunjukkan temuan kritis."];
+    return notes.length ? notes : ["Kondisi PLC dari isian ini belum menunjukkan temuan kritis."];
   }
 
   return ["Analisa otomatis belum tersedia untuk form ini."];
@@ -9381,10 +9381,10 @@ serviceDcsEquipmentInput?.addEventListener("blur", () => {
       if (serviceDcsEquipmentDescription) {
         serviceDcsEquipmentDescription.value = "";
       }
-      updateDcsEquipmentReferenceStatus("Pilih equipment DCS dari hasil referensi yang muncul di bawah field.", true);
+      updateDcsEquipmentReferenceStatus("Pilih equipment PLC dari hasil referensi yang muncul di bawah field.", true);
     } else {
       setDcsEquipmentReferenceValue(matchedReference.equipmentName, matchedReference.description);
-      updateDcsEquipmentReferenceStatus(`Referensi DCS aktif: ${dcsEquipmentReferenceItems.length} item.`);
+      updateDcsEquipmentReferenceStatus(`Referensi PLC aktif: ${dcsEquipmentReferenceItems.length} item.`);
     }
   }, 120);
 });
@@ -10081,8 +10081,8 @@ forms.forEach((form) => {
         const selectedEquipment = String(formData.get("equipmentName") || "").trim();
         const matchedDcsReference = findDcsEquipmentReference(selectedEquipment);
         if (!matchedDcsReference || selectedEquipment !== selectedDcsEquipmentReference) {
-          setSubmitNote(form, "Pilih equipment DCS dari referensi resmi yang muncul di bawah field.", true);
-          updateDcsEquipmentReferenceStatus("Pilih equipment DCS dari referensi resmi yang muncul di bawah field.", true);
+          setSubmitNote(form, "Pilih equipment PLC dari referensi resmi yang muncul di bawah field.", true);
+          updateDcsEquipmentReferenceStatus("Pilih equipment PLC dari referensi resmi yang muncul di bawah field.", true);
           return;
         }
         if (serviceDcsEquipmentDescription && !serviceDcsEquipmentDescription.value.trim()) {
@@ -10119,7 +10119,7 @@ forms.forEach((form) => {
         const item = {
           id: editingServiceId || createId("service"),
           type: "DCS",
-          subtype: "DCS",
+          subtype: "PLC",
           formType: "service-dcs",
           equipmentName: String(formData.get("equipmentName") || "-"),
           description: String(formData.get("description") || "-"),
@@ -10132,13 +10132,13 @@ forms.forEach((form) => {
         if (existing) {
           existing.replaceWith(renderServiceCard(savedItem));
         }
-        setSubmitNote(form, "Service DCS berhasil diperbarui.");
-        showToast("Service DCS", "Data berhasil diperbarui.");
+        setSubmitNote(form, "Service PLC berhasil diperbarui.");
+        showToast("Service PLC", "Data berhasil diperbarui.");
         editingServiceId = null;
       } else {
         appendServiceCard(savedItem);
-        setSubmitNote(form, "Service DCS berhasil ditambahkan ke daftar service.");
-        showToast("Service DCS", "Item baru berhasil ditambahkan.");
+        setSubmitNote(form, "Service PLC berhasil ditambahkan ke daftar service.");
+        showToast("Service PLC", "Item baru berhasil ditambahkan.");
       }
       persistServiceList();
       updateDashboardStats();

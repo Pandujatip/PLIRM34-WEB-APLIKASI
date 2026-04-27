@@ -1104,7 +1104,7 @@
             <div class="service-tab-bar">
               <button class="chip-button service-tab active" data-service-tab="electrical" type="button">Electrical</button>
               <button class="chip-button service-tab" data-service-tab="instrument" type="button">Instrument</button>
-              <button class="chip-button service-tab" data-service-tab="dcs" type="button">DCS</button>
+              <button class="chip-button service-tab" data-service-tab="dcs" type="button">PLC</button>
             </div>
             <div class="service-pane visible" data-service-pane="electrical">
               <div class="service-subtab-bar">
@@ -1977,17 +1977,17 @@
               <div class="service-form-grid service-form-grid-single">
               <form class="input-form" data-editable-for="admin,organik,team" data-form-type="service-dcs">
                 <div class="card-head compact-head">
-                  <p class="eyebrow">DCS</p>
-                  <h3>Input inspeksi DCS</h3>
+                  <p class="eyebrow">DCS / PLC</p>
+                  <h3>Input inspeksi PLC</h3>
                 </div>
                 <div class="form-grid">
                   <label class="full-span typeahead-field">
                     EQUIPMENT
                     <div class="typeahead-wrap">
-                      <input type="text" name="equipmentName" id="service-dcs-equipment-input" placeholder="Ketik kode equipment DCS referensi" autocomplete="off" required disabled>
+                      <input type="text" name="equipmentName" id="service-dcs-equipment-input" placeholder="Ketik kode equipment PLC referensi" autocomplete="off" required disabled>
                       <div class="typeahead-list hidden" id="service-dcs-equipment-results"></div>
                     </div>
-                    <small id="service-dcs-equipment-status">Equipment DCS hanya bisa dipilih dari referensi resmi.</small>
+                    <small id="service-dcs-equipment-status">Equipment PLC hanya bisa dipilih dari referensi resmi.</small>
                   </label>
                   <label class="full-span">
                     DESKRIPSI EQUIPMENT
@@ -2138,7 +2138,7 @@
                     </label>
                     <label class="full-span">
                       Keterangan
-                      <textarea name="description" rows="4" placeholder="Catatan tambahan inspeksi DCS dan tindak lanjut" required></textarea>
+                      <textarea name="description" rows="4" placeholder="Catatan tambahan inspeksi PLC dan tindak lanjut" required></textarea>
                     </label>
                     <label class="full-span">
                       Foto temuan
@@ -2146,7 +2146,7 @@
                     </label>
                   </div>
                 </section>
-                <button class="btn btn-primary" type="submit">Simpan Service DCS</button>
+                <button class="btn btn-primary" type="submit">Simpan Service PLC</button>
               </form>
             </div>
             </div>
@@ -3071,12 +3071,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260426-27"></script>
+  <script src="app.js?v=20260427-01"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260426-13").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260427-01").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
