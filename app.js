@@ -6921,7 +6921,10 @@ function renderPwaServiceCard(item, metaText = "") {
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
         <p>${escapeHtml(metaText || item.detail || item.description || "-")}</p>
       </div>
-      <span class="pwa-card-badge">${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</span>
+      <div class="pwa-card-side">
+        <span class="pwa-card-badge">${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</span>
+        <button class="pwa-card-action" type="button" data-pwa-send-service="${escapeHtml(item.id || "")}">Kirim</button>
+      </div>
     </article>
   `;
 }
@@ -10725,6 +10728,28 @@ pwaCompactShell?.addEventListener("click", async (event) => {
   if (opacityOption instanceof HTMLElement && pwaOpacityEquipment) {
     pwaOpacityEquipment.value = opacityOption.dataset.pwaOpacityEquipmentOption || "";
     hidePwaTypeaheadDropdown(pwaOpacityEquipmentDropdown);
+    return;
+  }
+
+  const sendServiceButton = target.closest("[data-pwa-send-service]");
+  if (sendServiceButton instanceof HTMLElement) {
+    const item = await resolveServiceItem(sendServiceButton.dataset.pwaSendService || "");
+    if (!item) {
+      showToast("Service", "Data service tidak ditemukan.");
+      return;
+    }
+    showToast("Service", "Menyiapkan gambar inspeksi...");
+    sendServiceToWhatsApp(item)
+      .then((result) => {
+        if (result === "shared") {
+          showToast("WhatsApp", "Gambar inspeksi siap dibagikan.");
+          return;
+        }
+        showToast("WhatsApp", "Gambar diunduh, caption disalin bila browser mengizinkan, dan WhatsApp dibuka.");
+      })
+      .catch(() => {
+        showToast("WhatsApp", "Gagal menyiapkan gambar inspeksi.");
+      });
     return;
   }
 

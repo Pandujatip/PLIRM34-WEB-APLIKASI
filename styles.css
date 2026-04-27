@@ -460,6 +460,25 @@ select {
   white-space: nowrap;
 }
 
+.pwa-card-side {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 10px;
+}
+
+.pwa-card-action {
+  border: 1px solid rgba(50, 211, 153, 0.32);
+  border-radius: 999px;
+  padding: 9px 13px;
+  color: #07111f;
+  background: var(--success);
+  font-size: 0.9rem;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(50, 211, 153, 0.18);
+  touch-action: manipulation;
+}
+
 .pwa-card.is-critical .pwa-card-badge,
 .pwa-card.is-priority-1 .pwa-card-badge {
   color: #fff;
