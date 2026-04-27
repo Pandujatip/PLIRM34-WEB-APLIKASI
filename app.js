@@ -414,7 +414,7 @@ const backendState = {
     appSettings: [],
   },
 };
-const IDLE_LOGOUT_MS = 3 * 60 * 1000;
+const IDLE_LOGOUT_MS = 10 * 60 * 1000;
 const IDLE_ACTIVITY_EVENTS = ["click", "keydown", "mousemove", "touchstart", "scroll"];
 
 let activeRole = "admin";
@@ -1818,7 +1818,7 @@ function resetIdleLogoutTimer() {
     return;
   }
   idleLogoutTimer = window.setTimeout(() => {
-    void performLogout("Tidak ada aktivitas selama 3 menit. Silakan login kembali.");
+    void performLogout("Tidak ada aktivitas selama 10 menit. Silakan login kembali.");
   }, IDLE_LOGOUT_MS);
 }
 
