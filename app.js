@@ -170,6 +170,12 @@ const pwaElectricalRoomName = document.getElementById("pwa-electrical-room-name"
 const pwaElectricalRoomDropdown = document.getElementById("pwa-electrical-room-dropdown");
 const pwaElectricalRoomFormNote = document.getElementById("pwa-electrical-room-form-note");
 const pwaElectricalRoomSubmit = document.getElementById("pwa-electrical-room-submit");
+const pwaPlcForm = document.getElementById("pwa-plc-form");
+const pwaPlcEquipment = document.getElementById("pwa-plc-equipment");
+const pwaPlcEquipmentDropdown = document.getElementById("pwa-plc-equipment-dropdown");
+const pwaPlcDate = document.getElementById("pwa-plc-date");
+const pwaPlcFormNote = document.getElementById("pwa-plc-form-note");
+const pwaPlcSubmit = document.getElementById("pwa-plc-submit");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
 const dashboardInspectionHistory = document.getElementById("dashboard-inspection-history");
@@ -697,6 +703,17 @@ function getMccEquipmentReferenceList() {
     .map((item) => String(item.equipmentName || "").trim().toUpperCase())
     .filter(Boolean);
   return [...new Set(serviceItems)].sort((left, right) => left.localeCompare(right));
+}
+
+function getDcsEquipmentReferenceList() {
+  const masterItems = getMasterEquipmentNames("dcs-service");
+  if (masterItems.length) {
+    return masterItems.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean);
+  }
+  return dcsEquipmentReferenceItems
+    .map((item) => String(item.equipmentName || "").trim().toUpperCase())
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function renderMccReferenceOptions() {
@@ -1556,6 +1573,19 @@ function resetPwaElectricalRoomForm() {
   pwaElectricalRoomForm.reset();
   if (pwaElectricalRoomFormNote) {
     pwaElectricalRoomFormNote.textContent = "Bagian Battery cell, Transformer, dan Foto bisa dibuka hanya saat diperlukan.";
+  }
+}
+
+function resetPwaPlcForm() {
+  if (!pwaPlcForm) {
+    return;
+  }
+  pwaPlcForm.reset();
+  if (pwaPlcDate) {
+    pwaPlcDate.value = new Date().toISOString().slice(0, 10);
+  }
+  if (pwaPlcFormNote) {
+    pwaPlcFormNote.textContent = "Pilih equipment PLC dari dropdown referensi. Field tambahan bisa dibuka saat diperlukan.";
   }
 }
 
@@ -6081,6 +6111,7 @@ async function initializeApplication() {
   resetPwaCarbonForm();
   resetPwaMccForm();
   resetPwaElectricalRoomForm();
+  resetPwaPlcForm();
   if (serviceElectricalCarbonBrushForm?.inspectionDate && !serviceElectricalCarbonBrushForm.inspectionDate.value) {
     serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
   }
@@ -6774,6 +6805,13 @@ function openPwaQuickForm(formName = "") {
   pwaQuickForms.forEach((formBlock) => {
     formBlock.classList.toggle("hidden", formBlock.dataset.pwaQuickForm !== formName);
   });
+  if (formName === "plc") {
+    void loadDcsEquipmentReference().catch(() => {
+      if (pwaPlcFormNote) {
+        pwaPlcFormNote.textContent = "Referensi PLC belum tersedia. Tambahkan source group dcs-service di menu admin atau buka form web.";
+      }
+    });
+  }
   if (formName) {
     window.setTimeout(() => {
       document.querySelector(`[data-pwa-quick-form="${formName}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -10593,6 +10631,13 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const plcOption = target.closest("[data-pwa-plc-equipment-option]");
+  if (plcOption instanceof HTMLElement && pwaPlcEquipment) {
+    pwaPlcEquipment.value = plcOption.dataset.pwaPlcEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaPlcEquipmentDropdown);
+    return;
+  }
+
   const serviceCard = target.closest("[data-pwa-service-id]");
   if (serviceCard instanceof HTMLElement) {
     const item = await resolveServiceItem(serviceCard.dataset.pwaServiceId || "");
@@ -10662,6 +10707,16 @@ pwaElectricalRoomName?.addEventListener("focus", () => {
   renderPwaTypeaheadDropdown(pwaElectricalRoomName, pwaElectricalRoomDropdown, getElectricalRoomReferenceList(), "pwa-electrical-room-option");
 });
 
+pwaPlcEquipment?.addEventListener("input", () => {
+  renderPwaTypeaheadDropdown(pwaPlcEquipment, pwaPlcEquipmentDropdown, getDcsEquipmentReferenceList(), "pwa-plc-equipment-option");
+});
+
+pwaPlcEquipment?.addEventListener("focus", () => {
+  void loadDcsEquipmentReference().finally(() => {
+    renderPwaTypeaheadDropdown(pwaPlcEquipment, pwaPlcEquipmentDropdown, getDcsEquipmentReferenceList(), "pwa-plc-equipment-option");
+  });
+});
+
 pwaCarbonForm?.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
@@ -10702,6 +10757,12 @@ pwaCarbonForm?.addEventListener("click", (event) => {
     pwaElectricalRoomName.value = roomOption.dataset.pwaElectricalRoomOption || "";
     hidePwaTypeaheadDropdown(pwaElectricalRoomDropdown);
   }
+
+  const plcOption = target.closest("[data-pwa-plc-equipment-option]");
+  if (plcOption instanceof HTMLElement && pwaPlcEquipment) {
+    pwaPlcEquipment.value = plcOption.dataset.pwaPlcEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaPlcEquipmentDropdown);
+  }
 });
 
 document.addEventListener("click", (event) => {
@@ -10713,6 +10774,7 @@ document.addEventListener("click", (event) => {
     hidePwaCarbonEquipmentDropdown();
     hidePwaTypeaheadDropdown(pwaMccEquipmentDropdown);
     hidePwaTypeaheadDropdown(pwaElectricalRoomDropdown);
+    hidePwaTypeaheadDropdown(pwaPlcEquipmentDropdown);
   }
 });
 
@@ -10911,6 +10973,76 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
     if (pwaElectricalRoomSubmit) {
       pwaElectricalRoomSubmit.disabled = false;
       pwaElectricalRoomSubmit.textContent = "Simpan Electrical Room";
+    }
+  }
+});
+
+pwaPlcForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(pwaPlcForm);
+  const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
+  const plcReferences = getDcsEquipmentReferenceList();
+  if (!equipmentName || (plcReferences.length && !plcReferences.includes(equipmentName))) {
+    if (pwaPlcFormNote) pwaPlcFormNote.textContent = "Equipment PLC wajib dipilih dari dropdown referensi.";
+    showToast("PLC", "Pilih equipment PLC dari referensi.");
+    return;
+  }
+  const matchedReference = findDcsEquipmentReference(equipmentName)
+    || getMasterEquipmentReferences("dcs-service").find((item) => String(item.equipmentName || "").trim().toUpperCase() === equipmentName);
+  const photoPayload = await getFindingPhotoPayload(formData, {});
+  const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+  const payload = normalizeDcsPayload({
+    inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
+    equipmentDescription: String(matchedReference?.description || matchedReference?.metadata?.equipmentDescription || matchedReference?.metadata?.description || ""),
+    plcPowerSupplyModule: String(formData.get("plcPowerSupplyModule") || ""),
+    plcCommunicationModule: String(formData.get("plcCommunicationModule") || ""),
+    plcProcessorModule: String(formData.get("plcProcessorModule") || ""),
+    plcDigitalInputModule: String(formData.get("plcDigitalInputModule") || ""),
+    plcDigitalOutputModule: String(formData.get("plcDigitalOutputModule") || ""),
+    plcAnalogInputModule: String(formData.get("plcAnalogInputModule") || ""),
+    plcAnalogOutputModule: String(formData.get("plcAnalogOutputModule") || ""),
+    fiberOpticEthernetCommunication: String(formData.get("fiberOpticEthernetCommunication") || ""),
+    groundingEeEa: String(formData.get("groundingEeEa") || ""),
+    groundingEePe: String(formData.get("groundingEePe") || ""),
+    groundingEaPe: String(formData.get("groundingEaPe") || ""),
+    cableTermination: String(formData.get("cableTermination") || ""),
+    upsOutput: String(formData.get("upsOutput") || ""),
+    pdbOutput: String(formData.get("pdbOutput") || ""),
+    roomAcCondition: String(formData.get("roomAcCondition") || ""),
+    roomCleanliness: String(formData.get("roomCleanliness") || ""),
+    damagedPartReplacement: String(formData.get("damagedPartReplacement") || ""),
+    adjustmentRepair: String(formData.get("adjustmentRepair") || ""),
+    ...photoPayload,
+  });
+  const item = {
+    id: createId("service"),
+    type: "DCS",
+    subtype: "PLC",
+    formType: "service-dcs",
+    equipmentName,
+    description: String(formData.get("description") || "Inspeksi PLC").trim() || "Inspeksi PLC",
+    detail: buildDcsSummary(payload),
+    payload,
+  };
+  try {
+    if (pwaPlcSubmit) {
+      pwaPlcSubmit.disabled = true;
+      pwaPlcSubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, false);
+    appendServiceCard(savedItem);
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+    resetPwaPlcForm();
+    openPwaQuickForm("");
+    if (pwaPlcFormNote) pwaPlcFormNote.textContent = "Data PLC berhasil disimpan.";
+    showToast("PLC", "Data PLC berhasil disimpan.");
+  } catch (error) {
+    if (pwaPlcFormNote) pwaPlcFormNote.textContent = error.message || "Gagal menyimpan data PLC.";
+    showToast("PLC", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaPlcSubmit) {
+      pwaPlcSubmit.disabled = false;
+      pwaPlcSubmit.textContent = "Simpan PLC";
     }
   }
 });

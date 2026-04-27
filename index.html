@@ -228,6 +228,7 @@
                   <button type="button" data-pwa-form-choice="carbon">Carbon Brush</button>
                   <button type="button" data-pwa-form-choice="mcc">MCC</button>
                   <button type="button" data-pwa-form-choice="electrical-room">Electrical Room</button>
+                  <button type="button" data-pwa-form-choice="plc">PLC</button>
                 </div>
               </section>
 
@@ -480,6 +481,123 @@
                   </label>
                   <button class="pwa-submit-button" id="pwa-electrical-room-submit" type="submit">Simpan Electrical Room</button>
                   <p class="pwa-form-note" id="pwa-electrical-room-form-note">Bagian Battery cell, Transformer, dan Foto bisa dibuka hanya saat diperlukan.</p>
+                </form>
+              </section>
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="plc">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Inspeksi PLC</h3>
+                  </div>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-plc-form" autocomplete="off">
+                  <label class="pwa-form-field pwa-typeahead-field">
+                    <span>Equipment PLC</span>
+                    <input id="pwa-plc-equipment" name="equipmentName" type="text" placeholder="Ketik equipment PLC, lalu pilih" required>
+                    <div class="pwa-typeahead-list hidden" id="pwa-plc-equipment-dropdown"></div>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Tanggal</span>
+                      <input id="pwa-plc-date" name="inspectionDate" type="date" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Power Supply</span>
+                      <input name="plcPowerSupplyModule" type="text" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Communication</span>
+                      <input name="plcCommunicationModule" type="text" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Processor</span>
+                      <input name="plcProcessorModule" type="text" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Digital Input</span>
+                      <input name="plcDigitalInputModule" type="text" placeholder="Contoh: hijau normal" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Digital Output</span>
+                      <input name="plcDigitalOutputModule" type="text" placeholder="Contoh: hijau normal" required>
+                    </label>
+                  </div>
+                  <details class="pwa-form-accordion">
+                    <summary>Analog, komunikasi, grounding, UPS</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>Analog Input</span>
+                        <input name="plcAnalogInputModule" type="text" placeholder="Contoh: normal" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Analog Output</span>
+                        <input name="plcAnalogOutputModule" type="text" placeholder="Contoh: normal" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>FO / Ethernet</span>
+                        <input name="fiberOpticEthernetCommunication" type="text" placeholder="Contoh: scanning normal" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Cable termination</span>
+                        <input name="cableTermination" type="text" placeholder="Contoh: tidak kendor" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Grounding EE-EA</span>
+                        <input name="groundingEeEa" type="text" inputmode="decimal" placeholder="Contoh: 1.2 Ohm" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Grounding EE-PE</span>
+                        <input name="groundingEePe" type="text" inputmode="decimal" placeholder="Contoh: 0.9 Ohm" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Grounding EA-PE</span>
+                        <input name="groundingEaPe" type="text" inputmode="decimal" placeholder="Contoh: 1.1 Ohm" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>UPS output</span>
+                        <input name="upsOutput" type="text" inputmode="decimal" placeholder="Contoh: 220 VAC" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>PDB output</span>
+                        <input name="pdbOutput" type="text" inputmode="decimal" placeholder="Contoh: 218 VAC" required>
+                      </label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Room, repair, dan foto</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>AC room</span>
+                        <input name="roomAcCondition" type="text" placeholder="Contoh: dingin 23 C" required>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Kebersihan</span>
+                        <input name="roomCleanliness" type="text" placeholder="Contoh: bersih" required>
+                      </label>
+                    </div>
+                    <label class="pwa-form-field">
+                      <span>Penggantian part</span>
+                      <textarea name="damagedPartReplacement" rows="2" placeholder="Contoh: tidak ada / fuse diganti" required></textarea>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Adjustment / repair</span>
+                      <textarea name="adjustmentRepair" rows="2" placeholder="Contoh: tidak ada / setting ulang komunikasi" required></textarea>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Foto</span>
+                      <input name="findingPhoto" type="file" accept="image/*" multiple>
+                    </label>
+                  </details>
+                  <label class="pwa-form-field">
+                    <span>Keterangan</span>
+                    <textarea name="description" rows="2" placeholder="Catatan inspeksi PLC"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-plc-submit" type="submit">Simpan PLC</button>
+                  <p class="pwa-form-note" id="pwa-plc-form-note">Pilih equipment PLC dari dropdown referensi. Field tambahan bisa dibuka saat diperlukan.</p>
                 </form>
               </section>
               <section class="pwa-block pwa-block-flush">
@@ -3071,12 +3189,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260427-01"></script>
+  <script src="app.js?v=20260427-02"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260427-01").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260427-02").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
