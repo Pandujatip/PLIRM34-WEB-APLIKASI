@@ -3384,12 +3384,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260427-07"></script>
+  <script src="app.js?v=20260427-08"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260427-07").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260427-08").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

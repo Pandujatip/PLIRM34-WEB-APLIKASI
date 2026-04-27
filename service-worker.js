@@ -1,4 +1,4 @@
-const CACHE_NAME = "plirm34-pwa-v20260427-07";
+const CACHE_NAME = "plirm34-pwa-v20260427-08";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -9,7 +9,7 @@ const APP_SHELL = [
   "/app.mso.js?v=20260426-15",
   "/app.dashboard.js?v=20260426-15",
   "/app.admin.js?v=20260426-15",
-  "/app.js?v=20260427-07",
+  "/app.js?v=20260427-08",
   "/manifest.webmanifest",
   "/pwa-icons/icon-192.png",
   "/pwa-icons/icon-512.png",
@@ -63,6 +63,28 @@ function isCacheableRequest(request) {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (!isCacheableRequest(request)) {
+    return;
+  }
+
+  const url = new URL(request.url);
+  const shouldPreferNetwork = request.destination === "document"
+    || request.destination === "script"
+    || request.destination === "style"
+    || url.pathname === "/"
+    || url.pathname === "/index.html";
+
+  if (shouldPreferNetwork) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 
