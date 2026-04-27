@@ -229,6 +229,9 @@
                   <button type="button" data-pwa-form-choice="mcc">MCC</button>
                   <button type="button" data-pwa-form-choice="electrical-room">Electrical Room</button>
                   <button type="button" data-pwa-form-choice="plc">PLC</button>
+                  <button type="button" data-pwa-form-choice="instrument">General Instrument</button>
+                  <button type="button" data-pwa-form-choice="cems">CEMS</button>
+                  <button type="button" data-pwa-form-choice="opacity">Opacity</button>
                 </div>
               </section>
 
@@ -598,6 +601,185 @@
                   </label>
                   <button class="pwa-submit-button" id="pwa-plc-submit" type="submit">Simpan PLC</button>
                   <p class="pwa-form-note" id="pwa-plc-form-note">Pilih equipment PLC dari dropdown referensi. Field tambahan bisa dibuka saat diperlukan.</p>
+                </form>
+              </section>
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="instrument">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>General Instrument</h3>
+                  </div>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-instrument-form" autocomplete="off">
+                  <label class="pwa-form-field">
+                    <span>Equipment</span>
+                    <input name="equipmentName" type="text" placeholder="Kode / nama instrument" required>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Tanggal</span>
+                      <input id="pwa-instrument-date" name="inspectionDate" type="date" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Kondisi sensor</span>
+                      <input name="sensorCondition" type="text" placeholder="Contoh: normal / perlu kalibrasi" required>
+                    </label>
+                  </div>
+                  <details class="pwa-form-accordion">
+                    <summary>Foto temuan</summary>
+                    <label class="pwa-form-field">
+                      <span>Foto</span>
+                      <input name="findingPhoto" type="file" accept="image/*" multiple>
+                    </label>
+                  </details>
+                  <label class="pwa-form-field">
+                    <span>Keterangan</span>
+                    <textarea name="description" rows="2" placeholder="Catatan inspeksi instrument"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-instrument-submit" type="submit">Simpan Instrument</button>
+                  <p class="pwa-form-note" id="pwa-instrument-form-note">Gunakan untuk inspeksi instrument umum di luar CEMS dan Opacity.</p>
+                </form>
+              </section>
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="cems">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Inspeksi CEMS</h3>
+                  </div>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-cems-form" autocomplete="off">
+                  <label class="pwa-form-field pwa-typeahead-field">
+                    <span>Equipment CEMS</span>
+                    <input id="pwa-cems-equipment" name="equipmentName" type="text" placeholder="Ketik equipment CEMS, lalu pilih" required>
+                    <div class="pwa-typeahead-list hidden" id="pwa-cems-equipment-dropdown"></div>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Tanggal</span>
+                      <input id="pwa-cems-date" name="inspectionDate" type="date" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Inspector</span>
+                      <input name="inspectorName" type="text" placeholder="Nama inspector">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>O2 status</span>
+                      <select name="o2Status"><option value="OK">OK</option><option value="NG">NG</option></select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>O2 nilai</span>
+                      <input name="o2Value" type="text" inputmode="decimal" placeholder="Contoh: 8.5">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>CO status</span>
+                      <select name="coStatus"><option value="OK">OK</option><option value="NG">NG</option></select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>CO nilai</span>
+                      <input name="coValue" type="text" inputmode="decimal" placeholder="Contoh: 120">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Dust / PM status</span>
+                      <select name="dustStatus"><option value="OK">OK</option><option value="NG">NG</option></select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Dust / PM nilai</span>
+                      <input name="dustValue" type="text" inputmode="decimal" placeholder="Contoh: 38">
+                    </label>
+                  </div>
+                  <details class="pwa-form-accordion">
+                    <summary>Parameter & checklist tambahan</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field"><span>NOx status</span><select name="noxStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>NOx nilai</span><input name="noxValue" type="text" inputmode="decimal"></label>
+                      <label class="pwa-form-field"><span>SO2 status</span><select name="so2Status"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>SO2 nilai</span><input name="so2Value" type="text" inputmode="decimal"></label>
+                      <label class="pwa-form-field"><span>Flow status</span><select name="flowStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Temperature status</span><select name="temperatureStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Pressure status</span><select name="pressureStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Analyzer status</span><select name="analyzerStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Sampling flow</span><select name="samplingFlow"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Data logger</span><select name="dataLogger"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Urgensi</span><select name="urgencyLevel"><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Temuan dan dokumentasi</summary>
+                    <label class="pwa-form-field"><span>Temuan masalah</span><textarea name="findingIssue" rows="2"></textarea></label>
+                    <label class="pwa-form-field"><span>Penyebab kemungkinan</span><textarea name="possibleCause" rows="2"></textarea></label>
+                    <label class="pwa-form-field"><span>Dampak emisi / compliance</span><textarea name="emissionImpact" rows="2"></textarea></label>
+                    <label class="pwa-form-field"><span>Foto kondisi</span><input name="cemsConditionPhoto" type="file" accept="image/*" multiple></label>
+                  </details>
+                  <label class="pwa-form-field">
+                    <span>Keterangan</span>
+                    <textarea name="description" rows="2" placeholder="Catatan inspeksi CEMS"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-cems-submit" type="submit">Simpan CEMS</button>
+                  <p class="pwa-form-note" id="pwa-cems-form-note">Pilih equipment CEMS dari referensi. Detail lanjutan bisa dibuka saat diperlukan.</p>
+                </form>
+              </section>
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="opacity">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Inspeksi Opacity</h3>
+                  </div>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-opacity-form" autocomplete="off">
+                  <label class="pwa-form-field pwa-typeahead-field">
+                    <span>Equipment Opacity</span>
+                    <input id="pwa-opacity-equipment" name="equipmentName" type="text" placeholder="Ketik equipment opacity, lalu pilih" required>
+                    <div class="pwa-typeahead-list hidden" id="pwa-opacity-equipment-dropdown"></div>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field"><span>Tanggal</span><input id="pwa-opacity-date" name="inspectionDate" type="date" required></label>
+                    <label class="pwa-form-field"><span>Waktu</span><input name="inspectionTime" type="time"></label>
+                    <label class="pwa-form-field"><span>Teknisi</span><input name="technicianName" type="text" placeholder="Nama teknisi"></label>
+                    <label class="pwa-form-field"><span>Shift</span><input name="shift" type="text" placeholder="A / B / C"></label>
+                    <label class="pwa-form-field"><span>Opacity nilai</span><input name="opacityValue" type="text" inputmode="decimal" placeholder="Contoh: 12.5"></label>
+                    <label class="pwa-form-field"><span>Opacity status</span><select name="opacityStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    <label class="pwa-form-field"><span>Transmittance nilai</span><input name="transmittanceValue" type="text" inputmode="decimal" placeholder="Contoh: 87.5"></label>
+                    <label class="pwa-form-field"><span>Transmittance status</span><select name="transmittanceStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                  </div>
+                  <details class="pwa-form-accordion">
+                    <summary>Checklist opacity</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field"><span>Alarm status</span><select name="alarmStatusCondition"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Housing bersih</span><select name="visualHousingClean"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Alignment</span><select name="visualAlignment"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Lensa</span><select name="opticLens"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Purge active</span><select name="purgeActive"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Power supply</span><select name="electricalPowerSupply"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Zero check</span><select name="zeroCheckStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Span check</span><select name="spanCheckStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                      <label class="pwa-form-field"><span>Drift</span><select name="driftStatus"><option value="OK">OK</option><option value="NG">NG</option></select></label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Temuan dan foto</summary>
+                    <label class="pwa-form-field"><span>Temuan masalah</span><textarea name="findingIssue" rows="2"></textarea></label>
+                    <label class="pwa-form-field"><span>Penyebab kemungkinan</span><textarea name="possibleCause" rows="2"></textarea></label>
+                    <label class="pwa-form-field"><span>Dampak pembacaan</span><textarea name="readingImpact" rows="2"></textarea></label>
+                    <label class="pwa-form-field"><span>Foto</span><input name="findingPhoto" type="file" accept="image/*" multiple></label>
+                  </details>
+                  <label class="pwa-form-field">
+                    <span>Keterangan</span>
+                    <textarea name="description" rows="2" placeholder="Catatan inspeksi opacity meter"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-opacity-submit" type="submit">Simpan Opacity</button>
+                  <p class="pwa-form-note" id="pwa-opacity-form-note">Pilih equipment opacity dari referensi. Checklist tambahan bisa dibuka saat diperlukan.</p>
                 </form>
               </section>
               <section class="pwa-block pwa-block-flush">
@@ -3189,12 +3371,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260426-15"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260427-02"></script>
+  <script src="app.js?v=20260427-03"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260427-02").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260427-03").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

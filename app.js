@@ -176,6 +176,22 @@ const pwaPlcEquipmentDropdown = document.getElementById("pwa-plc-equipment-dropd
 const pwaPlcDate = document.getElementById("pwa-plc-date");
 const pwaPlcFormNote = document.getElementById("pwa-plc-form-note");
 const pwaPlcSubmit = document.getElementById("pwa-plc-submit");
+const pwaInstrumentForm = document.getElementById("pwa-instrument-form");
+const pwaInstrumentDate = document.getElementById("pwa-instrument-date");
+const pwaInstrumentFormNote = document.getElementById("pwa-instrument-form-note");
+const pwaInstrumentSubmit = document.getElementById("pwa-instrument-submit");
+const pwaCemsForm = document.getElementById("pwa-cems-form");
+const pwaCemsEquipment = document.getElementById("pwa-cems-equipment");
+const pwaCemsEquipmentDropdown = document.getElementById("pwa-cems-equipment-dropdown");
+const pwaCemsDate = document.getElementById("pwa-cems-date");
+const pwaCemsFormNote = document.getElementById("pwa-cems-form-note");
+const pwaCemsSubmit = document.getElementById("pwa-cems-submit");
+const pwaOpacityForm = document.getElementById("pwa-opacity-form");
+const pwaOpacityEquipment = document.getElementById("pwa-opacity-equipment");
+const pwaOpacityEquipmentDropdown = document.getElementById("pwa-opacity-equipment-dropdown");
+const pwaOpacityDate = document.getElementById("pwa-opacity-date");
+const pwaOpacityFormNote = document.getElementById("pwa-opacity-form-note");
+const pwaOpacitySubmit = document.getElementById("pwa-opacity-submit");
 const dashboardInspectionToday = document.getElementById("dashboard-inspection-today");
 const dashboardInspectionTomorrow = document.getElementById("dashboard-inspection-tomorrow");
 const dashboardInspectionHistory = document.getElementById("dashboard-inspection-history");
@@ -711,6 +727,18 @@ function getDcsEquipmentReferenceList() {
     return masterItems.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean);
   }
   return dcsEquipmentReferenceItems
+    .map((item) => String(item.equipmentName || "").trim().toUpperCase())
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function getInstrumentEquipmentReferenceList() {
+  const masterItems = getMasterEquipmentNames("service-instrument");
+  if (masterItems.length) {
+    return masterItems.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean);
+  }
+  return getServiceItemsFromDom()
+    .filter((item) => item.formType === "service-instrument")
     .map((item) => String(item.equipmentName || "").trim().toUpperCase())
     .filter(Boolean)
     .sort((left, right) => left.localeCompare(right));
@@ -1586,6 +1614,45 @@ function resetPwaPlcForm() {
   }
   if (pwaPlcFormNote) {
     pwaPlcFormNote.textContent = "Pilih equipment PLC dari dropdown referensi. Field tambahan bisa dibuka saat diperlukan.";
+  }
+}
+
+function resetPwaInstrumentForm() {
+  if (!pwaInstrumentForm) {
+    return;
+  }
+  pwaInstrumentForm.reset();
+  if (pwaInstrumentDate) {
+    pwaInstrumentDate.value = new Date().toISOString().slice(0, 10);
+  }
+  if (pwaInstrumentFormNote) {
+    pwaInstrumentFormNote.textContent = "Gunakan untuk inspeksi instrument umum di luar CEMS dan Opacity.";
+  }
+}
+
+function resetPwaCemsForm() {
+  if (!pwaCemsForm) {
+    return;
+  }
+  pwaCemsForm.reset();
+  if (pwaCemsDate) {
+    pwaCemsDate.value = new Date().toISOString().slice(0, 10);
+  }
+  if (pwaCemsFormNote) {
+    pwaCemsFormNote.textContent = "Pilih equipment CEMS dari referensi. Detail lanjutan bisa dibuka saat diperlukan.";
+  }
+}
+
+function resetPwaOpacityForm() {
+  if (!pwaOpacityForm) {
+    return;
+  }
+  pwaOpacityForm.reset();
+  if (pwaOpacityDate) {
+    pwaOpacityDate.value = new Date().toISOString().slice(0, 10);
+  }
+  if (pwaOpacityFormNote) {
+    pwaOpacityFormNote.textContent = "Pilih equipment opacity dari referensi. Checklist tambahan bisa dibuka saat diperlukan.";
   }
 }
 
@@ -6112,6 +6179,9 @@ async function initializeApplication() {
   resetPwaMccForm();
   resetPwaElectricalRoomForm();
   resetPwaPlcForm();
+  resetPwaInstrumentForm();
+  resetPwaCemsForm();
+  resetPwaOpacityForm();
   if (serviceElectricalCarbonBrushForm?.inspectionDate && !serviceElectricalCarbonBrushForm.inspectionDate.value) {
     serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
   }
@@ -6811,6 +6881,12 @@ function openPwaQuickForm(formName = "") {
         pwaPlcFormNote.textContent = "Referensi PLC belum tersedia. Tambahkan source group dcs-service di menu admin atau buka form web.";
       }
     });
+  }
+  if (formName === "cems" && pwaCemsFormNote && !getCemsEquipmentReferenceList().length) {
+    pwaCemsFormNote.textContent = "Referensi CEMS belum tersedia. Tambahkan source group cems-service di menu admin.";
+  }
+  if (formName === "opacity" && pwaOpacityFormNote && !getOpacityEquipmentReferenceList().length) {
+    pwaOpacityFormNote.textContent = "Referensi Opacity belum tersedia. Tambahkan source group opacity-service di menu admin.";
   }
   if (formName) {
     window.setTimeout(() => {
@@ -10638,6 +10714,20 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const cemsOption = target.closest("[data-pwa-cems-equipment-option]");
+  if (cemsOption instanceof HTMLElement && pwaCemsEquipment) {
+    pwaCemsEquipment.value = cemsOption.dataset.pwaCemsEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaCemsEquipmentDropdown);
+    return;
+  }
+
+  const opacityOption = target.closest("[data-pwa-opacity-equipment-option]");
+  if (opacityOption instanceof HTMLElement && pwaOpacityEquipment) {
+    pwaOpacityEquipment.value = opacityOption.dataset.pwaOpacityEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaOpacityEquipmentDropdown);
+    return;
+  }
+
   const serviceCard = target.closest("[data-pwa-service-id]");
   if (serviceCard instanceof HTMLElement) {
     const item = await resolveServiceItem(serviceCard.dataset.pwaServiceId || "");
@@ -10717,6 +10807,22 @@ pwaPlcEquipment?.addEventListener("focus", () => {
   });
 });
 
+pwaCemsEquipment?.addEventListener("input", () => {
+  renderPwaTypeaheadDropdown(pwaCemsEquipment, pwaCemsEquipmentDropdown, getCemsEquipmentReferenceList(), "pwa-cems-equipment-option");
+});
+
+pwaCemsEquipment?.addEventListener("focus", () => {
+  renderPwaTypeaheadDropdown(pwaCemsEquipment, pwaCemsEquipmentDropdown, getCemsEquipmentReferenceList(), "pwa-cems-equipment-option");
+});
+
+pwaOpacityEquipment?.addEventListener("input", () => {
+  renderPwaTypeaheadDropdown(pwaOpacityEquipment, pwaOpacityEquipmentDropdown, getOpacityEquipmentReferenceList(), "pwa-opacity-equipment-option");
+});
+
+pwaOpacityEquipment?.addEventListener("focus", () => {
+  renderPwaTypeaheadDropdown(pwaOpacityEquipment, pwaOpacityEquipmentDropdown, getOpacityEquipmentReferenceList(), "pwa-opacity-equipment-option");
+});
+
 pwaCarbonForm?.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
@@ -10763,6 +10869,18 @@ pwaCarbonForm?.addEventListener("click", (event) => {
     pwaPlcEquipment.value = plcOption.dataset.pwaPlcEquipmentOption || "";
     hidePwaTypeaheadDropdown(pwaPlcEquipmentDropdown);
   }
+
+  const cemsOption = target.closest("[data-pwa-cems-equipment-option]");
+  if (cemsOption instanceof HTMLElement && pwaCemsEquipment) {
+    pwaCemsEquipment.value = cemsOption.dataset.pwaCemsEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaCemsEquipmentDropdown);
+  }
+
+  const opacityOption = target.closest("[data-pwa-opacity-equipment-option]");
+  if (opacityOption instanceof HTMLElement && pwaOpacityEquipment) {
+    pwaOpacityEquipment.value = opacityOption.dataset.pwaOpacityEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaOpacityEquipmentDropdown);
+  }
 });
 
 document.addEventListener("click", (event) => {
@@ -10775,6 +10893,8 @@ document.addEventListener("click", (event) => {
     hidePwaTypeaheadDropdown(pwaMccEquipmentDropdown);
     hidePwaTypeaheadDropdown(pwaElectricalRoomDropdown);
     hidePwaTypeaheadDropdown(pwaPlcEquipmentDropdown);
+    hidePwaTypeaheadDropdown(pwaCemsEquipmentDropdown);
+    hidePwaTypeaheadDropdown(pwaOpacityEquipmentDropdown);
   }
 });
 
@@ -11043,6 +11163,276 @@ pwaPlcForm?.addEventListener("submit", async (event) => {
     if (pwaPlcSubmit) {
       pwaPlcSubmit.disabled = false;
       pwaPlcSubmit.textContent = "Simpan PLC";
+    }
+  }
+});
+
+pwaInstrumentForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(pwaInstrumentForm);
+  const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
+  if (!equipmentName) {
+    if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = "Equipment instrument wajib diisi.";
+    showToast("Instrument", "Equipment wajib diisi.");
+    return;
+  }
+  const photoPayload = await getFindingPhotoPayload(formData, {});
+  const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+  const payload = {
+    inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
+    sensorCondition: String(formData.get("sensorCondition") || "").trim(),
+    ...photoPayload,
+  };
+  const item = {
+    id: createId("service"),
+    type: "Instrument",
+    subtype: "Instrument",
+    formType: "service-instrument",
+    equipmentName,
+    description: String(formData.get("description") || "-").trim() || "-",
+    detail: `Kondisi sensor: ${payload.sensorCondition || "-"} | Foto: ${photoPayload.findingPhotoName}`,
+    payload,
+  };
+  try {
+    if (pwaInstrumentSubmit) {
+      pwaInstrumentSubmit.disabled = true;
+      pwaInstrumentSubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, false);
+    appendServiceCard(savedItem);
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+    resetPwaInstrumentForm();
+    openPwaQuickForm("");
+    if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = "Data instrument berhasil disimpan.";
+    showToast("Instrument", "Data instrument berhasil disimpan.");
+  } catch (error) {
+    if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = error.message || "Gagal menyimpan data instrument.";
+    showToast("Instrument", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaInstrumentSubmit) {
+      pwaInstrumentSubmit.disabled = false;
+      pwaInstrumentSubmit.textContent = "Simpan Instrument";
+    }
+  }
+});
+
+pwaCemsForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(pwaCemsForm);
+  const selectedEquipment = String(formData.get("equipmentName") || "").trim().toUpperCase();
+  const referenceList = getCemsEquipmentReferenceList().map((item) => String(item || "").trim().toUpperCase());
+  if (!selectedEquipment || (referenceList.length && !referenceList.includes(selectedEquipment))) {
+    if (pwaCemsFormNote) pwaCemsFormNote.textContent = "Equipment CEMS wajib dipilih dari referensi resmi.";
+    showToast("CEMS", "Pilih equipment dari referensi CEMS.");
+    return;
+  }
+  const photoPayload = await getNamedFindingPhotoPayload(formData, {}, [
+    { fieldName: "cemsConditionPhoto", label: "Foto kondisi alat" },
+  ]);
+  const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+  const payload = {
+    inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
+    inspectorName: String(formData.get("inspectorName") || "").trim(),
+    o2Status: normalizeCemsStatusValue(formData.get("o2Status")),
+    o2Value: String(formData.get("o2Value") || "").trim(),
+    o2Unit: "%",
+    o2Note: "",
+    coStatus: normalizeCemsStatusValue(formData.get("coStatus")),
+    coValue: String(formData.get("coValue") || "").trim(),
+    coUnit: "mg/Nm3",
+    coNote: "",
+    noxStatus: normalizeCemsStatusValue(formData.get("noxStatus")),
+    noxValue: String(formData.get("noxValue") || "").trim(),
+    noxUnit: "mg/Nm3",
+    noxNote: "",
+    so2Status: normalizeCemsStatusValue(formData.get("so2Status")),
+    so2Value: String(formData.get("so2Value") || "").trim(),
+    so2Unit: "mg/Nm3",
+    so2Note: "",
+    dustStatus: normalizeCemsStatusValue(formData.get("dustStatus")),
+    dustValue: String(formData.get("dustValue") || "").trim(),
+    dustUnit: "mg/Nm3",
+    dustNote: "",
+    flowStatus: normalizeCemsStatusValue(formData.get("flowStatus")),
+    flowValue: "",
+    flowUnit: "Nm3/h",
+    flowNote: "",
+    temperatureStatus: normalizeCemsStatusValue(formData.get("temperatureStatus")),
+    temperatureValue: "",
+    temperatureUnit: "C",
+    temperatureNote: "",
+    pressureStatus: normalizeCemsStatusValue(formData.get("pressureStatus")),
+    pressureValue: "",
+    pressureUnit: "kPa",
+    pressureNote: "",
+    analyzerPower: "OK",
+    analyzerStatus: normalizeCemsStatusValue(formData.get("analyzerStatus")),
+    analyzerAlarm: "OK",
+    analyzerResponseTime: "OK",
+    analyzerSpanDrift: "OK",
+    analyzerZeroDrift: "OK",
+    analyzerNote: "",
+    samplingProbe: "OK",
+    samplingFilter: "OK",
+    samplingHeatedLine: "OK",
+    samplingPump: "OK",
+    samplingFlow: normalizeCemsStatusValue(formData.get("samplingFlow")),
+    samplingNote: "",
+    calibrationCylinder: "OK",
+    calibrationPressure: "OK",
+    calibrationRegulator: "OK",
+    calibrationAuto: "OK",
+    calibrationSchedule: "OK",
+    calibrationNote: "",
+    dataDasScada: "OK",
+    dataLogger: normalizeCemsStatusValue(formData.get("dataLogger")),
+    dataLoss: "OK",
+    timeSync: "OK",
+    dataCommunicationNote: "",
+    supportPowerSupply: "OK",
+    supportUps: "OK",
+    supportAcPanel: "OK",
+    supportShelter: "OK",
+    supportNote: "",
+    findingIssue: String(formData.get("findingIssue") || "").trim(),
+    possibleCause: String(formData.get("possibleCause") || "").trim(),
+    emissionImpact: String(formData.get("emissionImpact") || "").trim(),
+    urgencyLevel: String(formData.get("urgencyLevel") || "Low").trim(),
+    ...photoPayload,
+  };
+  const item = {
+    id: createId("service"),
+    type: "Instrument",
+    subtype: "CEMS",
+    formType: "service-cems",
+    equipmentName: selectedEquipment,
+    description: String(formData.get("description") || "-").trim() || "-",
+    detail: buildCemsDetailSummary(payload),
+    payload,
+  };
+  try {
+    if (pwaCemsSubmit) {
+      pwaCemsSubmit.disabled = true;
+      pwaCemsSubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, false);
+    appendServiceCard(savedItem);
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+    resetPwaCemsForm();
+    openPwaQuickForm("");
+    if (pwaCemsFormNote) pwaCemsFormNote.textContent = "Data CEMS berhasil disimpan.";
+    showToast("CEMS", "Data CEMS berhasil disimpan.");
+  } catch (error) {
+    if (pwaCemsFormNote) pwaCemsFormNote.textContent = error.message || "Gagal menyimpan data CEMS.";
+    showToast("CEMS", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaCemsSubmit) {
+      pwaCemsSubmit.disabled = false;
+      pwaCemsSubmit.textContent = "Simpan CEMS";
+    }
+  }
+});
+
+pwaOpacityForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(pwaOpacityForm);
+  const selectedEquipment = String(formData.get("equipmentName") || "").trim().toUpperCase();
+  const referenceList = getOpacityEquipmentReferenceList().map((item) => String(item || "").trim().toUpperCase());
+  if (!selectedEquipment || (referenceList.length && !referenceList.includes(selectedEquipment))) {
+    if (pwaOpacityFormNote) pwaOpacityFormNote.textContent = "Equipment opacity wajib dipilih dari referensi resmi.";
+    showToast("Opacity Meter", "Pilih equipment dari referensi opacity.");
+    return;
+  }
+  const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+  const photoPayload = await getFindingPhotoPayload(formData, {});
+  const payload = {
+    inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
+    inspectionTime: String(formData.get("inspectionTime") || "").trim(),
+    brandModel: "",
+    technicianName: String(formData.get("technicianName") || "").trim(),
+    shift: String(formData.get("shift") || "").trim(),
+    opacityValue: String(formData.get("opacityValue") || "").trim(),
+    opacityUnit: "%",
+    opacityLimit: "",
+    opacityStatus: normalizeOpacityStatusValue(formData.get("opacityStatus")),
+    transmittanceValue: String(formData.get("transmittanceValue") || "").trim(),
+    transmittanceUnit: "%",
+    transmittanceLimit: "",
+    transmittanceStatus: normalizeOpacityStatusValue(formData.get("transmittanceStatus")),
+    alarmStatusValue: "",
+    alarmStatusUnit: "-",
+    alarmStatusLimit: "",
+    alarmStatusCondition: normalizeOpacityStatusValue(formData.get("alarmStatusCondition")),
+    visualHousingClean: normalizeOpacityStatusValue(formData.get("visualHousingClean")),
+    visualMounting: "OK",
+    visualAlignment: normalizeOpacityStatusValue(formData.get("visualAlignment")),
+    visualVibration: "OK",
+    visualCondensation: "OK",
+    visualNote: "",
+    opticLens: normalizeOpacityStatusValue(formData.get("opticLens")),
+    opticReflector: "OK",
+    opticDeposit: "OK",
+    opticSignal: "OK",
+    opticLightIntensity: "OK",
+    opticNote: "",
+    purgeActive: normalizeOpacityStatusValue(formData.get("purgeActive")),
+    purgePressure: "OK",
+    purgeFlow: "OK",
+    purgeFilter: "OK",
+    purgeNote: "",
+    electricalPowerSupply: normalizeOpacityStatusValue(formData.get("electricalPowerSupply")),
+    electricalOutput: "OK",
+    electricalCable: "OK",
+    electricalNoise: "OK",
+    electricalNote: "",
+    zeroCheckValue: "",
+    zeroCheckStatus: normalizeOpacityStatusValue(formData.get("zeroCheckStatus")),
+    zeroCheckNote: "",
+    spanCheckValue: "",
+    spanCheckStatus: normalizeOpacityStatusValue(formData.get("spanCheckStatus")),
+    spanCheckNote: "",
+    driftValue: "",
+    driftStatus: normalizeOpacityStatusValue(formData.get("driftStatus")),
+    driftNote: "",
+    findingIssue: String(formData.get("findingIssue") || "").trim(),
+    possibleCause: String(formData.get("possibleCause") || "").trim(),
+    readingImpact: String(formData.get("readingImpact") || "").trim(),
+    recommendationCleaning: false,
+    recommendationRealignment: false,
+    recommendationCalibration: false,
+    recommendationSparePart: false,
+    recommendationOther: "",
+    ...photoPayload,
+  };
+  const item = {
+    id: createId("service"),
+    type: "Instrument",
+    subtype: "Opacity Meter",
+    formType: "service-opacity-meter",
+    equipmentName: selectedEquipment,
+    description: String(formData.get("description") || "-").trim() || "-",
+    detail: buildOpacityDetailSummary(payload),
+    payload,
+  };
+  try {
+    if (pwaOpacitySubmit) {
+      pwaOpacitySubmit.disabled = true;
+      pwaOpacitySubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, false);
+    appendServiceCard(savedItem);
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+    resetPwaOpacityForm();
+    openPwaQuickForm("");
+    if (pwaOpacityFormNote) pwaOpacityFormNote.textContent = "Data Opacity berhasil disimpan.";
+    showToast("Opacity Meter", "Data Opacity berhasil disimpan.");
+  } catch (error) {
+    if (pwaOpacityFormNote) pwaOpacityFormNote.textContent = error.message || "Gagal menyimpan data Opacity.";
+    showToast("Opacity Meter", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaOpacitySubmit) {
+      pwaOpacitySubmit.disabled = false;
+      pwaOpacitySubmit.textContent = "Simpan Opacity";
     }
   }
 });
