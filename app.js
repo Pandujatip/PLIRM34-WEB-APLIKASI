@@ -2308,6 +2308,13 @@ function shouldHideInspectionDetailValue(value) {
   return normalized === "0" || normalized === "0.0" || normalized === "0.00";
 }
 
+function buildConciseAnalysis(notes, fallback, limit = 3) {
+  const cleanNotes = [...new Set((Array.isArray(notes) ? notes : [])
+    .map((note) => String(note || "").trim())
+    .filter(Boolean))];
+  return cleanNotes.length ? cleanNotes.slice(0, limit) : [fallback];
+}
+
 function analyzeServiceItem(item) {
   const payload = item.payload || {};
 
@@ -2330,30 +2337,30 @@ function analyzeServiceItem(item) {
     const highCells = [];
 
     if (payload.panelDoorCondition === "NOT OK") {
-      notes.push("Pintu panel belum tertutup sesuai standar. Tutup dan amankan panel segera untuk mencegah paparan debu, sentuhan langsung, dan risiko flashover.");
+      notes.push("Pintu panel NOT OK. Amankan panel dulu karena ini risiko langsung untuk safety dan kontaminasi.");
     }
     if (payload.floorCleanliness === "Kotor") {
-      notes.push("Kebersihan lantai room kurang baik. Housekeeping perlu dijadwalkan untuk menurunkan risiko kontaminasi dan trip.");
+      notes.push("Room kotor. Jadwalkan housekeeping agar debu tidak mempercepat gangguan panel.");
     }
     if (payload.roomTemperature === "Tidak dingin") {
-      notes.push("Ruangan tidak dingin. Periksa AC/ventilasi, sirkulasi udara, dan sumber panas di dalam room karena temperatur ruang yang tinggi mempercepat penuaan komponen panel dan battery.");
+      notes.push("Room tidak dingin. Cek AC/ventilasi karena panas mempercepat aging panel dan battery.");
     }
 
     const batteryCharge = parseCarbonBrushNumericValue(payload.batteryVdc);
     if (batteryCharge !== null) {
       if (batteryCharge < threshold.batteryChargeLow) {
-        notes.push(`Battery charge ${batteryCharge} VDC berada di bawah batas minimum ${threshold.batteryChargeLow} VDC. Cek charger, suplai AC, setting float/equalize, dan kondisi battery bank.`);
+        notes.push(`Battery charge rendah: ${batteryCharge} VDC. Cek charger, suplai AC, dan battery bank.`);
       } else if (batteryCharge > threshold.batteryChargeHigh) {
-        notes.push(`Battery charge ${batteryCharge} VDC berada di atas batas maksimum ${threshold.batteryChargeHigh} VDC. Evaluasi setting charger karena overcharge dapat mempercepat kerusakan battery.`);
+        notes.push(`Battery charge tinggi: ${batteryCharge} VDC. Evaluasi setting charger untuk mencegah overcharge.`);
       }
     }
 
     const batteryTotal = parseCarbonBrushNumericValue(payload.batteryTotalVdc);
     if (batteryTotal !== null) {
       if (batteryTotal < threshold.batteryChargeLow) {
-        notes.push(`Total tegangan battery ${batteryTotal} VDC lebih rendah dari batas ${threshold.batteryChargeLow} VDC. Lakukan pengecekan battery bank secara menyeluruh.`);
+        notes.push(`Total battery rendah: ${batteryTotal} VDC. Periksa battery bank menyeluruh.`);
       } else if (batteryTotal > threshold.batteryChargeHigh) {
-        notes.push(`Total tegangan battery ${batteryTotal} VDC melebihi batas ${threshold.batteryChargeHigh} VDC. Pastikan sistem charging tidak terlalu tinggi.`);
+        notes.push(`Total battery tinggi: ${batteryTotal} VDC. Pastikan charging tidak berlebih.`);
       }
     }
 
@@ -2370,37 +2377,37 @@ function analyzeServiceItem(item) {
     });
 
     if (lowCells.length) {
-      notes.push(`Ada cell battery di bawah batas ${threshold.batteryCellLow} V: ${lowCells.join(", ")}. Lakukan equalizing/tes battery dan siapkan penggantian jika tren drop berulang.`);
+      notes.push(`Cell battery rendah: ${lowCells.join(", ")}. Tes battery/equalizing dan siapkan penggantian bila berulang.`);
     }
     if (highCells.length) {
-      notes.push(`Ada cell battery di atas batas ${threshold.batteryCellHigh} V: ${highCells.join(", ")}. Kondisi ini mengarah ke overcharge atau ketidakseimbangan cell dan perlu evaluasi setting charger.`);
+      notes.push(`Cell battery tinggi: ${highCells.join(", ")}. Cek imbalance cell dan setting charger.`);
     }
 
     const windingTemperature = parseCarbonBrushNumericValue(payload.transformerWindingTemperature);
     if (windingTemperature !== null) {
       if (windingTemperature < threshold.transformerWindingLow) {
-        notes.push(`Temperature winding ${windingTemperature} C berada di bawah batas normal ${threshold.transformerWindingLow} C. Verifikasi kembali sensor/indikator suhu dan kondisi beban trafo.`);
+        notes.push(`Winding ${windingTemperature} C tidak normal rendah. Verifikasi sensor suhu trafo.`);
       } else if (windingTemperature > threshold.transformerWindingHigh) {
-        notes.push(`Temperature winding ${windingTemperature} C melebihi batas ${threshold.transformerWindingHigh} C. Cek beban trafo, pendinginan, ventilasi room, dan kondisi sirip/radiator.`);
+        notes.push(`Winding panas: ${windingTemperature} C. Cek beban, pendinginan, ventilasi, dan radiator trafo.`);
       }
     }
 
     const oilTemperature = parseCarbonBrushNumericValue(payload.transformerOilTemperature);
     if (oilTemperature !== null) {
       if (oilTemperature < threshold.transformerOilLow) {
-        notes.push(`Temperature oil ${oilTemperature} C berada di bawah batas normal ${threshold.transformerOilLow} C. Pastikan pembacaan instrumen valid dan sesuaikan dengan kondisi operasi trafo.`);
+        notes.push(`Oil temp ${oilTemperature} C tidak normal rendah. Validasi pembacaan instrument.`);
       } else if (oilTemperature > threshold.transformerOilHigh) {
-        notes.push(`Temperature oil ${oilTemperature} C melebihi batas ${threshold.transformerOilHigh} C. Evaluasi beban, sistem pendingin, level oil, dan kebersihan radiator trafo.`);
+        notes.push(`Oil temp panas: ${oilTemperature} C. Cek beban, cooling, level oil, dan radiator.`);
       }
     }
 
     if ((payload.transformerOilLevel || "").trim() && !/normal|ok/i.test(payload.transformerOilLevel || "")) {
-      notes.push(`Level oil trafo dilaporkan "${payload.transformerOilLevel}". Verifikasi level aktual pada sight glass karena level oil yang tidak normal mempengaruhi pendinginan dan isolasi.`);
+      notes.push(`Level oil "${payload.transformerOilLevel}". Verifikasi sight glass karena berpengaruh ke cooling dan isolasi.`);
     }
     if ((payload.transformerSilicaGel || "").trim() === "NOT OK") {
-      notes.push("Silica gel trafo tidak dalam kondisi baik. Ganti atau regenerasi silica gel untuk menjaga kelembaban tidak masuk ke tangki trafo.");
+      notes.push("Silica gel NOT OK. Ganti/regenerasi untuk mencegah kelembaban masuk trafo.");
     }
-    return notes.length ? notes : ["Kondisi umum electrical room relatif aman berdasarkan isian inspeksi terakhir."];
+    return buildConciseAnalysis(notes, "Electrical room aman. Lanjutkan inspeksi rutin dan pastikan housekeeping tetap terjaga.");
   }
 
   if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
@@ -2409,29 +2416,29 @@ function analyzeServiceItem(item) {
       const temperatureDs = parseCarbonBrushNumericValue(payload.temperaturDs);
       const temperatureNds = parseCarbonBrushNumericValue(payload.temperaturNds);
       if ((payload.condition || "").toUpperCase() === "BAD") {
-        notes.push("MSO menandai kondisi motor sebagai BAD. Prioritaskan review hasil inspeksi dan tindak lanjut lapangan.");
+        notes.push("MSO status BAD. Cek parameter yang melewati limit dan prioritaskan tindak lanjut lapangan.");
       }
       if (temperatureDs !== null && temperatureDs >= 60) {
-        notes.push(`Temperature DS ${temperatureDs} C sudah tinggi. Cek beban, pendinginan, dan kondisi bearing sisi drive.`);
+        notes.push(`Temp DS tinggi: ${temperatureDs} C. Cek beban, cooling, dan bearing sisi drive.`);
       }
       if (temperatureNds !== null && temperatureNds >= 60) {
-        notes.push(`Temperature NDS ${temperatureNds} C sudah tinggi. Periksa ventilasi motor dan kondisi sisi non-drive.`);
+        notes.push(`Temp NDS tinggi: ${temperatureNds} C. Cek ventilasi dan bearing sisi non-drive.`);
       }
-      return notes.length ? notes : ["Data motor dari MSO masih menunjukkan kondisi umum aman berdasarkan hasil inspeksi terbaru."];
+      return buildConciseAnalysis(notes, "Motor MSO terbaru aman. Tidak ada parameter utama yang perlu tindakan cepat.");
     }
     const vibrationDe = parseCarbonBrushNumericValue(payload.vibrationDe);
     const vibrationNde = parseCarbonBrushNumericValue(payload.vibrationNde);
     const windingTemperature = parseCarbonBrushNumericValue(payload.windingTemperature);
     if (vibrationDe !== null && vibrationDe >= 4) {
-      notes.push("Vibrasi DE sudah tinggi. Perlu cek alignment, kondisi bearing, dan fondasi motor.");
+      notes.push(`Vibrasi DE tinggi: ${vibrationDe}. Fokus cek alignment, bearing sisi drive, dan fondasi.`);
     }
     if (vibrationNde !== null && vibrationNde >= 4) {
-      notes.push("Vibrasi NDE tinggi. Siapkan pengecekan balancing dan inspeksi sisi non-drive.");
+      notes.push(`Vibrasi NDE tinggi: ${vibrationNde}. Cek bearing sisi non-drive, fan end, dan balancing.`);
     }
     if (windingTemperature !== null && windingTemperature >= 80) {
-      notes.push("Suhu winding mendekati/masuk zona tinggi. Evaluasi beban motor dan pendinginan.");
+      notes.push(`Winding panas: ${windingTemperature} C. Evaluasi beban motor dan cooling.`);
     }
-    return notes.length ? notes : ["Parameter utama motor MV masih dalam batas aman dari data yang diinput."];
+    return buildConciseAnalysis(notes, "Motor MV aman dari parameter yang diinput. Lanjutkan monitoring rutin.");
   }
 
   if (item.formType === "service-motor-mv-carbon-brush") {
@@ -2462,77 +2469,71 @@ function analyzeServiceItem(item) {
       })[0] || null;
     const notes = [];
 
-    if (replacedPoints.length) {
-      notes.push(`Penggantian terkonfirmasi pada titik: ${replacedPoints.join(", ")}.`);
-    }
     if (stats.low > 0) {
-      notes.push(`Ada ${stats.low} titik di zona merah. Prioritaskan koordinasi rawmill off untuk titik yang sudah menyentuh atau melewati batas minimum ${threshold.low}.`);
-    }
-    if (stats.medium > 0) {
-      notes.push(`Ada ${stats.medium} titik di zona kuning. Titik ini belum merah, tetapi sudah mendekati batas minimum ${threshold.low} sehingga monitoring tidak boleh menunggu terlalu lama.`);
-    }
-    if (stats.attentionPoints?.length) {
-      notes.push(`Titik perhatian utama: ${stats.attentionPoints.join(", ")}.`);
+      notes.push(`${stats.low} titik sudah merah. Jadwalkan rawmill off; prioritas titik: ${(stats.attentionPoints || []).slice(0, 8).join(", ") || "-"}.`);
     }
     if (actualPriorityPoint) {
-      notes.push(`Titik paling kritis saat ini adalah ${actualPriorityPoint.pointKey} dengan nilai ${actualPriorityPoint.currentValue} mm. Status aktual ${actualPriorityPoint.actualStatus.label.toLowerCase()}; ${actualPriorityPoint.actualStatus.actionLabel.toLowerCase()}.`);
+      notes.push(`Titik terendah: ${actualPriorityPoint.pointKey} = ${actualPriorityPoint.currentValue} mm, limit ${actualPriorityPoint.thresholdLow} mm. Status: ${actualPriorityPoint.actualStatus.label}.`);
     }
     if (predictedPoint) {
       const wearRateText = predictedPoint.medianWearRate !== null
         ? `${predictedPoint.medianWearRate.toFixed(3)} mm/hari`
         : "-";
-      notes.push(`Prediksi titik ${predictedPoint.pointKey} menuju limit sekitar ${predictedPoint.countdownDays} hari lagi dengan sisa ${predictedPoint.remainingMm?.toFixed(2) || "-"} mm dan laju aus median ${wearRateText}. Status countdown ${predictedPoint.predictionStatus.label}; kualitas histori ${predictedPoint.predictionQuality.label.toLowerCase()}. ${predictedPoint.predictionQuality.note}`);
+      notes.push(`Countdown terdekat: ${predictedPoint.pointKey} sekitar ${predictedPoint.countdownDays} hari lagi. Laju aus ${wearRateText}; kualitas ${predictedPoint.predictionQuality.label.toLowerCase()}.`);
     } else if (actualPriorityPoint) {
-      notes.push(`Countdown titik ${actualPriorityPoint.pointKey} belum layak dipakai karena histori valid belum cukup. Alert utama tetap mengacu pada nilai aktual terhadap threshold carbon brush.`);
+      notes.push(`Countdown belum cukup kuat. Pakai nilai aktual terhadap threshold sebagai dasar keputusan.`);
+    }
+    if (stats.medium > 0 && stats.low === 0) {
+      notes.push(`${stats.medium} titik kuning. Siapkan sparepart sebelum masuk merah.`);
+    }
+    if (replacedPoints.length) {
+      notes.push(`Titik diganti: ${replacedPoints.join(", ")}.`);
     }
     if (meggerValue !== null) {
       if (meggerValue <= meggerMinimum) {
-        notes.push(`Megger terbaru ${meggerValue} Mohm sudah menyentuh atau berada di bawah batas minimum ${meggerMinimum} Mohm. Kondisi isolasi perlu menjadi prioritas bersamaan dengan evaluasi carbon brush.`);
+        notes.push(`Megger rendah: ${meggerValue} Mohm. Evaluasi isolasi bersamaan dengan carbon brush.`);
       } else if (meggerTrend.servicesToThreshold !== null && meggerTrend.servicesToThreshold <= 2) {
-        notes.push(`Megger terbaru ${meggerValue} Mohm masih di atas batas, tetapi tren turun menunjukkan estimasi tinggal sekitar ${meggerTrend.servicesToThreshold.toFixed(1)} service lagi menuju ${meggerMinimum} Mohm. Jadwalkan inspeksi isolasi lebih ketat.`);
+        notes.push(`Megger turun cepat: ${meggerValue} Mohm, estimasi ${meggerTrend.servicesToThreshold.toFixed(1)} service menuju batas.`);
       } else if (meggerTrend.avgDropPerService !== null && meggerTrend.avgDropPerService > 0) {
-        notes.push(`Megger masih aman di ${meggerValue} Mohm, namun ada tren turun rata-rata ${meggerTrend.avgDropPerService.toFixed(2)} Mohm per service. Pantau agar penurunan tidak mendekati batas minimum tanpa warning dini.`);
+        notes.push(`Megger aman (${meggerValue} Mohm) tetapi tren turun ${meggerTrend.avgDropPerService.toFixed(2)} Mohm/service.`);
       }
     }
     if (replacedPoints.length && stats.low === 0 && stats.medium === 0) {
-      notes.push("Setelah titik yang diganti diperbarui, sebaran carbon brush saat ini kembali berada di area aman. Fokus berikutnya adalah memastikan tren aus tetap stabil pada inspeksi berikutnya.");
+      notes.push("Setelah penggantian, sebaran titik sudah aman. Validasi lagi di inspeksi berikutnya.");
     }
-    if (!notes.length) {
-      notes.push("Sebaran hasil carbon brush berada di zona aman dan belum ada indikasi countdown kritis dari histori yang tersimpan. Lanjutkan monitoring periodik sesuai jadwal rawmill.");
-    }
-    return notes;
+    return buildConciseAnalysis(notes, "Carbon brush aman. Belum ada titik merah atau countdown kritis dari histori.");
   }
 
   if (item.formType === "service-mcc") {
     const notes = [];
     if (normalizeMccStatusValue(payload.testFunction) !== "OK") {
-      notes.push("Test fungsi MCC tidak OK. Lanjutkan pengecekan suplai, interlock, fuse/MCB, kontaktor, overload, dan jalur kontrol sebelum unit dikembalikan ke operasi.");
+      notes.push("Test fungsi MCC NOT OK. Cek suplai, interlock, kontaktor, overload, dan kontrol sebelum operasi.");
     }
     if (normalizeMccStatusValue(payload.visualCondition) !== "OK") {
-      notes.push("Kondisi visual MCC tidak OK. Periksa indikasi panas, perubahan warna, terminal longgar, karat, debu, atau kerusakan fisik pada komponen panel.");
+      notes.push("Visual MCC NOT OK. Cari hot spot, terminal longgar, karat, debu, atau komponen rusak.");
     }
     if (normalizeMccStatusValue(payload.partCleanliness) !== "OK") {
-      notes.push("Kebersihan part belum baik. Lakukan cleaning terkontrol pada panel atau komponen MCC agar debu dan kontaminasi tidak memicu gangguan operasi.");
+      notes.push("Part kotor. Lakukan cleaning terkontrol untuk mencegah tracking dan gangguan panel.");
     }
-    return notes.length ? notes : ["Kondisi MCC masih baik berdasarkan tiga poin inspeksi utama yang diinput."];
+    return buildConciseAnalysis(notes, "MCC aman. Fungsi, visual, dan kebersihan masih OK.");
   }
 
   if (item.formType === "service-ehca") {
     const notes = [];
     if (/ganti|kotor|buruk/i.test(payload.filterCondition || "")) {
-      notes.push("Kondisi filter sudah perlu tindakan. Siapkan penggantian agar kualitas fluida tetap terjaga.");
+      notes.push("Filter perlu tindakan. Siapkan penggantian/cleaning agar kualitas fluida tetap aman.");
     }
     if (!/tidak ada|normal/i.test(payload.leakCondition || "")) {
-      notes.push("Terindikasi kebocoran pada unit. Lokalisir titik bocor sebelum berkembang menjadi gangguan operasi.");
+      notes.push("Ada indikasi leak. Lokalisir titik bocor sebelum berkembang menjadi trip/gangguan operasi.");
     }
-    return notes.length ? notes : ["Unit EH/CA tidak menunjukkan anomali dominan dari isian inspeksi ini."];
+    return buildConciseAnalysis(notes, "EH/CA aman. Tidak ada indikasi leak atau filter bermasalah.");
   }
 
   if (item.formType === "service-instrument") {
     if (/rusak|drift|noise|gangguan/i.test(payload.sensorCondition || "")) {
-      return ["Kondisi sensor menunjukkan anomali. Lanjutkan verifikasi loop, mounting, dan kalibrasi ulang bila diperlukan."];
+      return ["Sensor anomali. Verifikasi loop, mounting, wiring, dan kalibrasi."];
     }
-    return ["Kondisi sensor relatif stabil dari catatan inspeksi saat ini."];
+    return ["Instrument stabil. Tidak ada indikasi drift/noise/gangguan dari inspeksi ini."];
   }
 
   if (item.formType === "service-cems") {
@@ -2549,7 +2550,7 @@ function analyzeServiceItem(item) {
     ].filter(([, status]) => normalizeCemsStatusValue(status) === "NG");
 
     if (parameterAlerts.length) {
-      notes.push(`Parameter CEMS yang berstatus NG: ${parameterAlerts.map(([label, , value, unit]) => `${label} (${value || "-"} ${unit || ""})`.trim()).join(", ")}.`);
+      notes.push(`Parameter NG: ${parameterAlerts.map(([label, , value, unit]) => `${label} ${value || "-"} ${unit || ""}`.trim()).join(", ")}.`);
     }
 
     const checklistAlerts = [
@@ -2580,25 +2581,25 @@ function analyzeServiceItem(item) {
     ].filter(([, status]) => normalizeCemsStatusValue(status) === "NG");
 
     if (checklistAlerts.length) {
-      notes.push(`Checklist sistem yang perlu tindakan: ${checklistAlerts.map(([label]) => label).join(", ")}.`);
+      notes.push(`Checklist bermasalah: ${checklistAlerts.map(([label]) => label).slice(0, 8).join(", ")}${checklistAlerts.length > 8 ? "..." : ""}.`);
     }
 
     if (String(payload.findingIssue || "").trim()) {
-      notes.push(`Temuan utama: ${payload.findingIssue}.`);
+      notes.push(`Temuan: ${payload.findingIssue}.`);
     }
     if (String(payload.possibleCause || "").trim()) {
-      notes.push(`Kemungkinan penyebab: ${payload.possibleCause}.`);
+      notes.push(`Dugaan penyebab: ${payload.possibleCause}.`);
     }
     if (String(payload.emissionImpact || "").trim()) {
-      notes.push(`Dampak ke emisi/compliance: ${payload.emissionImpact}.`);
+      notes.push(`Dampak compliance: ${payload.emissionImpact}.`);
     }
     if ((payload.urgencyLevel || "") === "High") {
-      notes.push("Level urgensi tinggi. Perlu tindak lanjut prioritas karena berpotensi mengganggu validitas monitoring emisi atau compliance.");
+      notes.push("Urgensi HIGH. Prioritaskan karena bisa mengganggu validitas monitoring emisi.");
     } else if ((payload.urgencyLevel || "") === "Medium") {
-      notes.push("Level urgensi menengah. Jadwalkan tindak lanjut teknis pada window terdekat agar deviasi tidak berkembang.");
+      notes.push("Urgensi MEDIUM. Jadwalkan tindak lanjut pada window terdekat.");
     }
 
-    return notes.length ? notes : ["Kondisi umum CEMS masih baik berdasarkan parameter, checklist sistem, dan catatan inspeksi terakhir."];
+    return buildConciseAnalysis(notes, "CEMS aman. Parameter dan checklist utama masih OK.");
   }
 
   if (item.formType === "service-opacity-meter") {
@@ -2610,7 +2611,7 @@ function analyzeServiceItem(item) {
     ].filter(([, status]) => normalizeOpacityStatusValue(status) === "NG");
 
     if (parameterAlerts.length) {
-      notes.push(`Parameter opacity meter yang berstatus NG: ${parameterAlerts.map(([label, , value, unit]) => `${label} (${value || "-"} ${unit || ""})`.trim()).join(", ")}.`);
+      notes.push(`Parameter NG: ${parameterAlerts.map(([label, , value, unit]) => `${label} ${value || "-"} ${unit || ""}`.trim()).join(", ")}.`);
     }
 
     const checklistAlerts = [
@@ -2638,17 +2639,17 @@ function analyzeServiceItem(item) {
     ].filter(([, status]) => normalizeOpacityStatusValue(status) === "NG");
 
     if (checklistAlerts.length) {
-      notes.push(`Checklist opacity meter yang perlu tindakan: ${checklistAlerts.map(([label]) => label).join(", ")}.`);
+      notes.push(`Checklist bermasalah: ${checklistAlerts.map(([label]) => label).slice(0, 8).join(", ")}${checklistAlerts.length > 8 ? "..." : ""}.`);
     }
 
     if (String(payload.findingIssue || "").trim()) {
-      notes.push(`Masalah ditemukan: ${payload.findingIssue}.`);
+      notes.push(`Temuan: ${payload.findingIssue}.`);
     }
     if (String(payload.possibleCause || "").trim()) {
-      notes.push(`Analisa penyebab: ${payload.possibleCause}.`);
+      notes.push(`Dugaan penyebab: ${payload.possibleCause}.`);
     }
     if (String(payload.readingImpact || "").trim()) {
-      notes.push(`Dampak ke pembacaan opacity: ${payload.readingImpact}.`);
+      notes.push(`Dampak pembacaan: ${payload.readingImpact}.`);
     }
 
     const recommendations = [
@@ -2659,10 +2660,10 @@ function analyzeServiceItem(item) {
       payload.recommendationOther || "",
     ].filter(Boolean);
     if (recommendations.length) {
-      notes.push(`Rekomendasi tindak lanjut: ${recommendations.join(", ")}.`);
+      notes.push(`Tindak lanjut: ${recommendations.join(", ")}.`);
     }
 
-    return notes.length ? notes : ["Kondisi umum opacity meter masih baik berdasarkan parameter, checklist, dan catatan inspeksi terakhir."];
+    return buildConciseAnalysis(notes, "Opacity meter aman. Parameter dan checklist utama masih OK.");
   }
 
   if (item.formType === "service-dcs") {
@@ -2680,11 +2681,11 @@ function analyzeServiceItem(item) {
     ].filter(([, value]) => isDcsTextAbnormal(value));
 
     if (plcChecks.length > 0) {
-      notes.push(`PLC module perlu perhatian pada ${plcChecks.map(([label]) => label).join(", ")}. Lanjutkan pengecekan power, komunikasi, dan health module terkait.`);
+      notes.push(`PLC module abnormal: ${plcChecks.map(([label]) => label).join(", ")}. Cek power, komunikasi, dan module health.`);
     }
 
     if (isDcsTextAbnormal(payload.fiberOpticEthernetCommunication)) {
-      notes.push("Komunikasi fiber optic atau ethernet terindikasi tidak normal. Cek link status, konektor, patch cord, dan kualitas komunikasi antar node.");
+      notes.push("Komunikasi FO/ethernet abnormal. Cek link status, konektor, patch cord, dan node terkait.");
     }
 
     const groundingIssues = [
@@ -2694,38 +2695,38 @@ function analyzeServiceItem(item) {
     ].filter(([, value]) => isGroundingOutsideLimit(value));
 
     if (groundingIssues.length > 0) {
-      notes.push(`Nilai grounding melebihi batas pada ${groundingIssues.map(([label]) => label).join(", ")}. Periksa bonding, koneksi grounding, dan resistansi jalur pembumian.`);
+      notes.push(`Grounding di luar batas: ${groundingIssues.map(([label]) => label).join(", ")}. Cek bonding dan koneksi grounding.`);
     }
 
     if (/kendor|longgar|lepas|tidak kencang/i.test(payload.cableTermination || "") && !/tidak kendor/i.test(payload.cableTermination || "")) {
-      notes.push("Cable termination terindikasi kurang kencang. Lakukan pengencangan ulang dan inspeksi hot spot pada terminal terkait.");
+      notes.push("Cable termination longgar. Kencangkan ulang dan cek potensi hot spot.");
     }
 
     if (isVoltageOutsideLimit(payload.upsOutput, 195, 225)) {
-      notes.push("Output UPS berada di luar standar 195-225 VAC. Validasi input, baterai, dan kesehatan modul UPS.");
+      notes.push("Output UPS di luar 195-225 VAC. Validasi input, baterai, dan modul UPS.");
     }
 
     if (isVoltageOutsideLimit(payload.pdbOutput, 195, 225)) {
-      notes.push("Output PDB berada di luar standar 195-225 VAC. Periksa distribusi suplai dan kestabilan tegangan panel.");
+      notes.push("Output PDB di luar 195-225 VAC. Cek distribusi suplai dan stabilitas tegangan.");
     }
 
     if (/panas|tidak dingin|> ?25|2[6-9]\s*c|[3-9][0-9]\s*c/i.test(payload.roomAcCondition || "") && !/dingin|< ?25/i.test(payload.roomAcCondition || "")) {
-      notes.push("Kondisi AC atau temperatur room belum ideal. Pastikan suhu ruang panel tetap dingin untuk menjaga keandalan perangkat PLC.");
+      notes.push("Room PLC panas/AC tidak ideal. Jaga suhu panel agar module tidak cepat fail.");
     }
 
     if (!/bersih/i.test(payload.roomCleanliness || "")) {
-      notes.push("Kebersihan room atau panel belum ideal. Housekeeping perlu ditingkatkan untuk mencegah debu dan gangguan perangkat.");
+      notes.push("Room/panel kotor. Tingkatkan housekeeping untuk mencegah debu masuk perangkat.");
     }
 
     if (hasMeaningfulDcsText(payload.damagedPartReplacement)) {
-      notes.push("Terdapat catatan part rusak atau penggantian part. Pastikan histori penggantian dan validasi fungsi setelah penggantian tercatat.");
+      notes.push("Ada part rusak/diganti. Pastikan fungsi tervalidasi setelah penggantian.");
     }
 
     if (hasMeaningfulDcsText(payload.adjustmentRepair)) {
-      notes.push("Ada tindakan adjustment atau repair pada inspeksi ini. Pastikan hasil perbaikan diverifikasi kembali pada operasi normal.");
+      notes.push("Ada adjustment/repair. Verifikasi ulang saat operasi normal.");
     }
 
-    return notes.length ? notes : ["Kondisi PLC dari isian ini belum menunjukkan temuan kritis."];
+    return buildConciseAnalysis(notes, "PLC/DCS aman. Tidak ada temuan kritis dari inspeksi ini.");
   }
 
   return ["Analisa otomatis belum tersedia untuk form ini."];
@@ -3339,7 +3340,7 @@ function buildMsoMotorAnalyticsHtml(item) {
         ])}
       </div>
       <div class="detail-analysis">
-        ${(latestSnapshot.notes.length ? latestSnapshot.notes : ["Kondisi terbaru relatif aman berdasarkan data historis yang tersimpan."]).map((entry) => `<div class="detail-analysis-item">${escapeHtml(entry)}</div>`).join("")}
+        ${buildConciseAnalysis(latestSnapshot.notes, "Kondisi terbaru relatif aman berdasarkan data historis yang tersimpan.").map((entry) => `<div class="detail-analysis-item">${escapeHtml(entry)}</div>`).join("")}
       </div>
     </section>
     <section class="detail-card carbon-brush-trend-card">
@@ -3374,7 +3375,7 @@ function buildMsoMotorAnalyticsHtml(item) {
     <section class="detail-card">
       <h4>Rekomendasi Otomatis</h4>
       <div class="detail-analysis trend-event-list">
-        ${(recommendations.length ? recommendations : ["Belum ada indikasi kuat untuk tindakan khusus. Lanjutkan monitoring rutin."]).map((entry) => `<div class="detail-analysis-item">${escapeHtml(entry)}</div>`).join("")}
+        ${buildConciseAnalysis(recommendations, "Belum ada indikasi kuat untuk tindakan khusus. Lanjutkan monitoring rutin.").map((entry) => `<div class="detail-analysis-item">${escapeHtml(entry)}</div>`).join("")}
       </div>
     </section>
   `;
