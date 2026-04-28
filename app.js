@@ -2452,14 +2452,21 @@ function analyzeServiceItem(item) {
     const pointAnalyses = carbonBrushMeasurementKeys
       .map((pointKey) => analyzeCarbonBrushPointWear(item, pointKey))
       .filter((analysis) => analysis.currentValue !== null);
-    const actualPriorityPoint = [...pointAnalyses]
+    const activePointAnalyses = pointAnalyses.filter((analysis) => !replacedPoints.includes(analysis.pointKey));
+    const activeRedPoints = activePointAnalyses
+      .filter((analysis) => (analysis.actualStatus?.severity ?? 0) >= 3)
+      .sort((left, right) => (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER));
+    const activeYellowPoints = activePointAnalyses
+      .filter((analysis) => (analysis.actualStatus?.severity ?? 0) === 2)
+      .sort((left, right) => (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER));
+    const actualPriorityPoint = [...activePointAnalyses]
       .sort((left, right) => {
         if ((right.actualStatus?.severity ?? 0) !== (left.actualStatus?.severity ?? 0)) {
           return (right.actualStatus?.severity ?? 0) - (left.actualStatus?.severity ?? 0);
         }
         return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
       })[0] || null;
-    const predictedPoint = pointAnalyses
+    const predictedPoint = activePointAnalyses
       .filter((analysis) => analysis.countdownDays !== null)
       .sort((left, right) => {
         if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
@@ -2469,8 +2476,8 @@ function analyzeServiceItem(item) {
       })[0] || null;
     const notes = [];
 
-    if (stats.low > 0) {
-      notes.push(`${stats.low} titik sudah merah. Jadwalkan rawmill off; prioritas titik: ${(stats.attentionPoints || []).slice(0, 8).join(", ") || "-"}.`);
+    if (activeRedPoints.length > 0) {
+      notes.push(`${activeRedPoints.length} titik aktif sudah merah. Jadwalkan rawmill off; prioritas: ${activeRedPoints.slice(0, 8).map((point) => point.pointKey).join(", ")}.`);
     }
     if (actualPriorityPoint) {
       notes.push(`Titik terendah: ${actualPriorityPoint.pointKey} = ${actualPriorityPoint.currentValue} mm, limit ${actualPriorityPoint.thresholdLow} mm. Status: ${actualPriorityPoint.actualStatus.label}.`);
@@ -2483,11 +2490,8 @@ function analyzeServiceItem(item) {
     } else if (actualPriorityPoint) {
       notes.push(`Countdown belum cukup kuat. Pakai nilai aktual terhadap threshold sebagai dasar keputusan.`);
     }
-    if (stats.medium > 0 && stats.low === 0) {
-      notes.push(`${stats.medium} titik kuning. Siapkan sparepart sebelum masuk merah.`);
-    }
-    if (replacedPoints.length) {
-      notes.push(`Titik diganti: ${replacedPoints.join(", ")}.`);
+    if (activeYellowPoints.length > 0 && activeRedPoints.length === 0) {
+      notes.push(`${activeYellowPoints.length} titik aktif kuning. Siapkan sparepart sebelum masuk merah: ${activeYellowPoints.slice(0, 8).map((point) => point.pointKey).join(", ")}.`);
     }
     if (meggerValue !== null) {
       if (meggerValue <= meggerMinimum) {
@@ -2498,10 +2502,10 @@ function analyzeServiceItem(item) {
         notes.push(`Megger aman (${meggerValue} Mohm) tetapi tren turun ${meggerTrend.avgDropPerService.toFixed(2)} Mohm/service.`);
       }
     }
-    if (replacedPoints.length && stats.low === 0 && stats.medium === 0) {
-      notes.push("Setelah penggantian, sebaran titik sudah aman. Validasi lagi di inspeksi berikutnya.");
+    if (!activeRedPoints.length && !activeYellowPoints.length && replacedPoints.length) {
+      notes.push("Titik aktif sudah aman setelah penggantian. Cukup validasi lagi pada inspeksi berikutnya.");
     }
-    return buildConciseAnalysis(notes, "Carbon brush aman. Belum ada titik merah atau countdown kritis dari histori.");
+    return buildConciseAnalysis(notes, "Carbon brush aktif aman. Titik yang sudah diganti tidak masuk prioritas jadwal ulang.");
   }
 
   if (item.formType === "service-mcc") {
