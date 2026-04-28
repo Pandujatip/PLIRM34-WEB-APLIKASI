@@ -88,7 +88,9 @@ function renderCarbonBrushAlertBanner(serviceItems) {
         <p>Titik <strong>${escapeHtml(worstPoint.pointKey)}</strong> sekarang berada di <strong>${escapeHtml(worstPoint.currentValue ?? "-")} mm</strong> dengan limit <strong>${escapeHtml(worstPoint.thresholdLow)}</strong>. ${escapeHtml(statusBasisText)}</p>
         <div class="carbon-brush-alert-metrics">
           <span>Nilai sekarang ${escapeHtml(worstPoint.currentValue ?? "-")} mm</span>
-          <span>Sisa ${escapeHtml(worstPoint.remainingMm !== null ? worstPoint.remainingMm.toFixed(2) : "-")} mm</span>
+          <span>Sisa saat inspeksi ${escapeHtml(worstPoint.remainingMm !== null ? worstPoint.remainingMm.toFixed(2) : "-")} mm</span>
+          <span>Estimasi sisa hari ini ${escapeHtml(worstPoint.projectedRemainingMm !== null ? worstPoint.projectedRemainingMm.toFixed(2) : "-")} mm</span>
+          <span>Hari berjalan ${escapeHtml(worstPoint.daysSinceLatestInspection ?? 0)} hari sejak inspeksi terakhir</span>
           <span>Prediksi ${escapeHtml(predictionStatus?.label || "Belum cukup histori")} | ${escapeHtml(predictionQuality?.label || "Belum cukup histori")}</span>
           <span>Median aus ${escapeHtml(worstPoint.medianWearRate !== null ? worstPoint.medianWearRate.toFixed(3) : "-")} mm/hari</span>
         </div>

@@ -67,6 +67,17 @@ function getMedianValue(values) {
   return (numericValues[middleIndex - 1] + numericValues[middleIndex]) / 2;
 }
 
+function getCarbonBrushElapsedDaysSince(inspectionDate) {
+  if (!(inspectionDate instanceof Date) || Number.isNaN(inspectionDate.getTime())) {
+    return 0;
+  }
+  const startDate = new Date(inspectionDate.getFullYear(), inspectionDate.getMonth(), inspectionDate.getDate());
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const elapsedDays = getDaysBetweenDates(startDate, todayStart);
+  return Math.max(0, elapsedDays || 0);
+}
+
 function classifyCarbonBrushPredictionQuality(recentIntervals) {
   if (!Array.isArray(recentIntervals) || recentIntervals.length < 3) {
     return {
@@ -297,14 +308,22 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
   const latestCycleValue = currentValue;
   const medianWearRate = recentIntervals.length >= 3 ? getMedianValue(recentIntervals.map((entry) => entry.wearRatePerDay)) : null;
   const latestRemainingMm = latestCycleValue === null ? null : latestCycleValue - threshold.low;
+  const latestInspectionDate = history[history.length - 1]?.inspectionDate || null;
+  const daysSinceLatestInspection = getCarbonBrushElapsedDaysSince(latestInspectionDate);
   const predictionQuality = classifyCarbonBrushPredictionQuality(recentIntervals);
-  const countdownDays = latestReplacedConfirmed || latestRemainingMm === null
+  const baselineCountdownDays = latestReplacedConfirmed || latestRemainingMm === null
     ? null
     : latestRemainingMm <= 0
       ? 0
       : medianWearRate && medianWearRate > 0
         ? Math.max(0, Math.ceil(latestRemainingMm / medianWearRate))
         : null;
+  const countdownDays = baselineCountdownDays === null
+    ? null
+    : Math.max(0, baselineCountdownDays - daysSinceLatestInspection);
+  const projectedRemainingMm = medianWearRate && latestRemainingMm !== null
+    ? Math.max(0, latestRemainingMm - (medianWearRate * daysSinceLatestInspection))
+    : latestRemainingMm;
   const predictionStatus = classifyCarbonBrushCountdownStatus(countdownDays, predictionQuality.key);
 
   return {
@@ -316,7 +335,11 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
     medianWearRate,
     currentValue: latestCycleValue,
     remainingMm: latestRemainingMm,
+    projectedRemainingMm,
+    baselineCountdownDays,
     countdownDays,
+    daysSinceLatestInspection,
+    latestInspectionDate,
     thresholdLow: threshold.low,
     thresholdHigh: threshold.high,
     hasEnoughHistory: recentIntervals.length >= 3,
