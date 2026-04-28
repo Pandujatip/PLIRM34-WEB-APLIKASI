@@ -2303,6 +2303,22 @@ function buildDetailGridRows(rows) {
   `).join("");
 }
 
+function formatValueWithUnit(value, unit) {
+  const normalizedValue = String(value ?? "").trim();
+  const normalizedUnit = String(unit || "").trim();
+  if (!normalizedValue || normalizedValue === "-") {
+    return "-";
+  }
+  if (!normalizedUnit || new RegExp(`${normalizedUnit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i").test(normalizedValue)) {
+    return normalizedValue;
+  }
+  return `${normalizedValue} ${normalizedUnit}`;
+}
+
+function normalizeNumericInputValue(value) {
+  return String(value ?? "").trim().replace(/\s*(?:°?c|%|vdc|v|a)\s*$/i, "").trim();
+}
+
 function shouldHideInspectionDetailValue(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
   return normalized === "0" || normalized === "0.0" || normalized === "0.00";
@@ -2401,8 +2417,16 @@ function analyzeServiceItem(item) {
       }
     }
 
-    if ((payload.transformerOilLevel || "").trim() && !/normal|ok/i.test(payload.transformerOilLevel || "")) {
-      notes.push(`Level oil "${payload.transformerOilLevel}". Verifikasi sight glass karena berpengaruh ke cooling dan isolasi.`);
+    const oilLevelText = String(payload.transformerOilLevel || "").trim();
+    const oilLevelPercent = parseCarbonBrushNumericValue(oilLevelText);
+    if (oilLevelText) {
+      if (oilLevelPercent !== null && oilLevelPercent < 40) {
+        notes.push(`Level oil rendah: ${oilLevelPercent}%. Verifikasi sight glass dan potensi leak.`);
+      } else if (oilLevelPercent !== null && oilLevelPercent > 100) {
+        notes.push(`Level oil ${oilLevelPercent}% tidak normal. Validasi pembacaan level trafo.`);
+      } else if (oilLevelPercent === null && !/normal|ok/i.test(oilLevelText)) {
+        notes.push(`Level oil "${oilLevelText}". Verifikasi sight glass karena berpengaruh ke cooling dan isolasi.`);
+      }
     }
     if ((payload.transformerSilicaGel || "").trim() === "NOT OK") {
       notes.push("Silica gel NOT OK. Ganti/regenerasi untuk mencegah kelembaban masuk trafo.");
@@ -3881,9 +3905,9 @@ function formatServicePayloadLines(item) {
       ["VDC battery 9", payload.battery9 || "-"],
       ["VDC battery 10", payload.battery10 || "-"],
       ["Equipment trafo", payload.transformerEquipment || "-"],
-      ["Temperature winding", payload.transformerWindingTemperature || "-"],
-      ["Temperature oil", payload.transformerOilTemperature || "-"],
-      ["Level oil", payload.transformerOilLevel || "-"],
+      ["Temperature winding", formatValueWithUnit(payload.transformerWindingTemperature, "C")],
+      ["Temperature oil", formatValueWithUnit(payload.transformerOilTemperature, "C")],
+      ["Level oil", formatValueWithUnit(payload.transformerOilLevel, "%")],
       ["Silica gel", payload.transformerSilicaGel || "-"],
       ["Foto temuan", photoSummary],
     ];
@@ -4580,9 +4604,9 @@ async function createServiceInspectionImage(item) {
   ];
   const transformerRows = [
     ["Equipment trafo", payload.transformerEquipment || "-"],
-    ["Temperature winding", payload.transformerWindingTemperature || "-"],
-    ["Temperature oil", payload.transformerOilTemperature || "-"],
-    ["Level oil", payload.transformerOilLevel || "-"],
+    ["Temperature winding", formatValueWithUnit(payload.transformerWindingTemperature, "C")],
+    ["Temperature oil", formatValueWithUnit(payload.transformerOilTemperature, "C")],
+    ["Level oil", formatValueWithUnit(payload.transformerOilLevel, "%")],
     ["Silica gel", payload.transformerSilicaGel || "-"],
   ];
   const generalElectricalRows = [
@@ -9813,9 +9837,9 @@ forms.forEach((form) => {
           battery9: String(formData.get("battery9") || ""),
           battery10: String(formData.get("battery10") || ""),
             transformerEquipment: String(formData.get("transformerEquipment") || ""),
-            transformerWindingTemperature: String(formData.get("transformerWindingTemperature") || ""),
-            transformerOilTemperature: String(formData.get("transformerOilTemperature") || ""),
-            transformerOilLevel: String(formData.get("transformerOilLevel") || ""),
+            transformerWindingTemperature: normalizeNumericInputValue(formData.get("transformerWindingTemperature")),
+            transformerOilTemperature: normalizeNumericInputValue(formData.get("transformerOilTemperature")),
+            transformerOilLevel: normalizeNumericInputValue(formData.get("transformerOilLevel")),
             transformerSilicaGel: String(formData.get("transformerSilicaGel") || "OK"),
             ...photoPayload,
         },
@@ -11172,9 +11196,9 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
     battery9: String(formData.get("battery9") || "").trim(),
     battery10: String(formData.get("battery10") || "").trim(),
     transformerEquipment: String(formData.get("transformerEquipment") || "").trim(),
-    transformerWindingTemperature: String(formData.get("transformerWindingTemperature") || "").trim(),
-    transformerOilTemperature: String(formData.get("transformerOilTemperature") || "").trim(),
-    transformerOilLevel: String(formData.get("transformerOilLevel") || "").trim(),
+    transformerWindingTemperature: normalizeNumericInputValue(formData.get("transformerWindingTemperature")),
+    transformerOilTemperature: normalizeNumericInputValue(formData.get("transformerOilTemperature")),
+    transformerOilLevel: normalizeNumericInputValue(formData.get("transformerOilLevel")),
     transformerSilicaGel: String(formData.get("transformerSilicaGel") || "OK"),
     ...photoPayload,
   };

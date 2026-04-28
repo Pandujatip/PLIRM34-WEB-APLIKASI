@@ -451,8 +451,8 @@
                         <input name="transformerEquipment" type="text" placeholder="Contoh: Trafo 3A">
                       </label>
                       <label class="pwa-form-field">
-                        <span>Oil level</span>
-                        <input name="transformerOilLevel" type="text" placeholder="Contoh: Normal">
+                        <span>Oil level (%)</span>
+                        <input name="transformerOilLevel" type="text" inputmode="decimal" placeholder="Contoh: 85">
                       </label>
                       <label class="pwa-form-field">
                         <span>Silica gel</span>
@@ -462,11 +462,11 @@
                         </select>
                       </label>
                     <label class="pwa-form-field">
-                      <span>Trafo winding</span>
+                      <span>Trafo winding (C)</span>
                       <input name="transformerWindingTemperature" type="text" inputmode="decimal" placeholder="Contoh: 58">
                     </label>
                     <label class="pwa-form-field">
-                      <span>Trafo oil</span>
+                      <span>Trafo oil (C)</span>
                       <input name="transformerOilTemperature" type="text" inputmode="decimal" placeholder="Contoh: 50">
                     </label>
                     </div>
@@ -1568,16 +1568,16 @@
                       <input type="text" name="transformerEquipment" placeholder="Contoh: TR-RM-01" required>
                     </label>
                     <label>
-                      Temperature winding
-                      <input type="text" name="transformerWindingTemperature" placeholder="Contoh: 74 C" required>
+                      Temperature winding (C)
+                      <input type="text" name="transformerWindingTemperature" placeholder="Contoh: 74" required>
                     </label>
                     <label>
-                      Temperature oil
-                      <input type="text" name="transformerOilTemperature" placeholder="Contoh: 58 C" required>
+                      Temperature oil (C)
+                      <input type="text" name="transformerOilTemperature" placeholder="Contoh: 58" required>
                     </label>
                     <label>
-                      Level oil
-                      <input type="text" name="transformerOilLevel" placeholder="Contoh: Normal" required>
+                      Level oil (%)
+                      <input type="text" name="transformerOilLevel" placeholder="Contoh: 85" required>
                     </label>
                     <label>
                       Silica gel
@@ -3384,7 +3384,7 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260428-02"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260428-05"></script>
+  <script src="app.js?v=20260428-06"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
