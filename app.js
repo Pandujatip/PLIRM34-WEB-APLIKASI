@@ -424,6 +424,7 @@ let editingServiceId = null;
 let editingBomId = null;
 let editingBomMotorId = null;
 let editingSpbId = null;
+let pwaEditingServiceItem = null;
 let activeServiceGroupDetailType = "";
 let activeServiceDetailItem = null;
 let serviceDetailReturnState = null;
@@ -1666,6 +1667,63 @@ function resetPwaOpacityForm() {
   if (pwaOpacityFormNote) {
     pwaOpacityFormNote.textContent = "Pilih equipment opacity dari referensi. Checklist tambahan bisa dibuka saat diperlukan.";
   }
+}
+
+function getPwaEditItemFor(formType) {
+  return pwaEditingServiceItem?.formType === formType ? pwaEditingServiceItem : null;
+}
+
+function upsertServiceCard(item) {
+  const items = [item, ...getServiceItemsFromDom().filter((entry) => entry.id !== item.id)];
+  renderServiceBoard(items);
+  persistServiceList();
+  updateDashboardStats();
+  applyServiceFilter();
+}
+
+function finishPwaServiceSave(savedItem, formType, resetForm, closeForm = true) {
+  upsertServiceCard(savedItem);
+  pwaEditingServiceItem = null;
+  renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+  if (typeof resetForm === "function") {
+    resetForm();
+  }
+  if (closeForm) {
+    openPwaQuickForm("");
+  }
+}
+
+function setPwaFormValue(form, name, value) {
+  const control = form?.elements?.[name];
+  if (!control) {
+    return;
+  }
+  const normalizedValue = String(value ?? "");
+  if (control instanceof RadioNodeList) {
+    [...control].forEach((entry) => {
+      if (entry instanceof HTMLInputElement && entry.type === "radio") {
+        entry.checked = entry.value === normalizedValue;
+      }
+    });
+    return;
+  }
+  if (control instanceof HTMLInputElement && control.type === "file") {
+    return;
+  }
+  control.value = normalizedValue;
+}
+
+function hydratePwaFormValues(form, item, fieldNames) {
+  if (!form || !item) {
+    return;
+  }
+  const payload = item.payload || {};
+  setPwaFormValue(form, "equipmentName", item.equipmentName || "");
+  setPwaFormValue(form, "description", item.description || "");
+  setPwaFormValue(form, "inspectionDate", String(payload.inspectionDate || "").slice(0, 10) || new Date().toISOString().slice(0, 10));
+  fieldNames.forEach((fieldName) => {
+    setPwaFormValue(form, fieldName, payload[fieldName] ?? "");
+  });
 }
 
 function collectCarbonBrushMeasurements(form) {
@@ -10786,12 +10844,14 @@ pwaCompactShell?.addEventListener("click", async (event) => {
 
   const formChoice = target.closest("[data-pwa-form-choice]");
   if (formChoice instanceof HTMLElement) {
+    pwaEditingServiceItem = null;
     openPwaQuickForm(formChoice.dataset.pwaFormChoice || "");
     return;
   }
 
   const hideFormButton = target.closest("[data-pwa-hide-form]");
   if (hideFormButton instanceof HTMLElement) {
+    pwaEditingServiceItem = null;
     openPwaQuickForm("");
     return;
   }
@@ -10911,11 +10971,99 @@ async function editServiceFromPwa(itemId) {
     return;
   }
   closeServiceDetail({ forceClose: true });
-  hydrateServiceForm(item);
-  document.documentElement.classList.add("pwa-web-view");
-  openSection("service");
-  openCreatePanel("service");
-  showToast("Service", "Mode edit service aktif.");
+  pwaEditingServiceItem = item;
+  const payload = item.payload || {};
+  openPwaTab("service");
+
+  if (item.formType === "service-motor-mv-carbon-brush") {
+    resetPwaCarbonForm();
+    openPwaQuickForm("carbon");
+    hydratePwaFormValues(pwaCarbonForm, item, ["replacement", "megger", "pic"]);
+    Object.entries(payload.measurements || {}).forEach(([key, value]) => {
+      const input = pwaCarbonGrid?.querySelector(`[name="${key}"]`);
+      if (input instanceof HTMLInputElement) {
+        input.value = String(value ?? "");
+      }
+    });
+    updatePwaCarbonInputColors();
+    updatePwaCarbonTypeInfo();
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Mode edit carbon brush aktif. Simpan untuk memperbarui data ini.";
+    showToast("Carbon Brush", "Mode edit PWA aktif.");
+    return;
+  }
+
+  if (item.formType === "service-mcc") {
+    resetPwaMccForm();
+    openPwaQuickForm("mcc");
+    hydratePwaFormValues(pwaMccForm, item, ["testFunction", "visualCondition", "partCleanliness"]);
+    if (pwaMccFormNote) pwaMccFormNote.textContent = "Mode edit MCC aktif. Simpan untuk memperbarui data ini.";
+    showToast("MCC", "Mode edit PWA aktif.");
+    return;
+  }
+
+  if (item.formType === "service-electrical-room") {
+    resetPwaElectricalRoomForm();
+    openPwaQuickForm("electrical-room");
+    hydratePwaFormValues(pwaElectricalRoomForm, item, [
+      "panelDoorCondition", "floorCleanliness", "roomTemperature", "batteryVdc", "batteryAmpere", "batteryTotalVdc",
+      "battery1", "battery2", "battery3", "battery4", "battery5", "battery6", "battery7", "battery8", "battery9", "battery10",
+      "transformerEquipment", "transformerWindingTemperature", "transformerOilTemperature", "transformerOilLevel", "transformerSilicaGel",
+    ]);
+    if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = "Mode edit Electrical Room aktif. Simpan untuk memperbarui data ini.";
+    showToast("Electrical Room", "Mode edit PWA aktif.");
+    return;
+  }
+
+  if (item.formType === "service-dcs") {
+    resetPwaPlcForm();
+    openPwaQuickForm("plc");
+    hydratePwaFormValues(pwaPlcForm, item, [
+      "plcPowerSupplyModule", "plcCommunicationModule", "plcProcessorModule", "plcDigitalInputModule", "plcDigitalOutputModule",
+      "plcAnalogInputModule", "plcAnalogOutputModule", "fiberOpticEthernetCommunication", "groundingEeEa", "groundingEePe", "groundingEaPe",
+      "cableTermination", "upsOutput", "pdbOutput", "roomAcCondition", "roomCleanliness", "damagedPartReplacement", "adjustmentRepair",
+    ]);
+    if (pwaPlcFormNote) pwaPlcFormNote.textContent = "Mode edit PLC aktif. Simpan untuk memperbarui data ini.";
+    showToast("PLC", "Mode edit PWA aktif.");
+    return;
+  }
+
+  if (item.formType === "service-instrument") {
+    resetPwaInstrumentForm();
+    openPwaQuickForm("instrument");
+    hydratePwaFormValues(pwaInstrumentForm, item, ["sensorCondition"]);
+    if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = "Mode edit Instrument aktif. Simpan untuk memperbarui data ini.";
+    showToast("Instrument", "Mode edit PWA aktif.");
+    return;
+  }
+
+  if (item.formType === "service-cems") {
+    resetPwaCemsForm();
+    openPwaQuickForm("cems");
+    hydratePwaFormValues(pwaCemsForm, item, [
+      "inspectorName", "o2Status", "o2Value", "coStatus", "coValue", "noxStatus", "noxValue", "so2Status", "so2Value",
+      "dustStatus", "dustValue", "flowStatus", "temperatureStatus", "pressureStatus", "analyzerStatus", "samplingFlow",
+      "dataLogger", "findingIssue", "possibleCause", "emissionImpact", "urgencyLevel",
+    ]);
+    if (pwaCemsFormNote) pwaCemsFormNote.textContent = "Mode edit CEMS aktif. Simpan untuk memperbarui data ini.";
+    showToast("CEMS", "Mode edit PWA aktif.");
+    return;
+  }
+
+  if (item.formType === "service-opacity-meter") {
+    resetPwaOpacityForm();
+    openPwaQuickForm("opacity");
+    hydratePwaFormValues(pwaOpacityForm, item, [
+      "inspectionTime", "technicianName", "shift", "opacityValue", "opacityStatus", "transmittanceValue", "transmittanceStatus",
+      "alarmStatusCondition", "visualHousingClean", "visualAlignment", "opticLens", "purgeActive", "electricalPowerSupply",
+      "zeroCheckStatus", "spanCheckStatus", "driftStatus", "findingIssue", "possibleCause", "readingImpact",
+    ]);
+    if (pwaOpacityFormNote) pwaOpacityFormNote.textContent = "Mode edit Opacity aktif. Simpan untuk memperbarui data ini.";
+    showToast("Opacity Meter", "Mode edit PWA aktif.");
+    return;
+  }
+
+  pwaEditingServiceItem = null;
+  showToast("Service", "Form PWA untuk kategori ini belum tersedia. Gunakan Form web.");
 }
 
 pwaCarbonGrid?.addEventListener("input", (event) => {
@@ -11090,9 +11238,10 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
   const meta = decodeCarbonBrushEquipmentMeta(selectedEquipment);
   const stats = computeCarbonBrushStats(measurements, selectedEquipment, meta.plant);
   const formData = new FormData(pwaCarbonForm);
+  const editItem = getPwaEditItemFor("service-motor-mv-carbon-brush");
   const inspectionDateValue = String(formData.get("inspectionDate") || "").trim() || new Date().toISOString().slice(0, 10);
   const item = {
-    id: createId("service"),
+    id: editItem?.id || createId("service"),
     type: "Electrical",
     subtype: "Motor MV (Carbon Brush)",
     formType: "service-motor-mv-carbon-brush",
@@ -11108,6 +11257,7 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
       megger: String(formData.get("megger") || "").trim(),
       pic: String(formData.get("pic") || "").trim(),
       measurements,
+      replacedPoints: normalizeCarbonBrushReplacedPoints(editItem?.payload?.replacedPoints),
       stats: {
         low: stats.low,
         medium: stats.medium,
@@ -11116,7 +11266,7 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
         min: stats.min,
         attentionPoints: stats.attentionPoints,
       },
-      findingPhotos: [],
+      findingPhotos: editItem?.payload?.findingPhotos || [],
     },
   };
 
@@ -11125,13 +11275,10 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
       pwaCarbonSubmit.disabled = true;
       pwaCarbonSubmit.textContent = "Menyimpan...";
     }
-    const savedItem = await saveItemToBackend("service", item, false);
-    appendServiceCard(savedItem);
-    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
-    resetPwaCarbonForm();
-    openPwaQuickForm("");
-    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Data carbon brush berhasil disimpan.";
-    showToast("Carbon Brush", "Data carbon brush berhasil disimpan.");
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaCarbonForm);
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = editItem ? "Data carbon brush berhasil diperbarui." : "Data carbon brush berhasil disimpan.";
+    showToast("Carbon Brush", editItem ? "Data carbon brush berhasil diperbarui." : "Data carbon brush berhasil disimpan.");
   } catch (error) {
     if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = error.message || "Gagal menyimpan data carbon brush.";
     showToast("Carbon Brush", error.message || "Gagal menyimpan data.");
@@ -11146,6 +11293,7 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
 pwaMccForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(pwaMccForm);
+  const editItem = getPwaEditItemFor("service-mcc");
   const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
   if (!equipmentName) {
     if (pwaMccFormNote) pwaMccFormNote.textContent = "Equipment MCC wajib diisi.";
@@ -11161,7 +11309,7 @@ pwaMccForm?.addEventListener("submit", async (event) => {
     findingPhotos: [],
   };
   const item = {
-    id: createId("service"),
+    id: editItem?.id || createId("service"),
     type: "Electrical",
     subtype: "MCC",
     formType: "service-mcc",
@@ -11175,13 +11323,10 @@ pwaMccForm?.addEventListener("submit", async (event) => {
       pwaMccSubmit.disabled = true;
       pwaMccSubmit.textContent = "Menyimpan...";
     }
-    const savedItem = await saveItemToBackend("service", item, false);
-    appendServiceCard(savedItem);
-    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
-    resetPwaMccForm();
-    openPwaQuickForm("");
-    if (pwaMccFormNote) pwaMccFormNote.textContent = "Data MCC berhasil disimpan.";
-    showToast("MCC", "Data MCC berhasil disimpan.");
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaMccForm);
+    if (pwaMccFormNote) pwaMccFormNote.textContent = editItem ? "Data MCC berhasil diperbarui." : "Data MCC berhasil disimpan.";
+    showToast("MCC", editItem ? "Data MCC berhasil diperbarui." : "Data MCC berhasil disimpan.");
   } catch (error) {
     if (pwaMccFormNote) pwaMccFormNote.textContent = error.message || "Gagal menyimpan data MCC.";
     showToast("MCC", error.message || "Gagal menyimpan data.");
@@ -11196,6 +11341,7 @@ pwaMccForm?.addEventListener("submit", async (event) => {
 pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(pwaElectricalRoomForm);
+  const editItem = getPwaEditItemFor("service-electrical-room");
   const roomName = String(formData.get("equipmentName") || "").trim().toUpperCase();
   const roomReferences = getElectricalRoomReferenceList();
   if (!roomName || !roomReferences.includes(roomName)) {
@@ -11203,9 +11349,9 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
     showToast("Electrical Room", "Pilih room / panel dari referensi.");
     return;
   }
-  const photoPayload = await getFindingPhotoPayload(formData, {});
+  const photoPayload = await getFindingPhotoPayload(formData, editItem?.payload || {});
   const payload = {
-    inspectionDate: new Date().toISOString(),
+    inspectionDate: editItem?.payload?.inspectionDate || new Date().toISOString(),
     panelDoorCondition: String(formData.get("panelDoorCondition") || "OK"),
     floorCleanliness: String(formData.get("floorCleanliness") || "Bersih"),
     roomTemperature: String(formData.get("roomTemperature") || "Dingin"),
@@ -11230,7 +11376,7 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
     ...photoPayload,
   };
   const item = {
-    id: createId("service"),
+    id: editItem?.id || createId("service"),
     type: "Electrical",
     subtype: "Electrical Room",
     formType: "service-electrical-room",
@@ -11244,13 +11390,10 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
       pwaElectricalRoomSubmit.disabled = true;
       pwaElectricalRoomSubmit.textContent = "Menyimpan...";
     }
-    const savedItem = await saveItemToBackend("service", item, false);
-    appendServiceCard(savedItem);
-    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
-    resetPwaElectricalRoomForm();
-    openPwaQuickForm("");
-    if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = "Data Electrical Room berhasil disimpan.";
-    showToast("Electrical Room", "Data Electrical Room berhasil disimpan.");
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaElectricalRoomForm);
+    if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = editItem ? "Data Electrical Room berhasil diperbarui." : "Data Electrical Room berhasil disimpan.";
+    showToast("Electrical Room", editItem ? "Data Electrical Room berhasil diperbarui." : "Data Electrical Room berhasil disimpan.");
   } catch (error) {
     if (pwaElectricalRoomFormNote) pwaElectricalRoomFormNote.textContent = error.message || "Gagal menyimpan data Electrical Room.";
     showToast("Electrical Room", error.message || "Gagal menyimpan data.");
@@ -11265,6 +11408,7 @@ pwaElectricalRoomForm?.addEventListener("submit", async (event) => {
 pwaPlcForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(pwaPlcForm);
+  const editItem = getPwaEditItemFor("service-dcs");
   const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
   const plcReferences = getDcsEquipmentReferenceList();
   if (!equipmentName || (plcReferences.length && !plcReferences.includes(equipmentName))) {
@@ -11274,7 +11418,7 @@ pwaPlcForm?.addEventListener("submit", async (event) => {
   }
   const matchedReference = findDcsEquipmentReference(equipmentName)
     || getMasterEquipmentReferences("dcs-service").find((item) => String(item.equipmentName || "").trim().toUpperCase() === equipmentName);
-  const photoPayload = await getFindingPhotoPayload(formData, {});
+  const photoPayload = await getFindingPhotoPayload(formData, editItem?.payload || {});
   const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
   const payload = normalizeDcsPayload({
     inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
@@ -11300,7 +11444,7 @@ pwaPlcForm?.addEventListener("submit", async (event) => {
     ...photoPayload,
   });
   const item = {
-    id: createId("service"),
+    id: editItem?.id || createId("service"),
     type: "DCS",
     subtype: "PLC",
     formType: "service-dcs",
@@ -11314,13 +11458,10 @@ pwaPlcForm?.addEventListener("submit", async (event) => {
       pwaPlcSubmit.disabled = true;
       pwaPlcSubmit.textContent = "Menyimpan...";
     }
-    const savedItem = await saveItemToBackend("service", item, false);
-    appendServiceCard(savedItem);
-    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
-    resetPwaPlcForm();
-    openPwaQuickForm("");
-    if (pwaPlcFormNote) pwaPlcFormNote.textContent = "Data PLC berhasil disimpan.";
-    showToast("PLC", "Data PLC berhasil disimpan.");
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaPlcForm);
+    if (pwaPlcFormNote) pwaPlcFormNote.textContent = editItem ? "Data PLC berhasil diperbarui." : "Data PLC berhasil disimpan.";
+    showToast("PLC", editItem ? "Data PLC berhasil diperbarui." : "Data PLC berhasil disimpan.");
   } catch (error) {
     if (pwaPlcFormNote) pwaPlcFormNote.textContent = error.message || "Gagal menyimpan data PLC.";
     showToast("PLC", error.message || "Gagal menyimpan data.");
@@ -11335,13 +11476,14 @@ pwaPlcForm?.addEventListener("submit", async (event) => {
 pwaInstrumentForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(pwaInstrumentForm);
+  const editItem = getPwaEditItemFor("service-instrument");
   const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
   if (!equipmentName) {
     if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = "Equipment instrument wajib diisi.";
     showToast("Instrument", "Equipment wajib diisi.");
     return;
   }
-  const photoPayload = await getFindingPhotoPayload(formData, {});
+  const photoPayload = await getFindingPhotoPayload(formData, editItem?.payload || {});
   const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
   const payload = {
     inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
@@ -11349,7 +11491,7 @@ pwaInstrumentForm?.addEventListener("submit", async (event) => {
     ...photoPayload,
   };
   const item = {
-    id: createId("service"),
+    id: editItem?.id || createId("service"),
     type: "Instrument",
     subtype: "Instrument",
     formType: "service-instrument",
@@ -11363,13 +11505,10 @@ pwaInstrumentForm?.addEventListener("submit", async (event) => {
       pwaInstrumentSubmit.disabled = true;
       pwaInstrumentSubmit.textContent = "Menyimpan...";
     }
-    const savedItem = await saveItemToBackend("service", item, false);
-    appendServiceCard(savedItem);
-    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
-    resetPwaInstrumentForm();
-    openPwaQuickForm("");
-    if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = "Data instrument berhasil disimpan.";
-    showToast("Instrument", "Data instrument berhasil disimpan.");
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaInstrumentForm);
+    if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = editItem ? "Data instrument berhasil diperbarui." : "Data instrument berhasil disimpan.";
+    showToast("Instrument", editItem ? "Data instrument berhasil diperbarui." : "Data instrument berhasil disimpan.");
   } catch (error) {
     if (pwaInstrumentFormNote) pwaInstrumentFormNote.textContent = error.message || "Gagal menyimpan data instrument.";
     showToast("Instrument", error.message || "Gagal menyimpan data.");
@@ -11384,6 +11523,7 @@ pwaInstrumentForm?.addEventListener("submit", async (event) => {
 pwaCemsForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(pwaCemsForm);
+  const editItem = getPwaEditItemFor("service-cems");
   const selectedEquipment = String(formData.get("equipmentName") || "").trim().toUpperCase();
   const referenceList = getCemsEquipmentReferenceList().map((item) => String(item || "").trim().toUpperCase());
   if (!selectedEquipment || (referenceList.length && !referenceList.includes(selectedEquipment))) {
@@ -11391,7 +11531,7 @@ pwaCemsForm?.addEventListener("submit", async (event) => {
     showToast("CEMS", "Pilih equipment dari referensi CEMS.");
     return;
   }
-  const photoPayload = await getNamedFindingPhotoPayload(formData, {}, [
+  const photoPayload = await getNamedFindingPhotoPayload(formData, editItem?.payload || {}, [
     { fieldName: "cemsConditionPhoto", label: "Foto kondisi alat" },
   ]);
   const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
@@ -11466,7 +11606,7 @@ pwaCemsForm?.addEventListener("submit", async (event) => {
     ...photoPayload,
   };
   const item = {
-    id: createId("service"),
+    id: editItem?.id || createId("service"),
     type: "Instrument",
     subtype: "CEMS",
     formType: "service-cems",
@@ -11480,13 +11620,10 @@ pwaCemsForm?.addEventListener("submit", async (event) => {
       pwaCemsSubmit.disabled = true;
       pwaCemsSubmit.textContent = "Menyimpan...";
     }
-    const savedItem = await saveItemToBackend("service", item, false);
-    appendServiceCard(savedItem);
-    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
-    resetPwaCemsForm();
-    openPwaQuickForm("");
-    if (pwaCemsFormNote) pwaCemsFormNote.textContent = "Data CEMS berhasil disimpan.";
-    showToast("CEMS", "Data CEMS berhasil disimpan.");
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaCemsForm);
+    if (pwaCemsFormNote) pwaCemsFormNote.textContent = editItem ? "Data CEMS berhasil diperbarui." : "Data CEMS berhasil disimpan.";
+    showToast("CEMS", editItem ? "Data CEMS berhasil diperbarui." : "Data CEMS berhasil disimpan.");
   } catch (error) {
     if (pwaCemsFormNote) pwaCemsFormNote.textContent = error.message || "Gagal menyimpan data CEMS.";
     showToast("CEMS", error.message || "Gagal menyimpan data.");
@@ -11501,6 +11638,7 @@ pwaCemsForm?.addEventListener("submit", async (event) => {
 pwaOpacityForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(pwaOpacityForm);
+  const editItem = getPwaEditItemFor("service-opacity-meter");
   const selectedEquipment = String(formData.get("equipmentName") || "").trim().toUpperCase();
   const referenceList = getOpacityEquipmentReferenceList().map((item) => String(item || "").trim().toUpperCase());
   if (!selectedEquipment || (referenceList.length && !referenceList.includes(selectedEquipment))) {
@@ -11509,7 +11647,7 @@ pwaOpacityForm?.addEventListener("submit", async (event) => {
     return;
   }
   const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
-  const photoPayload = await getFindingPhotoPayload(formData, {});
+  const photoPayload = await getFindingPhotoPayload(formData, editItem?.payload || {});
   const payload = {
     inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : new Date().toISOString(),
     inspectionTime: String(formData.get("inspectionTime") || "").trim(),
@@ -11570,7 +11708,7 @@ pwaOpacityForm?.addEventListener("submit", async (event) => {
     ...photoPayload,
   };
   const item = {
-    id: createId("service"),
+    id: editItem?.id || createId("service"),
     type: "Instrument",
     subtype: "Opacity Meter",
     formType: "service-opacity-meter",
@@ -11584,13 +11722,10 @@ pwaOpacityForm?.addEventListener("submit", async (event) => {
       pwaOpacitySubmit.disabled = true;
       pwaOpacitySubmit.textContent = "Menyimpan...";
     }
-    const savedItem = await saveItemToBackend("service", item, false);
-    appendServiceCard(savedItem);
-    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
-    resetPwaOpacityForm();
-    openPwaQuickForm("");
-    if (pwaOpacityFormNote) pwaOpacityFormNote.textContent = "Data Opacity berhasil disimpan.";
-    showToast("Opacity Meter", "Data Opacity berhasil disimpan.");
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaOpacityForm);
+    if (pwaOpacityFormNote) pwaOpacityFormNote.textContent = editItem ? "Data Opacity berhasil diperbarui." : "Data Opacity berhasil disimpan.";
+    showToast("Opacity Meter", editItem ? "Data Opacity berhasil diperbarui." : "Data Opacity berhasil disimpan.");
   } catch (error) {
     if (pwaOpacityFormNote) pwaOpacityFormNote.textContent = error.message || "Gagal menyimpan data Opacity.";
     showToast("Opacity Meter", error.message || "Gagal menyimpan data.");
