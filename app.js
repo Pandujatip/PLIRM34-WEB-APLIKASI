@@ -7616,10 +7616,10 @@ function applyNegatifListFilter() {
   const dateTo = filterNegatifDateTo?.value || "";
   [...negatifListBody.querySelectorAll("tr")].forEach((row) => {
     const rowText = row.textContent || "";
-    const rowStatus = row.children[5]?.textContent.trim() || "";
-    const rowCause = row.children[4]?.textContent.trim() || "";
-    const rowCategory = row.children[6]?.textContent.trim() || "";
-    const rowDate = row.children[3]?.textContent.trim() || "";
+    const rowStatus = row.children[6]?.textContent.trim() || "";
+    const rowCause = row.children[5]?.textContent.trim() || "";
+    const rowCategory = row.children[7]?.textContent.trim() || "";
+    const rowDate = row.children[4]?.textContent.trim() || "";
     const matchesQuery = !query || matchesSearch(rowText, query);
     const matchesStatus = status === "semua" || rowStatus === status;
     const matchesCause = cause === "semua" || rowCause === cause;
@@ -7633,14 +7633,14 @@ function applyNegatifListFilter() {
     .filter((row) => !row.hidden)
     .map((row) => ({
       id: row.dataset.id,
-      equipment: row.children[0]?.textContent.trim() || "",
-      damageDescription: row.children[1]?.textContent.trim() || "",
-      followUpPlan: row.children[2]?.textContent.trim() || "",
-      foundDate: row.children[3]?.textContent.trim() || "",
-      pendingMark: row.children[4]?.textContent.trim() || "",
-      workStatus: row.children[5]?.textContent.trim() || "",
-      category: row.children[6]?.textContent.trim() || "",
-      area: row.children[7]?.textContent.trim() || "",
+      equipment: row.children[1]?.textContent.trim() || "",
+      damageDescription: row.children[2]?.textContent.trim() || "",
+      followUpPlan: row.children[3]?.textContent.trim() || "",
+      foundDate: row.children[4]?.textContent.trim() || "",
+      pendingMark: row.children[5]?.textContent.trim() || "",
+      workStatus: row.children[6]?.textContent.trim() || "",
+      category: row.children[7]?.textContent.trim() || "",
+      area: row.children[8]?.textContent.trim() || "",
     }));
 
   renderNegatifModuleSummary(visibleItems);
