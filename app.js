@@ -1766,6 +1766,9 @@ function openSection(sectionName) {
   if (!roleSections[activeRole].includes(sectionName)) {
     return;
   }
+  const transitionToken = ++sectionTransitionToken;
+  const activeSection = document.querySelector(`.panel-section[data-panel="${sectionName}"]`);
+  setUiBusyState(activeSection, true);
 
   if (workspace) {
     workspace.dataset.activeSection = sectionName;
@@ -1785,12 +1788,37 @@ function openSection(sectionName) {
   }
 
   window.localStorage.setItem(storageKeys.lastSection, sectionName);
+  scheduleUiTask(() => {
+    if (transitionToken !== sectionTransitionToken) {
+      return;
+    }
+    renderActiveSectionVisuals(sectionName);
+  });
   if (sectionName === "activity-log") {
-    void refreshActivityLogs();
+    scheduleUiTask(() => {
+      if (transitionToken === sectionTransitionToken) {
+        void refreshActivityLogs();
+      }
+    }, 24);
   }
   if (!backendState.skipSectionLoading) {
     const neededResources = sectionResourceMap[sectionName] || [];
-    void ensureBackendResourcesLoaded(neededResources);
+    void ensureBackendResourcesLoaded(neededResources)
+      .finally(() => {
+        scheduleUiTask(() => {
+          if (transitionToken !== sectionTransitionToken) {
+            return;
+          }
+          renderActiveSectionVisuals(sectionName);
+          setUiBusyState(activeSection, false);
+        }, 32);
+      });
+  } else {
+    scheduleUiTask(() => {
+      if (transitionToken === sectionTransitionToken) {
+        setUiBusyState(activeSection, false);
+      }
+    }, 32);
   }
 
   if (window.matchMedia("(max-width: 900px)").matches) {
@@ -5449,7 +5477,9 @@ async function ensureBackendResourcesLoaded(resourceKeys = []) {
     return loader;
   });
   await Promise.all(tasks);
-  loadStoredData({ resources: normalizedKeys });
+  scheduleUiTask(() => {
+    loadStoredData({ resources: normalizedKeys });
+  }, 12);
 }
 
 async function saveItemToBackend(resourceKey, item, isEditing = false) {
@@ -5496,18 +5526,20 @@ async function fetchItemsFromBackend(resourceKey) {
 }
 
 function runPostLoginBackgroundTasks(role = "") {
-  const tasks = [
-    loadMastersFromBackend(),
-  ];
+  scheduleUiTask(() => {
+    const tasks = [
+      loadMastersFromBackend(),
+    ];
 
-  if (role === "admin") {
-    tasks.push(refreshAdminMasters());
-    tasks.push(refreshActivityLogs());
-  }
+    if (role === "admin") {
+      tasks.push(refreshAdminMasters());
+      tasks.push(refreshActivityLogs());
+    }
 
-  Promise.allSettled(tasks).then(() => {
-    renderUserManagementTable();
-  });
+    Promise.allSettled(tasks).then(() => {
+      renderUserManagementTable();
+    });
+  }, 220);
 }
 
 async function loadMastersFromBackend(sourceGroup = "") {
@@ -6959,7 +6991,68 @@ function isPwaCompactMode() {
     && !document.documentElement.classList.contains("pwa-web-view");
 }
 
+let sectionTransitionToken = 0;
+let pwaTransitionToken = 0;
+let dashboardVisualRenderToken = 0;
+let pwaVisualRenderToken = 0;
+
+function queueUiFrame(callback) {
+  return window.requestAnimationFrame(() => {
+    try {
+      callback();
+    } catch (error) {
+      console.error(error);
+    }
+  });
+}
+
+function scheduleUiTask(callback, delayMs = 0) {
+  if (delayMs > 0) {
+    return window.setTimeout(() => queueUiFrame(callback), delayMs);
+  }
+  return queueUiFrame(callback);
+}
+
+function setUiBusyState(target, isBusy) {
+  if (!target) {
+    return;
+  }
+  target.classList.toggle("is-panel-loading", Boolean(isBusy));
+}
+
+function renderActiveSectionVisuals(sectionName) {
+  if (sectionName === "dashboard") {
+    updateDashboardStats({
+      renderDashboardVisuals: true,
+      renderNegatifVisuals: true,
+    });
+    return;
+  }
+  if (sectionName === "negatif-list") {
+    applyNegatifListFilter();
+    return;
+  }
+  if (sectionName === "sparepart") {
+    applySparepartFilter();
+    return;
+  }
+  if (sectionName === "service") {
+    applyServiceFilter();
+    return;
+  }
+  if (sectionName === "bom") {
+    applyBomFilter();
+    return;
+  }
+  if (sectionName === "spb") {
+    applySpbFilter();
+  }
+}
+
 function openPwaTab(tabName) {
+  const transitionToken = ++pwaTransitionToken;
+  const activePage = [...pwaPages].find((page) => page.dataset.pwaPage === tabName) || null;
+  setUiBusyState(activePage, true);
   pwaPages.forEach((page) => {
     page.classList.toggle("is-active", page.dataset.pwaPage === tabName);
   });
@@ -6968,6 +7061,19 @@ function openPwaTab(tabName) {
   });
   pwaCompactShell?.scrollTo({ top: 0, behavior: "smooth" });
   window.scrollTo({ top: 0, behavior: "smooth" });
+  scheduleUiTask(() => {
+    if (transitionToken !== pwaTransitionToken) {
+      return;
+    }
+    if (["home", "service", "mso", "carbon"].includes(tabName)) {
+      renderPwaCompactApp(
+        getNegatifItemsFromDom(),
+        getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)),
+        getSpbItemsFromDom(),
+      );
+    }
+    setUiBusyState(activePage, false);
+  }, 18);
 }
 
 function openPwaQuickForm(formName = "") {
@@ -7079,6 +7185,7 @@ function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
   if (!pwaCompactShell || !isPwaCompactMode()) {
     return;
   }
+  const renderToken = ++pwaVisualRenderToken;
   renderPwaCarbonEquipmentOptions();
   const today = new Date();
   const currentYear = String(today.getFullYear());
@@ -7122,13 +7229,6 @@ function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
     `;
   }).join("");
 
-  if (pwaCarbonPriority) {
-    pwaCarbonPriority.innerHTML = carbonCardHtml || renderPwaEmpty("Belum ada carbon brush yang masuk prioritas alert.");
-  }
-  if (pwaCarbonList) {
-    pwaCarbonList.innerHTML = carbonCardHtml || renderPwaEmpty("Belum ada alert carbon brush.");
-  }
-
   const msoCardHtml = msoWatchlist.map(({ item, snapshot, badCount, rank, priorityLabel, priorityClass, severity }) => `
     <article class="pwa-card ${escapeHtml(priorityClass)}" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
       <div>
@@ -7140,53 +7240,76 @@ function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
     </article>
   `).join("");
 
-  if (pwaMsoPriority) {
-    pwaMsoPriority.innerHTML = msoWatchlist.slice(0, 6).map(({ item, snapshot, badCount, rank, priorityLabel, priorityClass, severity }) => `
-      <article class="pwa-card ${escapeHtml(priorityClass)}" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
-        <div>
-          <small>#${rank} ${escapeHtml(priorityLabel)} | Severity ${escapeHtml(severity)}</small>
-          <strong>${escapeHtml(item.equipmentName || "-")}</strong>
-          <p>${escapeHtml(snapshot.grade)} | Score ${escapeHtml(snapshot.score)} | BAD ${escapeHtml(badCount)}x | Vib ${escapeHtml(snapshot.maxVibrationBefore ?? "-")}</p>
-        </div>
-        <span class="pwa-card-badge">${escapeHtml(priorityLabel.replace("Prioritas ", "P"))}</span>
-      </article>
-    `).join("") || renderPwaEmpty("Belum ada data Motor MSO untuk watchlist.");
-  }
-  if (pwaMsoList) {
-    pwaMsoList.innerHTML = msoCardHtml || renderPwaEmpty("Belum ada data Motor MSO.");
-  }
-
-  if (pwaNegatifOpen) {
-    pwaNegatifOpen.innerHTML = openNegatifItems.slice(0, 6).map((item) => `
-      <article class="pwa-card is-urgent">
-        <div>
-          <small>${escapeHtml(item.area || "-")} | ${escapeHtml(item.pendingMark || "Open")}</small>
-          <strong>${escapeHtml(item.equipment || "-")}</strong>
-          <p>${escapeHtml(item.damageDescription || "-")}</p>
-        </div>
-        <span class="pwa-card-badge">${escapeHtml(formatInspectionDate(item.foundDate))}</span>
-      </article>
-    `).join("") || renderPwaEmpty("Tidak ada negatif list open.");
-  }
-
-  if (pwaServiceLatest) {
-    pwaServiceLatest.innerHTML = recentService.map((item) => renderPwaServiceCard(
-      item,
-      item.formType === "service-motor-mso"
-        ? `MSO ${item.payload?.condition || "-"} | Temp ${item.payload?.temperaturDs || "-"} / ${item.payload?.temperaturNds || "-"}`
-        : (item.formType === "service-motor-mv-carbon-brush"
-          ? `Carbon brush | Megger ${item.payload?.megger || "-"} | PIC ${item.payload?.pic || "-"}`
-          : item.detail || item.description || "-"),
-    )).join("") || renderPwaEmpty(hasServiceFilter ? "Tidak ada service yang cocok dengan filter." : "Belum ada data service.");
-  }
   if (pwaServiceFilterNote) {
     pwaServiceFilterNote.textContent = hasServiceFilter
       ? `Menampilkan ${filteredServiceItems.length} hasil filter service.`
       : `Menampilkan 14 service terbaru dari ${serviceItems.length} data.`;
   }
+
+  scheduleUiTask(() => {
+    if (renderToken !== pwaVisualRenderToken) {
+      return;
+    }
+    if (pwaCarbonPriority) {
+      pwaCarbonPriority.innerHTML = carbonCardHtml || renderPwaEmpty("Belum ada carbon brush yang masuk prioritas alert.");
+    }
+    if (pwaCarbonList) {
+      pwaCarbonList.innerHTML = carbonCardHtml || renderPwaEmpty("Belum ada alert carbon brush.");
+    }
+  });
+
+  scheduleUiTask(() => {
+    if (renderToken !== pwaVisualRenderToken) {
+      return;
+    }
+    if (pwaMsoPriority) {
+      pwaMsoPriority.innerHTML = msoWatchlist.slice(0, 6).map(({ item, snapshot, badCount, rank, priorityLabel, priorityClass, severity }) => `
+        <article class="pwa-card ${escapeHtml(priorityClass)}" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
+          <div>
+            <small>#${rank} ${escapeHtml(priorityLabel)} | Severity ${escapeHtml(severity)}</small>
+            <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+            <p>${escapeHtml(snapshot.grade)} | Score ${escapeHtml(snapshot.score)} | BAD ${escapeHtml(badCount)}x | Vib ${escapeHtml(snapshot.maxVibrationBefore ?? "-")}</p>
+          </div>
+          <span class="pwa-card-badge">${escapeHtml(priorityLabel.replace("Prioritas ", "P"))}</span>
+        </article>
+      `).join("") || renderPwaEmpty("Belum ada data Motor MSO untuk watchlist.");
+    }
+    if (pwaMsoList) {
+      pwaMsoList.innerHTML = msoCardHtml || renderPwaEmpty("Belum ada data Motor MSO.");
+    }
+  }, 18);
+
+  scheduleUiTask(() => {
+    if (renderToken !== pwaVisualRenderToken) {
+      return;
+    }
+    if (pwaNegatifOpen) {
+      pwaNegatifOpen.innerHTML = openNegatifItems.slice(0, 6).map((item) => `
+        <article class="pwa-card is-urgent">
+          <div>
+            <small>${escapeHtml(item.area || "-")} | ${escapeHtml(item.pendingMark || "Open")}</small>
+            <strong>${escapeHtml(item.equipment || "-")}</strong>
+            <p>${escapeHtml(item.damageDescription || "-")}</p>
+          </div>
+          <span class="pwa-card-badge">${escapeHtml(formatInspectionDate(item.foundDate))}</span>
+        </article>
+      `).join("") || renderPwaEmpty("Tidak ada negatif list open.");
+    }
+    if (pwaServiceLatest) {
+      pwaServiceLatest.innerHTML = recentService.map((item) => renderPwaServiceCard(
+        item,
+        item.formType === "service-motor-mso"
+          ? `MSO ${item.payload?.condition || "-"} | Temp ${item.payload?.temperaturDs || "-"} / ${item.payload?.temperaturNds || "-"}`
+          : (item.formType === "service-motor-mv-carbon-brush"
+            ? `Carbon brush | Megger ${item.payload?.megger || "-"} | PIC ${item.payload?.pic || "-"}`
+            : item.detail || item.description || "-"),
+      )).join("") || renderPwaEmpty(hasServiceFilter ? "Tidak ada service yang cocok dengan filter." : "Belum ada data service.");
+    }
+  }, 36);
 }
 
 function updateDashboardStats(options = {}) {
+  const renderToken = ++dashboardVisualRenderToken;
   const activeSectionName = getActiveSectionName();
   const shouldRenderDashboardVisuals = options.renderDashboardVisuals ?? activeSectionName === "dashboard";
   const shouldRenderNegatifVisuals = options.renderNegatifVisuals ?? (shouldRenderDashboardVisuals || activeSectionName === "negatif-list");
@@ -7294,17 +7417,34 @@ function updateDashboardStats(options = {}) {
     const section = badge.dataset.menuBadge || "";
     badge.textContent = section === "dashboard" ? rankBadge : getModuleRankLabel(moduleScores[section] || 0);
   });
-  if (shouldRenderDashboardVisuals) {
-    renderMiniCharts(negatifItems, serviceItems, spbItems);
-    renderCarbonBrushAlertBanner(serviceItems);
-    renderDashboardPreviews(negatifItems, serviceItems, spbItems);
-    renderMobileCards(negatifItems, spbItems);
-  }
-  if (shouldRenderNegatifVisuals) {
-    renderNegatifModuleSummary(negatifItems);
-    renderNegatifCharts(negatifItems);
-  }
-  renderPwaCompactApp(negatifItems, serviceItems, spbItems);
+  scheduleUiTask(() => {
+    if (renderToken !== dashboardVisualRenderToken) {
+      return;
+    }
+    if (shouldRenderDashboardVisuals) {
+      renderMiniCharts(negatifItems, serviceItems, spbItems);
+      renderCarbonBrushAlertBanner(serviceItems);
+    }
+    if (shouldRenderNegatifVisuals) {
+      renderNegatifModuleSummary(negatifItems);
+      renderNegatifCharts(negatifItems);
+    }
+  });
+  scheduleUiTask(() => {
+    if (renderToken !== dashboardVisualRenderToken) {
+      return;
+    }
+    if (shouldRenderDashboardVisuals) {
+      renderDashboardPreviews(negatifItems, serviceItems, spbItems);
+      renderMobileCards(negatifItems, spbItems);
+    }
+  }, 18);
+  scheduleUiTask(() => {
+    if (renderToken !== dashboardVisualRenderToken) {
+      return;
+    }
+    renderPwaCompactApp(negatifItems, serviceItems, spbItems);
+  }, 24);
 }
 
 function renderNegatifModuleSummary(negatifItems) {
