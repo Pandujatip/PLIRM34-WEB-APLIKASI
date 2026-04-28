@@ -436,6 +436,23 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         }
         return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
       })[0];
+      const secondaryAlertPoints = alertPointAnalyses
+        .filter((analysis) => analysis.pointKey !== worstPoint.pointKey)
+        .sort((left, right) => {
+          const leftPriority = getCarbonBrushAlertPriority(left);
+          const rightPriority = getCarbonBrushAlertPriority(right);
+          if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
+            return rightPriority.actualSeverity - leftPriority.actualSeverity;
+          }
+          if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
+            return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
+          }
+          if ((left.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
+            return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
+          }
+          return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
+        })
+        .slice(0, 3);
       const planningBaseDays = worstPoint.countdownDays !== null ? worstPoint.countdownDays : 0;
       const planningPoints = pointAnalyses
         .filter((analysis) =>
@@ -460,6 +477,9 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         predictionStatus: worstPoint.predictionStatus,
         predictionQuality: worstPoint.predictionQuality,
         planningPoints,
+        secondaryAlertPoints,
+        totalAlertPointCount: alertPointAnalyses.length,
+        companionPointCount: planningPoints.length,
       };
     })
     .filter(Boolean)
