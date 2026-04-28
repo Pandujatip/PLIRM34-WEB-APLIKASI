@@ -479,6 +479,13 @@ select {
   touch-action: manipulation;
 }
 
+.pwa-card-action.is-muted {
+  color: rgba(245, 242, 237, 0.72);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
 .pwa-card.is-critical .pwa-card-badge,
 .pwa-card.is-priority-1 .pwa-card-badge {
   color: #fff;

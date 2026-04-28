@@ -6955,6 +6955,8 @@ function getPwaPriorityClass(className = "") {
 }
 
 function renderPwaServiceCard(item, metaText = "") {
+  const isMsoMotorItem = (item.formType === "service-motor-mv" || item.formType === "service-motor-mso")
+    && String(item.payload?.source || "").toUpperCase() === "MSO";
   return `
     <article class="pwa-card" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
       <div>
@@ -6964,6 +6966,7 @@ function renderPwaServiceCard(item, metaText = "") {
       </div>
       <div class="pwa-card-side">
         <span class="pwa-card-badge">${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</span>
+        ${isMsoMotorItem ? '<span class="pwa-card-action is-muted">MSO</span>' : `<button class="pwa-card-action" type="button" data-pwa-edit-service="${escapeHtml(item.id || "")}">Edit</button>`}
         <button class="pwa-card-action" type="button" data-pwa-send-service="${escapeHtml(item.id || "")}">Kirim</button>
       </div>
     </article>
@@ -10857,6 +10860,12 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const editServiceButton = target.closest("[data-pwa-edit-service]");
+  if (editServiceButton instanceof HTMLElement) {
+    await editServiceFromPwa(editServiceButton.dataset.pwaEditService || "");
+    return;
+  }
+
   const serviceCard = target.closest("[data-pwa-service-id]");
   if (serviceCard instanceof HTMLElement) {
     const item = await resolveServiceItem(serviceCard.dataset.pwaServiceId || "");
@@ -10890,6 +10899,24 @@ pwaOpenWebButton?.addEventListener("click", () => {
   document.documentElement.classList.add("pwa-web-view");
   openSection(getActiveSectionName());
 });
+
+async function editServiceFromPwa(itemId) {
+  const item = await resolveServiceItem(itemId || "");
+  if (!item) {
+    showToast("Service", "Data service tidak ditemukan.");
+    return;
+  }
+  if ((item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO") {
+    showToast("Motor MSO", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
+    return;
+  }
+  closeServiceDetail({ forceClose: true });
+  hydrateServiceForm(item);
+  document.documentElement.classList.add("pwa-web-view");
+  openSection("service");
+  openCreatePanel("service");
+  showToast("Service", "Mode edit service aktif.");
+}
 
 pwaCarbonGrid?.addEventListener("input", (event) => {
   const target = event.target;
