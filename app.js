@@ -5106,12 +5106,148 @@ function buildServiceWhatsAppText(item) {
   ].join("\n");
 }
 
-function readFileAsDataUrl(file) {
+const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
+const TARGET_UPLOAD_IMAGE_BYTES = Math.round(MAX_UPLOAD_IMAGE_BYTES * 0.92);
+const MIN_UPLOAD_IMAGE_QUALITY = 0.45;
+const MIN_UPLOAD_IMAGE_WIDTH = 1280;
+
+function renameFileExtension(filename, extensionWithoutDot) {
+  const safeName = String(filename || "foto").trim() || "foto";
+  const normalizedExtension = String(extensionWithoutDot || "jpg").replace(/^\./, "").trim() || "jpg";
+  return safeName.replace(/\.[a-z0-9]+$/i, "") + `.${normalizedExtension}`;
+}
+
+function loadImageFromObjectUrl(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Gagal memuat file gambar"));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Gagal mengompres gambar"));
+        return;
+      }
+      resolve(blob);
+    }, mimeType, quality);
+  });
+}
+
+async function optimizeImageFileForUpload(file) {
+  if (!(file instanceof File) || !String(file.type || "").startsWith("image/") || file.size <= MAX_UPLOAD_IMAGE_BYTES) {
+    return {
+      file,
+      compressed: false,
+      originalSize: Number(file?.size || 0),
+      finalSize: Number(file?.size || 0),
+    };
+  }
+
+  const image = await loadImageFromObjectUrl(file);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return {
+      file,
+      compressed: false,
+      originalSize: file.size,
+      finalSize: file.size,
+    };
+  }
+
+  const mimeType = "image/jpeg";
+  let width = image.naturalWidth || image.width || 1600;
+  let height = image.naturalHeight || image.height || 1200;
+  let quality = 0.9;
+  let bestBlob = null;
+  let bestWidth = width;
+  let bestHeight = height;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    canvas.width = Math.max(1, Math.round(width));
+    canvas.height = Math.max(1, Math.round(height));
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const blob = await canvasToBlob(canvas, mimeType, quality);
+    if (!bestBlob || blob.size < bestBlob.size) {
+      bestBlob = blob;
+      bestWidth = canvas.width;
+      bestHeight = canvas.height;
+    }
+    if (blob.size <= TARGET_UPLOAD_IMAGE_BYTES) {
+      bestBlob = blob;
+      bestWidth = canvas.width;
+      bestHeight = canvas.height;
+      break;
+    }
+
+    if (quality > 0.6) {
+      quality -= 0.12;
+    } else if (quality > MIN_UPLOAD_IMAGE_QUALITY) {
+      quality -= 0.08;
+    } else {
+      const nextWidth = Math.max(MIN_UPLOAD_IMAGE_WIDTH, Math.round(width * 0.85));
+      if (nextWidth === width) {
+        break;
+      }
+      const ratio = nextWidth / width;
+      width = nextWidth;
+      height = Math.max(1, Math.round(height * ratio));
+    }
+  }
+
+  if (!bestBlob || bestBlob.size >= file.size) {
+    return {
+      file,
+      compressed: false,
+      originalSize: file.size,
+      finalSize: file.size,
+    };
+  }
+
+  const optimizedFile = new File([bestBlob], renameFileExtension(file.name, "jpg"), {
+    type: mimeType,
+    lastModified: file.lastModified || Date.now(),
+  });
+
+  return {
+    file: optimizedFile,
+    compressed: true,
+    originalSize: file.size,
+    finalSize: bestBlob.size,
+    width: bestWidth,
+    height: bestHeight,
+  };
+}
+
+async function readFileAsDataUrl(file) {
+  const optimized = await optimizeImageFileForUpload(file);
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onload = () => resolve({
+      dataUrl: typeof reader.result === "string" ? reader.result : "",
+      name: optimized.file?.name || file?.name || "foto",
+      compressed: optimized.compressed,
+      originalSize: optimized.originalSize,
+      finalSize: optimized.finalSize,
+    });
     reader.onerror = () => reject(new Error("Gagal membaca file gambar"));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(optimized.file);
   });
 }
 
@@ -5189,10 +5325,13 @@ async function getNamedFindingPhotoPayload(formData, existingPayload = {}, field
   });
 
   if (collectedPhotos.length > 0) {
-    const findingPhotos = await Promise.all(collectedPhotos.map(async ({ label, file }) => ({
-      name: `${label} - ${file.name}`,
-      data: await readFileAsDataUrl(file),
-    })));
+    const findingPhotos = await Promise.all(collectedPhotos.map(async ({ label, file }) => {
+      const processedPhoto = await readFileAsDataUrl(file);
+      return {
+        name: `${label} - ${processedPhoto.name}`,
+        data: processedPhoto.dataUrl,
+      };
+    }));
     return buildFindingPhotoCompatibility(findingPhotos);
   }
 
@@ -5204,10 +5343,13 @@ async function getFindingPhotoPayload(formData, existingPayload = {}) {
     .filter((photo) => photo && typeof photo === "object" && "name" in photo && photo.name && "size" in photo && photo.size > 0);
 
   if (photoFiles.length > 0) {
-    const findingPhotos = await Promise.all(photoFiles.map(async (photo) => ({
-      name: photo.name,
-      data: await readFileAsDataUrl(photo),
-    })));
+    const findingPhotos = await Promise.all(photoFiles.map(async (photo) => {
+      const processedPhoto = await readFileAsDataUrl(photo);
+      return {
+        name: processedPhoto.name,
+        data: processedPhoto.dataUrl,
+      };
+    }));
     return buildFindingPhotoCompatibility(findingPhotos);
   }
 
