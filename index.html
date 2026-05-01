@@ -10,9 +10,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="PLIRM34">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=20260426-01">
-  <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png">
-  <link rel="apple-touch-icon" href="pwa-icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest?v=20260501-06">
+  <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png?v=20260501-06">
+  <link rel="apple-touch-icon" href="pwa-icons/icon-192.png?v=20260501-06">
   <script>
     (() => {
       const params = new URLSearchParams(window.location.search);
@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260501-05">
+  <link rel="stylesheet" href="styles.css?v=20260501-06">
 </head>
 <body>
   <div class="app-shell">
@@ -54,6 +54,7 @@
 
       <div class="auth-card">
         <div class="card-head">
+          <img class="auth-logo" src="pwa-icons/plirm34tuban.jpg" alt="Logo PLIRM34 Tuban">
           <p class="eyebrow">Login Awal</p>
           <h2>Masuk ke sistem</h2>
           <p>Gunakan akun unit kerja untuk membuka dashboard operasional PLIRM34.</p>
@@ -81,7 +82,7 @@
     <section class="workspace hidden" id="workspace">
       <aside class="sidebar">
         <div class="brand-block">
-          <div class="brand-mark">P34</div>
+          <div class="brand-mark"><img class="brand-logo" src="pwa-icons/plirm34tuban.jpg" alt="Logo PLIRM34 Tuban"></div>
           <div>
             <strong>PLIRM34</strong>
             <small>Digital Workbench</small>
@@ -147,10 +148,13 @@
 
         <section class="pwa-compact-shell hidden" id="pwa-compact-shell" aria-label="PLIRM34 mobile app">
           <header class="pwa-app-header">
-            <div>
-              <span class="pwa-kicker">PLIRM34 FIELD APP</span>
-              <h2>Prioritas Lapangan</h2>
-              <small id="pwa-user-line">Mode mobile compact</small>
+            <div class="pwa-app-title">
+              <img class="pwa-app-logo" src="pwa-icons/plirm34tuban.jpg" alt="Logo PLIRM34 Tuban">
+              <div>
+                <span class="pwa-kicker">PLIRM34 FIELD APP</span>
+                <h2>Prioritas Lapangan</h2>
+                <small id="pwa-user-line">Mode mobile compact</small>
+              </div>
             </div>
             <div class="pwa-header-actions">
               <button class="pwa-icon-button" id="pwa-refresh-button" type="button" aria-label="Refresh data">&#8635;</button>
@@ -3389,7 +3393,7 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260428-13").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260501-06").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
