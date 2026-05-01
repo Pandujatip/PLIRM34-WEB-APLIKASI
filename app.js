@@ -631,6 +631,31 @@ function normalizeCarbonBrushEquipmentReferenceName(value) {
     .toUpperCase();
 }
 
+function normalizeCarbonBrushSourceGroup(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, "-");
+}
+
+function isCarbonBrushSourceGroup(value) {
+  const normalized = normalizeCarbonBrushSourceGroup(value);
+  return normalized === "carbon-brush"
+    || normalized.includes("carbon-brush")
+    || (normalized.includes("carbon") && normalized.includes("brush"));
+}
+
+function mapEquipmentReferencesToNames(references = []) {
+  return references
+    .map((item) => String(item.equipmentName || item.equipmentCode || "").trim())
+    .filter(Boolean);
+}
+
+function getCarbonBrushMasterReferenceNames(references = []) {
+  const carbonReferences = references.filter((item) => isCarbonBrushSourceGroup(item.sourceGroup));
+  return mapEquipmentReferencesToNames(carbonReferences);
+}
+
 function getCarbonBrushHistoryEquipmentNames() {
   return [...new Set(
     getServiceItemsFromDom()
@@ -1353,9 +1378,24 @@ async function loadCarbonBrushEquipmentReference() {
     if (backendState.available && backendState.sessionActive) {
       const result = await apiRequest("/masters?source_group=carbon-brush");
       const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
-      const backendReferences = references
-        .map((item) => String(item.equipmentName || "").trim())
-        .filter(Boolean);
+      let backendReferences = mapEquipmentReferencesToNames(references);
+      let sourceLabel = "master backend";
+
+      if (!backendReferences.length) {
+        const allMasterResult = await apiRequest("/masters");
+        const allReferences = Array.isArray(allMasterResult?.equipmentReferences) ? allMasterResult.equipmentReferences : [];
+        backendReferences = getCarbonBrushMasterReferenceNames(allReferences);
+        sourceLabel = "Master Equipment";
+        if (allReferences.length) {
+          backendState.masters = {
+            areas: Array.isArray(allMasterResult.areas) ? allMasterResult.areas : backendState.masters.areas,
+            inspectionTemplates: Array.isArray(allMasterResult.inspectionTemplates) ? allMasterResult.inspectionTemplates : backendState.masters.inspectionTemplates,
+            equipmentReferences: allReferences,
+            appSettings: Array.isArray(allMasterResult.appSettings) ? allMasterResult.appSettings : backendState.masters.appSettings,
+          };
+        }
+      }
+
       carbonBrushEquipmentReferenceList = mergeCarbonBrushEquipmentReferences(
         backendReferences,
         getCarbonBrushHistoryEquipmentNames(),
@@ -1373,7 +1413,7 @@ async function loadCarbonBrushEquipmentReference() {
         carbonBrushEquipmentInput.value = "";
         selectedCarbonBrushEquipmentReference = "";
       }
-      updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari master backend.`);
+      updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari ${sourceLabel}.`);
       renderPwaCarbonEquipmentOptions();
       return;
     }
@@ -10432,10 +10472,17 @@ forms.forEach((form) => {
         showToast("Carbon Brush", "Equipment wajib diisi.");
         return;
       }
-      if (isCarbonBrushReferenceRequired() && (selectedEquipment !== selectedCarbonBrushEquipmentReference || !carbonBrushEquipmentReferenceList.includes(selectedEquipment))) {
+      const matchedCarbonBrushReference = findCarbonBrushEquipmentReferenceName(selectedEquipment);
+      if (isCarbonBrushReferenceRequired() && !matchedCarbonBrushReference) {
         setSubmitNote(form, "Pilih equipment carbon brush dari referensi resmi terlebih dahulu.");
         showToast("Carbon Brush", "Equipment harus dipilih dari referensi resmi.");
         return;
+      }
+      if (matchedCarbonBrushReference) {
+        selectedCarbonBrushEquipmentReference = matchedCarbonBrushReference;
+        if (form.equipmentName) {
+          form.equipmentName.value = matchedCarbonBrushReference;
+        }
       }
       if (!isCarbonBrushReferenceRequired()) {
         selectedCarbonBrushEquipmentReference = selectedEquipment;
@@ -11741,17 +11788,22 @@ document.addEventListener("click", (event) => {
 
 pwaCarbonForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const selectedEquipment = String(pwaCarbonEquipment?.value || "").trim();
+  let selectedEquipment = String(pwaCarbonEquipment?.value || "").trim();
   if (!selectedEquipment) {
     if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Equipment wajib diisi.";
     showToast("Carbon Brush", "Equipment wajib diisi.");
     return;
   }
   renderPwaCarbonEquipmentOptions();
-  if (carbonBrushEquipmentReferenceList.length && !carbonBrushEquipmentReferenceList.includes(selectedEquipment)) {
+  const matchedCarbonBrushReference = findCarbonBrushEquipmentReferenceName(selectedEquipment);
+  if (carbonBrushEquipmentReferenceList.length && !matchedCarbonBrushReference) {
     if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Equipment belum ada di referensi carbon brush.";
     showToast("Carbon Brush", "Pilih equipment dari referensi.");
     return;
+  }
+  if (matchedCarbonBrushReference && pwaCarbonEquipment) {
+    pwaCarbonEquipment.value = matchedCarbonBrushReference;
+    selectedEquipment = matchedCarbonBrushReference;
   }
 
   const measurements = collectPwaCarbonMeasurements();
