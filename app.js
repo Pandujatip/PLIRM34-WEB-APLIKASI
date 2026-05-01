@@ -682,11 +682,9 @@ function setCarbonBrushEquipmentValue(value) {
   updateCarbonBrushEquipmentMeta(resolvedValue);
   applyCarbonBrushMeasurementShadows(resolvedValue, {
     excludeId: editingServiceId || "",
-    populateValues: !editingServiceId,
   });
   void refreshCarbonBrushMeasurementsFromBackend(resolvedValue, {
     excludeId: editingServiceId || "",
-    populateValues: !editingServiceId,
   });
   updateCarbonBrushMeasurementColors();
 }
@@ -736,7 +734,6 @@ function applyCarbonBrushMeasurementShadows(equipmentName, options = {}) {
   const form = options.form || serviceElectricalCarbonBrushForm;
   const inputSelector = options.inputSelector || "[data-carbon-brush-measurement]";
   const emptyPlaceholder = options.emptyPlaceholder ?? "";
-  const populateValues = Boolean(options.populateValues);
   if (!form) {
     return;
   }
@@ -757,11 +754,8 @@ function applyCarbonBrushMeasurementShadows(equipmentName, options = {}) {
       hasPreviousValue = true;
     }
     input.dataset.previousValue = previousValue;
-    input.placeholder = previousValue || emptyPlaceholder;
+    input.placeholder = emptyPlaceholder || input.name || "";
     input.classList.toggle("has-previous", Boolean(previousValue));
-    if (populateValues) {
-      input.value = previousValue;
-    }
     input.title = previousValue
       ? `Nilai sebelumnya ${input.name}: ${previousValue}${inspectionDate ? ` (${inspectionDate})` : ""}`
       : "";
@@ -1503,7 +1497,7 @@ function renderCarbonBrushMeasurementGrid() {
       <td>${row}</td>
       ${carbonBrushMeasurementColumns.map((column) => {
         const key = `${row}${column}`;
-        return `<td><div class="carbon-brush-shadow-wrap" data-carbon-brush-shadow-wrap><input class="carbon-brush-input" type="text" inputmode="decimal" name="${key}" data-carbon-brush-measurement="${key}" placeholder=""><small class="carbon-brush-shadow-label is-empty" data-carbon-brush-shadow-label>Belum ada histori</small></div></td>`;
+        return `<td><div class="carbon-brush-shadow-wrap" data-carbon-brush-shadow-wrap><input class="carbon-brush-input" type="text" inputmode="decimal" name="${key}" data-carbon-brush-measurement="${key}" placeholder="${key}"><small class="carbon-brush-shadow-label is-empty" data-carbon-brush-shadow-label>Belum ada histori</small></div></td>`;
       }).join("")}
     </tr>
   `).join("");
@@ -1748,7 +1742,7 @@ function renderPwaCarbonGrid() {
     <label class="pwa-carbon-point">
       <span>${key}</span>
       <div class="pwa-carbon-shadow-wrap" data-carbon-brush-shadow-wrap>
-        <input type="text" inputmode="decimal" name="${key}" data-pwa-carbon-measurement="${key}" placeholder="">
+        <input type="text" inputmode="decimal" name="${key}" data-pwa-carbon-measurement="${key}" placeholder="${key}">
         <small class="pwa-carbon-shadow-label is-empty" data-carbon-brush-shadow-label>Belum ada histori</small>
       </div>
     </label>
@@ -10173,12 +10167,10 @@ carbonBrushEquipmentInput?.addEventListener("input", (event) => {
   renderCarbonBrushEquipmentResults(query);
   applyCarbonBrushMeasurementShadows(query, {
     excludeId: editingServiceId || "",
-    populateValues: Boolean(query && !editingServiceId && selectedCarbonBrushEquipmentReference),
   });
   if (query && !editingServiceId && selectedCarbonBrushEquipmentReference) {
     void refreshCarbonBrushMeasurementsFromBackend(selectedCarbonBrushEquipmentReference, {
       excludeId: "",
-      populateValues: true,
     });
   }
   updateCarbonBrushMeasurementColors();
@@ -10219,12 +10211,10 @@ carbonBrushEquipmentInput?.addEventListener("blur", () => {
     }
     applyCarbonBrushMeasurementShadows(selectedCarbonBrushEquipmentReference || currentValue, {
       excludeId: editingServiceId || "",
-      populateValues: Boolean(!editingServiceId && (selectedCarbonBrushEquipmentReference || currentValue)),
     });
     if (!editingServiceId && (selectedCarbonBrushEquipmentReference || currentValue)) {
       void refreshCarbonBrushMeasurementsFromBackend(selectedCarbonBrushEquipmentReference || currentValue, {
         excludeId: "",
-        populateValues: true,
       });
     }
     hideCarbonBrushEquipmentResults();
@@ -11593,14 +11583,12 @@ pwaCarbonEquipment?.addEventListener("input", () => {
     form: pwaCarbonForm,
     inputSelector: "[data-pwa-carbon-measurement]",
     excludeId: pwaEditingServiceItem?.id || "",
-    populateValues: Boolean(pwaCarbonEquipment.value && !pwaEditingServiceItem),
     emptyPlaceholder: "",
   });
   if (pwaCarbonEquipment.value && !pwaEditingServiceItem) {
     void refreshCarbonBrushMeasurementsFromBackend(pwaCarbonEquipment.value, {
       form: pwaCarbonForm,
       inputSelector: "[data-pwa-carbon-measurement]",
-      populateValues: true,
       emptyPlaceholder: "",
     });
   }
@@ -11692,14 +11680,12 @@ pwaCarbonForm?.addEventListener("click", (event) => {
       form: pwaCarbonForm,
       inputSelector: "[data-pwa-carbon-measurement]",
       excludeId: pwaEditingServiceItem?.id || "",
-      populateValues: !pwaEditingServiceItem,
       emptyPlaceholder: "",
     });
     if (!pwaEditingServiceItem) {
       void refreshCarbonBrushMeasurementsFromBackend(pwaCarbonEquipment.value, {
         form: pwaCarbonForm,
         inputSelector: "[data-pwa-carbon-measurement]",
-        populateValues: true,
         emptyPlaceholder: "",
       });
     }
