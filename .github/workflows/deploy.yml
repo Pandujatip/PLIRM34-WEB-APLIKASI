@@ -14,28 +14,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/plirm34_deploy
-          chmod 600 ~/.ssh/plirm34_deploy
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
-
       - name: Deploy frontend files
-        run: |
-          rsync -az --delete \
-            -e "ssh -i ~/.ssh/plirm34_deploy" \
-            index.html \
-            styles.css \
-            app.js \
-            app.auth.js \
-            app.dashboard.js \
-            app.service.js \
-            app.mso.js \
-            app.carbon-brush.js \
-            app.admin.js \
-            service-worker.js \
-            manifest.webmanifest \
-            pwa-icons/ \
-            slideshow-images/ \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_APP_DIR }}/"
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          target: ${{ secrets.VPS_APP_DIR }}
+          overwrite: true
+          source: >-
+            index.html,
+            styles.css,
+            app.js,
+            app.auth.js,
+            app.dashboard.js,
+            app.service.js,
+            app.mso.js,
+            app.carbon-brush.js,
+            app.admin.js,
+            service-worker.js,
+            manifest.webmanifest,
+            pwa-icons/**,
+            slideshow-images/**
