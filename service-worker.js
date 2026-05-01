@@ -1,4 +1,4 @@
-const CACHE_NAME = "plirm34-pwa-v20260501-08";
+const CACHE_NAME = "plirm34-pwa-v20260501-09";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -13,8 +13,7 @@ const APP_SHELL = [
   "/manifest.webmanifest",
   "/pwa-icons/icon-192.png",
   "/pwa-icons/icon-512.png",
-  "/pwa-icons/icon-maskable-512.png",
-  "/pwa-icons/plirm34tuban.png"
+  "/pwa-icons/icon-maskable-512.png"
 ];
 
 self.addEventListener("install", (event) => {
