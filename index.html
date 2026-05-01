@@ -10,9 +10,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="PLIRM34">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=20260501-08">
-  <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png?v=20260501-08">
-  <link rel="apple-touch-icon" href="pwa-icons/icon-192.png?v=20260501-08">
+  <link rel="manifest" href="manifest.webmanifest?v=20260501-10">
+  <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png?v=20260501-10">
+  <link rel="apple-touch-icon" href="pwa-icons/icon-192.png?v=20260501-10">
   <script>
     (() => {
       const params = new URLSearchParams(window.location.search);
@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260501-08">
+  <link rel="stylesheet" href="styles.css?v=20260501-10">
 </head>
 <body>
   <div class="app-shell">
@@ -3393,7 +3393,7 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260501-09").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260501-10").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
