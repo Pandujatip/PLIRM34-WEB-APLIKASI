@@ -653,17 +653,9 @@ function mapEquipmentReferencesToNames(references = []) {
 }
 
 function getCarbonBrushMasterReferenceNames(references = []) {
-  const carbonReferences = references.filter((item) => isCarbonBrushSourceGroup(item.sourceGroup));
+  const carbonReferences = references.filter((item) =>
+    isCarbonBrushSourceGroup(item.sourceGroup) || isCarbonBrushSourceGroup(item.category));
   return mapEquipmentReferencesToNames(carbonReferences);
-}
-
-function getCarbonBrushHistoryEquipmentNames() {
-  return [...new Set(
-    getServiceItemsFromDom()
-      .filter((item) => item.formType === "service-motor-mv-carbon-brush")
-      .map((item) => String(item.equipmentName || "").trim())
-      .filter(Boolean),
-  )].sort((left, right) => left.localeCompare(right, "id"));
 }
 
 function mergeCarbonBrushEquipmentReferences(...referenceGroups) {
@@ -819,7 +811,7 @@ async function refreshCarbonBrushMeasurementsFromBackend(equipmentName, options 
 }
 
 function isCarbonBrushReferenceRequired() {
-  return carbonBrushEquipmentReferenceList.length > 0;
+  return true;
 }
 
 function parseCarbonBrushEquipmentCode(equipmentName) {
@@ -1381,18 +1373,15 @@ async function loadCarbonBrushEquipmentReference() {
       const result = await apiRequest("/masters?source_group=carbon-brush");
       const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
       let backendReferences = mapEquipmentReferencesToNames(references);
-      let sourceLabel = "master backend";
+      let sourceLabel = "Master Equipment";
 
-      if (!backendReferences.length) {
-        backendReferences = getCarbonBrushMasterReferenceNames(backendState.masters.equipmentReferences);
-        sourceLabel = "Master Equipment cache";
-      }
+      const cachedMasterReferences = getCarbonBrushMasterReferenceNames(backendState.masters.equipmentReferences);
+      backendReferences = mergeCarbonBrushEquipmentReferences(backendReferences, cachedMasterReferences);
 
-      if (!backendReferences.length) {
+      if (backendState.sessionActive) {
         const allMasterResult = await apiRequest("/masters");
         const allReferences = Array.isArray(allMasterResult?.equipmentReferences) ? allMasterResult.equipmentReferences : [];
-        backendReferences = getCarbonBrushMasterReferenceNames(allReferences);
-        sourceLabel = "Master Equipment";
+        backendReferences = mergeCarbonBrushEquipmentReferences(backendReferences, getCarbonBrushMasterReferenceNames(allReferences));
         if (allReferences.length) {
           backendState.masters = {
             areas: Array.isArray(allMasterResult.areas) ? allMasterResult.areas : backendState.masters.areas,
@@ -1403,12 +1392,9 @@ async function loadCarbonBrushEquipmentReference() {
         }
       }
 
-      carbonBrushEquipmentReferenceList = mergeCarbonBrushEquipmentReferences(
-        backendReferences,
-        getCarbonBrushHistoryEquipmentNames(),
-      );
+      carbonBrushEquipmentReferenceList = mergeCarbonBrushEquipmentReferences(backendReferences);
       if (!carbonBrushEquipmentReferenceList.length) {
-        throw new Error("Referensi carbon brush backend kosong");
+        throw new Error("Referensi carbon brush Master Equipment kosong");
       }
       carbonBrushEquipmentInput.disabled = false;
       carbonBrushEquipmentInput.placeholder = "Ketik kode equipment, misal 343RM1";
@@ -1422,38 +1408,20 @@ async function loadCarbonBrushEquipmentReference() {
         carbonBrushEquipmentInput.value = "";
         selectedCarbonBrushEquipmentReference = "";
       }
-      updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari ${sourceLabel}.`);
+      updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari ${sourceLabel} kategori/source group carbon-brush.`);
       renderPwaCarbonEquipmentOptions();
       return carbonBrushEquipmentReferenceList;
     }
 
     throw new Error("Backend master equipment belum aktif");
   } catch {
-    const serviceFallbackReferences = getCarbonBrushHistoryEquipmentNames();
-
-    if (serviceFallbackReferences.length) {
-      carbonBrushEquipmentReferenceList = serviceFallbackReferences;
-      carbonBrushEquipmentInput.disabled = false;
-      carbonBrushEquipmentInput.placeholder = "Ketik kode equipment carbon brush";
-      const selectedReference = findCarbonBrushEquipmentReferenceName(selectedCarbonBrushEquipmentReference);
-      if (!selectedReference) {
-        selectedCarbonBrushEquipmentReference = "";
-        carbonBrushEquipmentInput.value = currentTypedValue;
-      } else {
-        selectedCarbonBrushEquipmentReference = selectedReference;
-        carbonBrushEquipmentInput.value = selectedReference;
-      }
-      updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif dari histori service: ${carbonBrushEquipmentReferenceList.length} item. Master Equipment belum terbaca.`, true);
-      renderPwaCarbonEquipmentOptions();
-      return carbonBrushEquipmentReferenceList;
-    }
-
     carbonBrushEquipmentReferenceList = [];
     carbonBrushEquipmentInput.disabled = false;
-    carbonBrushEquipmentInput.placeholder = "Ketik kode equipment carbon brush manual";
-    selectedCarbonBrushEquipmentReference = carbonBrushEquipmentInput.value.trim();
+    carbonBrushEquipmentInput.placeholder = "Master Equipment carbon-brush belum tersedia";
+    carbonBrushEquipmentInput.value = currentTypedValue;
+    selectedCarbonBrushEquipmentReference = "";
     hideCarbonBrushEquipmentResults();
-    updateCarbonBrushEquipmentStatus("Referensi carbon brush belum tersedia. Input manual sementara aktif; tambahkan source group carbon-brush di Master Equipment agar dropdown resmi muncul.", true);
+    updateCarbonBrushEquipmentStatus("Referensi carbon brush wajib berasal dari Master Equipment kategori/source group carbon-brush. Tambahkan referensi di Manajemen User > Master Equipment.", true);
     renderPwaCarbonEquipmentOptions();
     return carbonBrushEquipmentReferenceList;
   }
@@ -1672,14 +1640,6 @@ function updateCarbonBrushStatsDisplay(measurements, equipmentName, explicitPlan
 function renderPwaCarbonEquipmentOptions() {
   if (!pwaCarbonEquipmentList) {
     return;
-  }
-  if (!carbonBrushEquipmentReferenceList.length) {
-    carbonBrushEquipmentReferenceList = [...new Set(
-      getServiceItemsFromDom()
-        .filter((item) => item.formType === "service-motor-mv-carbon-brush")
-        .map((item) => String(item.equipmentName || "").trim())
-        .filter(Boolean),
-    )].sort((left, right) => left.localeCompare(right, "id"));
   }
   pwaCarbonEquipmentList.innerHTML = carbonBrushEquipmentReferenceList
     .map((equipmentName) => `<option value="${escapeHtml(equipmentName)}"></option>`)
@@ -9069,16 +9029,13 @@ function hydrateServiceForm(item) {
 
   if (item.formType === "service-motor-mv-carbon-brush") {
     const carbonBrushEquipmentName = item.equipmentName || "";
-    if (carbonBrushEquipmentName && !carbonBrushEquipmentReferenceList.includes(carbonBrushEquipmentName)) {
-      carbonBrushEquipmentReferenceList = [...carbonBrushEquipmentReferenceList, carbonBrushEquipmentName]
-        .sort((left, right) => left.localeCompare(right, "id"));
-    }
     if (carbonBrushEquipmentInput) {
       carbonBrushEquipmentInput.disabled = false;
-      carbonBrushEquipmentInput.placeholder = "Ketik kode equipment carbon brush";
+      carbonBrushEquipmentInput.placeholder = "Ketik kode equipment dari Master Equipment carbon-brush";
     }
+    void ensureCarbonBrushEquipmentReferenceLoaded();
     setCarbonBrushEquipmentValue(carbonBrushEquipmentName);
-    updateCarbonBrushEquipmentStatus(`Mode edit aktif. Referensi carbon brush tersedia: ${carbonBrushEquipmentReferenceList.length} item.`);
+    updateCarbonBrushEquipmentStatus(`Mode edit aktif. Equipment tetap wajib dipilih dari Master Equipment carbon-brush.`);
     form.inspectionDate.value = String(payload.inspectionDate || "").slice(0, 10);
     form.replacement.value = payload.replacement || "";
     form.megger.value = payload.megger || "";
@@ -10270,7 +10227,7 @@ carbonBrushEquipmentInput?.addEventListener("click", () => {
 });
 
 carbonBrushEquipmentInput?.addEventListener("blur", () => {
-  window.setTimeout(() => {
+  window.setTimeout(async () => {
     const currentValue = carbonBrushEquipmentInput.value.trim();
     if (!currentValue) {
       selectedCarbonBrushEquipmentReference = "";
@@ -10280,19 +10237,15 @@ carbonBrushEquipmentInput?.addEventListener("blur", () => {
       return;
     }
 
-    if (!isCarbonBrushReferenceRequired()) {
-      selectedCarbonBrushEquipmentReference = currentValue;
-      updateCarbonBrushEquipmentStatus("Input manual carbon brush aktif sementara karena referensi resmi belum tersedia.", true);
+    await ensureCarbonBrushEquipmentReferenceLoaded();
+    const matchedReference = findCarbonBrushEquipmentReferenceName(currentValue);
+    if (!matchedReference) {
+      selectedCarbonBrushEquipmentReference = "";
+      updateCarbonBrushEquipmentStatus("Pilih equipment carbon brush dari Master Equipment carbon-brush.", true);
     } else {
-      const matchedReference = findCarbonBrushEquipmentReferenceName(currentValue);
-      if (!matchedReference) {
-        selectedCarbonBrushEquipmentReference = "";
-        updateCarbonBrushEquipmentStatus("Pilih equipment carbon brush dari referensi resmi.", true);
-      } else {
-        selectedCarbonBrushEquipmentReference = matchedReference;
-        carbonBrushEquipmentInput.value = matchedReference;
-        updateCarbonBrushEquipmentStatus(`Equipment carbon brush dipilih dari referensi resmi. Total referensi aktif: ${carbonBrushEquipmentReferenceList.length} item.`);
-      }
+      selectedCarbonBrushEquipmentReference = matchedReference;
+      carbonBrushEquipmentInput.value = matchedReference;
+      updateCarbonBrushEquipmentStatus(`Equipment carbon brush dipilih dari Master Equipment carbon-brush. Total referensi aktif: ${carbonBrushEquipmentReferenceList.length} item.`);
     }
     applyCarbonBrushMeasurementShadows(selectedCarbonBrushEquipmentReference || currentValue, {
       excludeId: editingServiceId || "",
@@ -10517,10 +10470,11 @@ forms.forEach((form) => {
         showToast("Carbon Brush", "Equipment wajib diisi.");
         return;
       }
+      await ensureCarbonBrushEquipmentReferenceLoaded();
       const matchedCarbonBrushReference = findCarbonBrushEquipmentReferenceName(selectedEquipment);
-      if (isCarbonBrushReferenceRequired() && !matchedCarbonBrushReference) {
-        setSubmitNote(form, "Pilih equipment carbon brush dari referensi resmi terlebih dahulu.");
-        showToast("Carbon Brush", "Equipment harus dipilih dari referensi resmi.");
+      if (!matchedCarbonBrushReference) {
+        setSubmitNote(form, "Pilih equipment carbon brush dari Master Equipment kategori/source group carbon-brush terlebih dahulu.");
+        showToast("Carbon Brush", "Equipment harus berasal dari Master Equipment carbon-brush.");
         return;
       }
       if (matchedCarbonBrushReference) {
@@ -10528,9 +10482,6 @@ forms.forEach((form) => {
         if (form.equipmentName) {
           form.equipmentName.value = matchedCarbonBrushReference;
         }
-      }
-      if (!isCarbonBrushReferenceRequired()) {
-        selectedCarbonBrushEquipmentReference = selectedEquipment;
       }
 
       const measurements = collectCarbonBrushMeasurements(form);
@@ -11839,11 +11790,12 @@ pwaCarbonForm?.addEventListener("submit", async (event) => {
     showToast("Carbon Brush", "Equipment wajib diisi.");
     return;
   }
+  await ensureCarbonBrushEquipmentReferenceLoaded();
   renderPwaCarbonEquipmentOptions();
   const matchedCarbonBrushReference = findCarbonBrushEquipmentReferenceName(selectedEquipment);
-  if (carbonBrushEquipmentReferenceList.length && !matchedCarbonBrushReference) {
-    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Equipment belum ada di referensi carbon brush.";
-    showToast("Carbon Brush", "Pilih equipment dari referensi.");
+  if (!matchedCarbonBrushReference) {
+    if (pwaCarbonFormNote) pwaCarbonFormNote.textContent = "Equipment belum ada di Master Equipment carbon-brush.";
+    showToast("Carbon Brush", "Pilih equipment dari Master Equipment carbon-brush.");
     return;
   }
   if (matchedCarbonBrushReference && pwaCarbonEquipment) {
