@@ -350,6 +350,7 @@ let dcsEquipmentReferenceLoadedAt = 0;
 let dcsEquipmentReferencePromise = null;
 let carbonBrushEquipmentReferenceList = [];
 let selectedCarbonBrushEquipmentReference = "";
+let carbonBrushEquipmentReferencePromise = null;
 const storageKeys = {
   session: "plirm34-session",
   users: "plirm34-users",
@@ -1368,9 +1369,10 @@ async function loadEquipmentReference() {
 
 async function loadCarbonBrushEquipmentReference() {
   if (!carbonBrushEquipmentInput) {
-    return;
+    return carbonBrushEquipmentReferenceList;
   }
 
+  const currentTypedValue = String(carbonBrushEquipmentInput.value || "").trim();
   carbonBrushEquipmentInput.disabled = true;
   updateCarbonBrushEquipmentStatus("Memuat referensi equipment carbon brush...");
 
@@ -1380,6 +1382,11 @@ async function loadCarbonBrushEquipmentReference() {
       const references = Array.isArray(result?.equipmentReferences) ? result.equipmentReferences : [];
       let backendReferences = mapEquipmentReferencesToNames(references);
       let sourceLabel = "master backend";
+
+      if (!backendReferences.length) {
+        backendReferences = getCarbonBrushMasterReferenceNames(backendState.masters.equipmentReferences);
+        sourceLabel = "Master Equipment cache";
+      }
 
       if (!backendReferences.length) {
         const allMasterResult = await apiRequest("/masters");
@@ -1409,13 +1416,15 @@ async function loadCarbonBrushEquipmentReference() {
       if (selectedReference) {
         carbonBrushEquipmentInput.value = selectedReference;
         selectedCarbonBrushEquipmentReference = selectedReference;
+      } else if (currentTypedValue) {
+        carbonBrushEquipmentInput.value = currentTypedValue;
       } else {
         carbonBrushEquipmentInput.value = "";
         selectedCarbonBrushEquipmentReference = "";
       }
       updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif: ${carbonBrushEquipmentReferenceList.length} item dari ${sourceLabel}.`);
       renderPwaCarbonEquipmentOptions();
-      return;
+      return carbonBrushEquipmentReferenceList;
     }
 
     throw new Error("Backend master equipment belum aktif");
@@ -1429,14 +1438,14 @@ async function loadCarbonBrushEquipmentReference() {
       const selectedReference = findCarbonBrushEquipmentReferenceName(selectedCarbonBrushEquipmentReference);
       if (!selectedReference) {
         selectedCarbonBrushEquipmentReference = "";
-        carbonBrushEquipmentInput.value = "";
+        carbonBrushEquipmentInput.value = currentTypedValue;
       } else {
         selectedCarbonBrushEquipmentReference = selectedReference;
         carbonBrushEquipmentInput.value = selectedReference;
       }
       updateCarbonBrushEquipmentStatus(`Referensi carbon brush aktif dari histori service: ${carbonBrushEquipmentReferenceList.length} item. Master Equipment belum terbaca.`, true);
       renderPwaCarbonEquipmentOptions();
-      return;
+      return carbonBrushEquipmentReferenceList;
     }
 
     carbonBrushEquipmentReferenceList = [];
@@ -1446,7 +1455,35 @@ async function loadCarbonBrushEquipmentReference() {
     hideCarbonBrushEquipmentResults();
     updateCarbonBrushEquipmentStatus("Referensi carbon brush belum tersedia. Input manual sementara aktif; tambahkan source group carbon-brush di Master Equipment agar dropdown resmi muncul.", true);
     renderPwaCarbonEquipmentOptions();
+    return carbonBrushEquipmentReferenceList;
   }
+}
+
+async function ensureCarbonBrushEquipmentReferenceLoaded(options = {}) {
+  const force = Boolean(options.force);
+  if (!force && carbonBrushEquipmentReferenceList.length) {
+    return carbonBrushEquipmentReferenceList;
+  }
+  if (carbonBrushEquipmentReferencePromise) {
+    return carbonBrushEquipmentReferencePromise;
+  }
+
+  carbonBrushEquipmentReferencePromise = loadCarbonBrushEquipmentReference()
+    .catch(() => carbonBrushEquipmentReferenceList)
+    .finally(() => {
+      carbonBrushEquipmentReferencePromise = null;
+    });
+  return carbonBrushEquipmentReferencePromise;
+}
+
+async function showCarbonBrushEquipmentResults(query = "") {
+  await ensureCarbonBrushEquipmentReferenceLoaded();
+  renderCarbonBrushEquipmentResults(String(query || ""));
+}
+
+async function showPwaCarbonEquipmentDropdown() {
+  await ensureCarbonBrushEquipmentReferenceLoaded();
+  renderPwaCarbonEquipmentDropdown();
 }
 
 async function loadDcsEquipmentReference(options = {}) {
@@ -10179,6 +10216,9 @@ document.addEventListener("click", (event) => {
   if (serviceDcsForm && !serviceDcsForm.contains(event.target)) {
     hideDcsEquipmentResults();
   }
+  if (serviceElectricalCarbonBrushForm && !serviceElectricalCarbonBrushForm.contains(event.target)) {
+    hideCarbonBrushEquipmentResults();
+  }
 });
 
 serviceTabs.forEach((button) => {
@@ -10204,7 +10244,12 @@ carbonBrushEquipmentInput?.addEventListener("input", (event) => {
   const matchedReference = findCarbonBrushEquipmentReferenceName(query);
   selectedCarbonBrushEquipmentReference = !isCarbonBrushReferenceRequired() ? query : matchedReference;
   updateCarbonBrushEquipmentMeta(query);
-  renderCarbonBrushEquipmentResults(query);
+  void showCarbonBrushEquipmentResults(query).then(() => {
+    const loadedReference = findCarbonBrushEquipmentReferenceName(query);
+    if (loadedReference) {
+      selectedCarbonBrushEquipmentReference = loadedReference;
+    }
+  });
   applyCarbonBrushMeasurementShadows(query, {
     excludeId: editingServiceId || "",
   });
@@ -10217,11 +10262,11 @@ carbonBrushEquipmentInput?.addEventListener("input", (event) => {
 });
 
 carbonBrushEquipmentInput?.addEventListener("focus", () => {
-  renderCarbonBrushEquipmentResults(carbonBrushEquipmentInput.value);
+  void showCarbonBrushEquipmentResults(carbonBrushEquipmentInput.value);
 });
 
 carbonBrushEquipmentInput?.addEventListener("click", () => {
-  renderCarbonBrushEquipmentResults(carbonBrushEquipmentInput.value);
+  void showCarbonBrushEquipmentResults(carbonBrushEquipmentInput.value);
 });
 
 carbonBrushEquipmentInput?.addEventListener("blur", () => {
@@ -11625,7 +11670,7 @@ pwaCarbonGrid?.addEventListener("input", (event) => {
 });
 
 pwaCarbonEquipment?.addEventListener("input", () => {
-  renderPwaCarbonEquipmentDropdown();
+  void showPwaCarbonEquipmentDropdown();
   applyCarbonBrushMeasurementShadows(pwaCarbonEquipment.value, {
     form: pwaCarbonForm,
     inputSelector: "[data-pwa-carbon-measurement]",
@@ -11644,7 +11689,7 @@ pwaCarbonEquipment?.addEventListener("input", () => {
 });
 
 pwaCarbonEquipment?.addEventListener("focus", () => {
-  renderPwaCarbonEquipmentDropdown();
+  void showPwaCarbonEquipmentDropdown();
 });
 
 pwaMccEquipment?.addEventListener("input", () => {
