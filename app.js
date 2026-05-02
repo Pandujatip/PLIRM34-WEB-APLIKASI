@@ -1662,7 +1662,12 @@ function computeCarbonBrushStats(measurements, equipmentName, explicitPlant = ""
     empty: 0,
     min: null,
     attentionPoints: [],
+    attentionPointLabels: [],
+    lowPoints: [],
+    mediumPoints: [],
+    pointDetails: [],
   };
+  const threshold = getCarbonBrushThresholdConfig(equipmentName, explicitPlant);
 
   carbonBrushMeasurementKeys.forEach((key) => {
     const rawValue = measurements[key] || "";
@@ -1678,12 +1683,36 @@ function computeCarbonBrushStats(measurements, equipmentName, explicitPlant = ""
     if (stats.min === null || (numericValue !== null && numericValue < stats.min)) {
       stats.min = numericValue;
     }
+    const pointDetail = {
+      pointKey: key,
+      value: numericValue,
+      bucket,
+      remainingMm: numericValue !== null ? numericValue - threshold.low : null,
+      severity: bucket === "low" ? 3 : bucket === "medium" ? 2 : 0,
+    };
+    stats.pointDetails.push(pointDetail);
     if (bucket !== "high") {
-      stats.attentionPoints.push(key);
+      if (bucket === "low") {
+        stats.lowPoints.push(pointDetail);
+      } else if (bucket === "medium") {
+        stats.mediumPoints.push(pointDetail);
+      }
     }
   });
 
-  stats.attentionPoints = stats.attentionPoints.slice(0, 8);
+  const attentionDetails = [...stats.lowPoints, ...stats.mediumPoints]
+    .sort((left, right) => {
+      if (right.severity !== left.severity) {
+        return right.severity - left.severity;
+      }
+      if ((left.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
+        return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
+      }
+      return String(left.pointKey || "").localeCompare(String(right.pointKey || ""), "id");
+    })
+    .slice(0, 8);
+  stats.attentionPoints = attentionDetails.map((point) => point.pointKey);
+  stats.attentionPointLabels = attentionDetails.map((point) => `${point.pointKey} ${point.value} mm`);
   return stats;
 }
 
@@ -2585,7 +2614,7 @@ function formatCarbonBrushPayloadLines(item) {
     ["Replacement", payload.replacement || "-"],
     ["Megger", payload.megger || "-"],
     ["Titik diganti", replacedPoints.length ? replacedPoints.join(", ") : "-"],
-    ["Titik perhatian", stats.attentionPoints?.length ? stats.attentionPoints.join(", ") : "-"],
+    ["Titik perhatian", stats.attentionPointLabels?.length ? stats.attentionPointLabels.join(", ") : "-"],
     ["Foto temuan", photoSummary],
   ];
 }
@@ -2610,7 +2639,7 @@ function buildCarbonBrushPayloadDetailHtml(item) {
     ["Replacement", escapeHtml(payload.replacement || "-")],
     ["Megger", `<button class="detail-item-action" type="button" data-action="open-carbon-brush-megger-trend">${escapeHtml(meggerValue)} <span>Lihat chart</span></button>`],
     ["Titik diganti", escapeHtml(replacedPoints.length ? replacedPoints.join(", ") : "-")],
-    ["Titik perhatian", escapeHtml(stats.attentionPoints?.length ? stats.attentionPoints.join(", ") : "-")],
+    ["Titik perhatian", escapeHtml(stats.attentionPointLabels?.length ? stats.attentionPointLabels.join(", ") : "-")],
     ["Foto temuan", escapeHtml(photoSummary)],
   ];
 
@@ -2868,43 +2897,45 @@ function analyzeServiceItem(item) {
     const activePointAnalyses = pointAnalyses.filter((analysis) => !replacedPoints.includes(analysis.pointKey));
     const activeRedPoints = activePointAnalyses
       .filter((analysis) => (analysis.actualStatus?.severity ?? 0) >= 3)
-      .sort((left, right) => (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER));
+      .sort(compareCarbonBrushActualThinness);
     const activeYellowPoints = activePointAnalyses
       .filter((analysis) => (analysis.actualStatus?.severity ?? 0) === 2)
-      .sort((left, right) => (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER));
+      .sort(compareCarbonBrushActualThinness);
     const actualPriorityPoint = [...activePointAnalyses]
-      .sort((left, right) => {
-        if ((right.actualStatus?.severity ?? 0) !== (left.actualStatus?.severity ?? 0)) {
-          return (right.actualStatus?.severity ?? 0) - (left.actualStatus?.severity ?? 0);
-        }
-        return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
-      })[0] || null;
+      .sort(compareCarbonBrushActualThinness)[0] || null;
     const predictedPoint = activePointAnalyses
-      .filter((analysis) => analysis.countdownDays !== null)
+      .filter(isCarbonBrushPredictionPlanningPoint)
       .sort((left, right) => {
         if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
           return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
         }
-        return String(left.pointKey || "").localeCompare(String(right.pointKey || ""));
+        return compareCarbonBrushActualThinness(left, right);
       })[0] || null;
+    const planningPoints = getCarbonBrushPlanningPoints(activePointAnalyses, actualPriorityPoint).slice(0, 6);
+    const formatPointList = (points) => points
+      .map((point) => `${point.pointKey} ${point.currentValue} mm`)
+      .join(", ");
     const notes = [];
 
     if (activeRedPoints.length > 0) {
-      notes.push(`${activeRedPoints.length} titik aktif sudah merah. Jadwalkan rawmill off; prioritas: ${activeRedPoints.slice(0, 8).map((point) => point.pointKey).join(", ")}.`);
+      notes.push(`Titik merah aktual: ${formatPointList(activeRedPoints.slice(0, 8))}. Jadwalkan rawmill off dan prioritaskan titik ini.`);
     }
     if (actualPriorityPoint) {
-      notes.push(`Titik terendah: ${actualPriorityPoint.pointKey} = ${actualPriorityPoint.currentValue} mm, limit ${actualPriorityPoint.thresholdLow} mm. Status: ${actualPriorityPoint.actualStatus.label}.`);
+      notes.push(`Titik aktual tertipis: ${actualPriorityPoint.pointKey} = ${actualPriorityPoint.currentValue} mm. Batas area ${threshold.plantLabel}: merah < ${actualPriorityPoint.thresholdLow} mm, hijau >= ${actualPriorityPoint.thresholdHigh} mm.`);
+    }
+    if (planningPoints.length) {
+      notes.push(`Titik yang layak diganti sekalian: ${formatPointList(planningPoints)}. Daftar ini tidak memasukkan titik yang sudah ditandai diganti.`);
     }
     if (predictedPoint) {
       const wearRateText = predictedPoint.medianWearRate !== null
         ? `${predictedPoint.medianWearRate.toFixed(3)} mm/hari`
         : "-";
-      notes.push(`Countdown terdekat: ${predictedPoint.pointKey} sekitar ${predictedPoint.countdownDays} hari lagi. Laju aus ${wearRateText}; kualitas ${predictedPoint.predictionQuality.label.toLowerCase()}.`);
+      notes.push(`Countdown valid terdekat: ${predictedPoint.pointKey} sekitar ${predictedPoint.countdownDays} hari lagi. Laju aus ${wearRateText}; kualitas ${predictedPoint.predictionQuality.label.toLowerCase()}.`);
     } else if (actualPriorityPoint) {
-      notes.push(`Countdown belum cukup kuat. Pakai nilai aktual terhadap threshold sebagai dasar keputusan.`);
+      notes.push("Countdown belum dipakai untuk keputusan titik ini karena histori valid belum cukup atau prediksi di luar range alert. Pakai nilai aktual terhadap threshold.");
     }
     if (activeYellowPoints.length > 0 && activeRedPoints.length === 0) {
-      notes.push(`${activeYellowPoints.length} titik aktif kuning. Siapkan sparepart sebelum masuk merah: ${activeYellowPoints.slice(0, 8).map((point) => point.pointKey).join(", ")}.`);
+      notes.push(`Titik kuning aktual: ${formatPointList(activeYellowPoints.slice(0, 8))}. Siapkan sparepart sebelum masuk merah.`);
     }
     if (meggerValue !== null) {
       if (meggerValue <= meggerMinimum) {
@@ -2918,7 +2949,7 @@ function analyzeServiceItem(item) {
     if (!activeRedPoints.length && !activeYellowPoints.length && replacedPoints.length) {
       notes.push("Titik aktif sudah aman setelah penggantian. Cukup validasi lagi pada inspeksi berikutnya.");
     }
-    return buildConciseAnalysis(notes, "Carbon brush aktif aman. Titik yang sudah diganti tidak masuk prioritas jadwal ulang.");
+    return buildConciseAnalysis(notes, "Carbon brush aktif aman. Titik yang sudah diganti tidak masuk prioritas jadwal ulang.", 4);
   }
 
   if (item.formType === "service-mcc") {

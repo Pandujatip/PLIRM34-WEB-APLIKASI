@@ -214,6 +214,58 @@ function getCarbonBrushDisplayStatus(analysis) {
   };
 }
 
+function compareCarbonBrushActualThinness(left, right) {
+  const leftRemaining = left?.remainingMm ?? Number.MAX_SAFE_INTEGER;
+  const rightRemaining = right?.remainingMm ?? Number.MAX_SAFE_INTEGER;
+  if (leftRemaining !== rightRemaining) {
+    return leftRemaining - rightRemaining;
+  }
+  const leftValue = left?.currentValue ?? Number.MAX_SAFE_INTEGER;
+  const rightValue = right?.currentValue ?? Number.MAX_SAFE_INTEGER;
+  if (leftValue !== rightValue) {
+    return leftValue - rightValue;
+  }
+  return String(left?.pointKey || "").localeCompare(String(right?.pointKey || ""), "id");
+}
+
+function isCarbonBrushPredictionPlanningPoint(analysis) {
+  const config = getCarbonBrushAlertConfig();
+  return !analysis?.latestReplacedConfirmed
+    && isCarbonBrushPredictionUsable(analysis)
+    && analysis.countdownDays !== null
+    && analysis.countdownDays <= config.prepareDays;
+}
+
+function isCarbonBrushPlanningPoint(analysis) {
+  if (!analysis || analysis.latestReplacedConfirmed || analysis.currentValue === null) {
+    return false;
+  }
+  return (analysis.actualStatus?.severity ?? 0) > 0
+    || isCarbonBrushPredictionPlanningPoint(analysis);
+}
+
+function compareCarbonBrushPlanningPriority(left, right) {
+  const leftPriority = getCarbonBrushAlertPriority(left);
+  const rightPriority = getCarbonBrushAlertPriority(right);
+  if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
+    return rightPriority.actualSeverity - leftPriority.actualSeverity;
+  }
+  if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
+    return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
+  }
+  if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
+    return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
+  }
+  return compareCarbonBrushActualThinness(left, right);
+}
+
+function getCarbonBrushPlanningPoints(pointAnalyses, worstPoint) {
+  return (Array.isArray(pointAnalyses) ? pointAnalyses : [])
+    .filter((analysis) => analysis.pointKey !== worstPoint?.pointKey)
+    .filter(isCarbonBrushPlanningPoint)
+    .sort(compareCarbonBrushPlanningPriority);
+}
+
 function getCarbonBrushCycleResetReason(previous, current, threshold) {
   if (current?.replacedConfirmed) {
     return "Titik ditandai diganti";
@@ -231,7 +283,21 @@ function getCarbonBrushCycleResetReason(previous, current, threshold) {
 }
 
 function analyzeCarbonBrushPointWear(item, pointKey) {
-  const history = getCarbonBrushPointHistory(item, pointKey).filter((entry) => entry.numericValue !== null);
+  const itemInspectionDate = parseInspectionDateValue(item.payload?.inspectionDate);
+  const itemInspectionTime = itemInspectionDate instanceof Date && !Number.isNaN(itemInspectionDate.getTime())
+    ? itemInspectionDate.getTime()
+    : null;
+  const history = getCarbonBrushPointHistory(item, pointKey)
+    .filter((entry) => entry.numericValue !== null)
+    .filter((entry) => {
+      if (String(entry.id || "") === String(item.id || "")) {
+        return true;
+      }
+      if (itemInspectionTime === null || !(entry.inspectionDate instanceof Date)) {
+        return true;
+      }
+      return entry.inspectionDate.getTime() <= itemInspectionTime;
+    });
   const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
   const currentRawValue = String(item.payload?.measurements?.[pointKey] || "").trim();
   const currentValue = parseCarbonBrushNumericValue(currentRawValue);
@@ -406,7 +472,7 @@ function buildCarbonBrushAlertSummary(serviceItems) {
   serviceItems
     .filter((item) => item.formType === "service-motor-mv-carbon-brush")
     .forEach((item) => {
-      const key = String(item.equipmentName || "").trim().toUpperCase();
+      const key = normalizeCarbonBrushEquipmentForType(item.equipmentName || "");
       if (!key) {
         return;
       }
@@ -437,29 +503,11 @@ function buildCarbonBrushAlertSummary(serviceItems) {
       }
       const activePointAnalyses = pointAnalyses.filter((analysis) => !analysis.latestReplacedConfirmed);
       const rankedPointSource = activePointAnalyses.length ? activePointAnalyses : pointAnalyses;
-      const pointPrioritySorter = (left, right) => {
-        if ((left.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
-          return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
-        }
-        if ((left.currentValue ?? Number.MAX_SAFE_INTEGER) !== (right.currentValue ?? Number.MAX_SAFE_INTEGER)) {
-          return (left.currentValue ?? Number.MAX_SAFE_INTEGER) - (right.currentValue ?? Number.MAX_SAFE_INTEGER);
-        }
-        const leftPriority = getCarbonBrushAlertPriority(left);
-        const rightPriority = getCarbonBrushAlertPriority(right);
-        if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
-          return rightPriority.actualSeverity - leftPriority.actualSeverity;
-        }
-        if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
-          return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
-        }
-        return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
-      };
-      const sortedPoints = [...rankedPointSource].sort(pointPrioritySorter);
+      const sortedPoints = [...rankedPointSource].sort(compareCarbonBrushActualThinness);
       const worstPoint = sortedPoints[0];
-      const planningPoints = sortedPoints
-        .filter((analysis) => analysis.pointKey !== worstPoint.pointKey)
-        .slice(0, 5);
+      const planningPoints = getCarbonBrushPlanningPoints(sortedPoints, worstPoint).slice(0, 5);
       const secondaryAlertPoints = planningPoints.slice(0, 5);
+      const worstPointIsPlanning = isCarbonBrushPlanningPoint(worstPoint);
       return {
         item,
         threshold,
@@ -470,7 +518,7 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         predictionQuality: worstPoint.predictionQuality,
         planningPoints,
         secondaryAlertPoints,
-        totalAlertPointCount: planningPoints.length + 1,
+        totalAlertPointCount: planningPoints.length + (worstPointIsPlanning ? 1 : 0),
         companionPointCount: planningPoints.length,
       };
     })
