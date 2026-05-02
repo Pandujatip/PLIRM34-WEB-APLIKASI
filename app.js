@@ -136,6 +136,7 @@ const pwaQuickForms = document.querySelectorAll("[data-pwa-quick-form]");
 const pwaUserLine = document.getElementById("pwa-user-line");
 const pwaRefreshButton = document.getElementById("pwa-refresh-button");
 const pwaOpenWebButton = document.getElementById("pwa-open-web-button");
+const pwaGlobalSearch = document.getElementById("pwa-global-search");
 const pwaStatNegatif = document.getElementById("pwa-stat-negatif");
 const pwaStatService = document.getElementById("pwa-stat-service");
 const pwaStatSpb = document.getElementById("pwa-stat-spb");
@@ -7565,10 +7566,16 @@ function getPwaPriorityClass(className = "") {
 function renderPwaServiceCard(item, metaText = "") {
   const isMsoMotorItem = (item.formType === "service-motor-mv" || item.formType === "service-motor-mso")
     && String(item.payload?.source || "").toUpperCase() === "MSO";
+  const firstPhoto = getInspectionPhotoEntries(item.payload || {})[0] || null;
+  const photoSource = String(firstPhoto?.data || firstPhoto?.url || "").trim();
+  const serviceLabel = item.subtype || item.type || "Service";
   return `
-    <article class="pwa-card" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
-      <div>
-        <small>${escapeHtml(item.subtype || item.type || "Service")}</small>
+    <article class="pwa-card pwa-service-card" data-pwa-service-id="${escapeHtml(item.id || "")}" tabindex="0">
+      <div class="pwa-service-card-body">
+        ${photoSource
+          ? `<img class="pwa-card-photo" src="${escapeHtml(photoSource)}" alt="Foto ${escapeHtml(serviceLabel)} ${escapeHtml(item.equipmentName || "")}" loading="lazy">`
+          : `<div class="pwa-card-photo pwa-card-photo-empty"><span>${escapeHtml(String(serviceLabel).slice(0, 2).toUpperCase())}</span></div>`}
+        <small>${escapeHtml(serviceLabel)}</small>
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
         <p>${escapeHtml(metaText || item.detail || item.description || "-")}</p>
       </div>
@@ -11809,6 +11816,25 @@ pwaOpacityEquipment?.addEventListener("focus", () => {
   control?.addEventListener("change", () => {
     renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
   });
+});
+
+pwaGlobalSearch?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") {
+    return;
+  }
+  event.preventDefault();
+  if (pwaServiceSearch) {
+    pwaServiceSearch.value = pwaGlobalSearch.value;
+  }
+  openPwaTab("service");
+  renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+});
+
+pwaGlobalSearch?.addEventListener("search", () => {
+  if (pwaServiceSearch && !pwaGlobalSearch.value) {
+    pwaServiceSearch.value = "";
+    renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
+  }
 });
 
 pwaCarbonForm?.addEventListener("click", (event) => {

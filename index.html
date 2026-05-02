@@ -10,9 +10,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="PLIRM34">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=20260501-10">
-  <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png?v=20260501-10">
-  <link rel="apple-touch-icon" href="pwa-icons/icon-192.png?v=20260501-10">
+  <link rel="manifest" href="manifest.webmanifest?v=20260502-03">
+  <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png?v=20260502-03">
+  <link rel="apple-touch-icon" href="pwa-icons/icon-192.png?v=20260502-03">
   <script>
     (() => {
       const params = new URLSearchParams(window.location.search);
@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260501-10">
+  <link rel="stylesheet" href="styles.css?v=20260502-03">
 </head>
 <body>
   <div class="app-shell">
@@ -148,42 +148,89 @@
 
         <section class="pwa-compact-shell hidden" id="pwa-compact-shell" aria-label="PLIRM34 mobile app">
           <header class="pwa-app-header">
-            <div class="pwa-app-title">
-              <span class="pwa-app-logo app-logo-image" role="img" aria-label="Logo PLIRM34 Tuban"></span>
-              <div>
-                <span class="pwa-kicker">PLIRM34 FIELD APP</span>
-                <h2>Prioritas Lapangan</h2>
-                <small id="pwa-user-line">Mode mobile compact</small>
+            <div class="pwa-top-row">
+              <div class="pwa-app-title">
+                <span class="pwa-profile-icon app-logo-image" role="img" aria-label="Logo PLIRM34 Tuban"></span>
+                <div>
+                  <span class="pwa-kicker">PLIRM34 FIELD APP</span>
+                  <h1>Field Control</h1>
+                  <small id="pwa-user-line">Mode mobile compact</small>
+                </div>
+              </div>
+              <div class="pwa-header-actions">
+                <button class="pwa-icon-button" id="pwa-refresh-button" type="button" aria-label="Refresh data">&#8635;</button>
+                <button class="pwa-icon-button" id="pwa-open-web-button" type="button" aria-label="Buka web lengkap">Web</button>
               </div>
             </div>
-            <div class="pwa-header-actions">
-              <button class="pwa-icon-button" id="pwa-refresh-button" type="button" aria-label="Refresh data">&#8635;</button>
-              <button class="pwa-icon-button" id="pwa-open-web-button" type="button" aria-label="Buka web lengkap">Web</button>
-            </div>
+            <label class="pwa-search-bar" for="pwa-global-search">
+              <span class="pwa-search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M10.8 18.1a7.3 7.3 0 1 1 0-14.6 7.3 7.3 0 0 1 0 14.6Zm5.2-2.1 4.2 4.2" />
+                </svg>
+              </span>
+              <input id="pwa-global-search" type="search" placeholder="Cari equipment, service, atau alert">
+            </label>
+            <section class="pwa-hero-panel" aria-label="Status operasional mobile">
+              <div>
+                <span>Live maintenance brief</span>
+                <h2>Prioritas lapangan hari ini</h2>
+                <p>Review alert carbon brush, motor MSO, dan open item sebelum turun ke area.</p>
+              </div>
+              <div class="pwa-hero-visual" aria-hidden="true">
+                <span></span>
+              </div>
+            </section>
           </header>
 
           <div class="pwa-pages">
             <section class="pwa-page is-active" data-pwa-page="home">
-              <div class="pwa-status-strip">
-                <article>
-                  <span>Negatif Open</span>
-                  <strong id="pwa-stat-negatif">0</strong>
-                </article>
-                <article>
-                  <span>Service Hari Ini</span>
+              <div class="pwa-dashboard-card">
+                <div class="pwa-dashboard-main">
+                  <span class="pwa-dashboard-icon" aria-hidden="true">OK</span>
+                  <small>Service Hari Ini</small>
                   <strong id="pwa-stat-service">0</strong>
-                </article>
-                <article>
-                  <span>SPB Tahun Ini</span>
-                  <strong id="pwa-stat-spb">Rp0</strong>
-                </article>
+                  <p>Jumlah inspeksi dan service yang masuk hari ini.</p>
+                </div>
+                <div class="pwa-dashboard-side">
+                  <div class="pwa-status-strip">
+                    <article>
+                      <span>Negatif Open</span>
+                      <strong id="pwa-stat-negatif">0</strong>
+                    </article>
+                    <article>
+                      <span>SPB Tahun Ini</span>
+                      <strong id="pwa-stat-spb">Rp0</strong>
+                    </article>
+                  </div>
+                  <div class="pwa-action-rail">
+                    <button type="button" data-pwa-jump="service">
+                      <span class="pwa-action-icon">IN</span>
+                      <strong>Input</strong>
+                      <small>Service</small>
+                    </button>
+                    <button type="button" data-pwa-jump="carbon">
+                      <span class="pwa-action-icon">CB</span>
+                      <span class="pwa-action-badge" aria-hidden="true">!</span>
+                      <strong>Carbon</strong>
+                      <small>Alert</small>
+                    </button>
+                    <button type="button" data-pwa-jump="mso">
+                      <span class="pwa-action-icon">MS</span>
+                      <strong>MSO</strong>
+                      <small>Motor</small>
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div class="pwa-action-rail">
-                <button type="button" data-pwa-jump="service">Input Service</button>
-                <button type="button" data-pwa-jump="carbon">Carbon Brush</button>
-                <button type="button" data-pwa-jump="mso">Motor MSO</button>
-              </div>
+              <button class="pwa-action-banner" type="button" data-pwa-jump="carbon">
+                <span class="pwa-action-banner-icon" aria-hidden="true">CB</span>
+                <span>
+                  <strong>Carbon Brush Early Warning</strong>
+                  <small>Siapkan sparepart dan titik penggantian sekalian.</small>
+                </span>
+                <span class="pwa-action-banner-arrow" aria-hidden="true">&rsaquo;</span>
+              </button>
 
               <section class="pwa-block">
                 <div class="pwa-block-head">
@@ -204,7 +251,7 @@
                   </div>
                   <small id="pwa-mso-count">0 equipment</small>
                 </div>
-                <div class="pwa-list" id="pwa-mso-priority"></div>
+                <div class="pwa-list pwa-carousel-list" id="pwa-mso-priority"></div>
               </section>
 
               <section class="pwa-block">
@@ -215,7 +262,7 @@
                   </div>
                   <small id="pwa-negatif-count">0 open</small>
                 </div>
-                <div class="pwa-list" id="pwa-negatif-open"></div>
+                <div class="pwa-list pwa-carousel-list" id="pwa-negatif-open"></div>
               </section>
             </section>
 
@@ -229,13 +276,43 @@
                   <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
                 </div>
                 <div class="pwa-service-choice-grid">
-                  <button type="button" data-pwa-form-choice="carbon">Carbon Brush</button>
-                  <button type="button" data-pwa-form-choice="mcc">MCC</button>
-                  <button type="button" data-pwa-form-choice="electrical-room">Electrical Room</button>
-                  <button type="button" data-pwa-form-choice="plc">PLC</button>
-                  <button type="button" data-pwa-form-choice="instrument">General Instrument</button>
-                  <button type="button" data-pwa-form-choice="cems">CEMS</button>
-                  <button type="button" data-pwa-form-choice="opacity">Opacity</button>
+                  <button class="is-highlight" type="button" data-pwa-form-choice="carbon">
+                    <span class="pwa-menu-badge">Priority</span>
+                    <span class="pwa-menu-icon">CB</span>
+                    <strong>Carbon</strong>
+                    <small>Brush MV</small>
+                  </button>
+                  <button type="button" data-pwa-form-choice="mcc">
+                    <span class="pwa-menu-icon">MC</span>
+                    <strong>MCC</strong>
+                    <small>Panel</small>
+                  </button>
+                  <button type="button" data-pwa-form-choice="electrical-room">
+                    <span class="pwa-menu-icon">ER</span>
+                    <strong>Room</strong>
+                    <small>Electrical</small>
+                  </button>
+                  <button type="button" data-pwa-form-choice="plc">
+                    <span class="pwa-menu-badge">DCS</span>
+                    <span class="pwa-menu-icon">PL</span>
+                    <strong>PLC</strong>
+                    <small>Control</small>
+                  </button>
+                  <button type="button" data-pwa-form-choice="instrument">
+                    <span class="pwa-menu-icon">GI</span>
+                    <strong>Instrument</strong>
+                    <small>General</small>
+                  </button>
+                  <button type="button" data-pwa-form-choice="cems">
+                    <span class="pwa-menu-icon">CE</span>
+                    <strong>CEMS</strong>
+                    <small>Emission</small>
+                  </button>
+                  <button type="button" data-pwa-form-choice="opacity">
+                    <span class="pwa-menu-icon">OP</span>
+                    <strong>Opacity</strong>
+                    <small>Meter</small>
+                  </button>
                 </div>
               </section>
 
@@ -807,7 +884,7 @@
                   </label>
                 </div>
                 <p class="pwa-form-note" id="pwa-service-filter-note">Menampilkan service terbaru.</p>
-                <div class="pwa-list" id="pwa-service-latest"></div>
+                <div class="pwa-list pwa-carousel-list" id="pwa-service-latest"></div>
               </section>
             </section>
 
@@ -859,11 +936,27 @@
           </div>
 
           <nav class="pwa-bottom-nav" aria-label="Navigasi PWA">
-            <button class="is-active" type="button" data-pwa-tab="home"><strong>Home</strong><span>Prioritas</span></button>
-            <button type="button" data-pwa-tab="service"><strong>Service</strong><span>Log</span></button>
-            <button type="button" data-pwa-tab="mso"><strong>MSO</strong><span>Motor</span></button>
-            <button type="button" data-pwa-tab="carbon"><strong>Carbon</strong><span>Brush</span></button>
-            <button type="button" data-pwa-tab="more"><strong>More</strong><span>Menu</span></button>
+            <button class="is-active" type="button" data-pwa-tab="home">
+              <span class="pwa-nav-icon">HM</span>
+              <strong>Home</strong>
+              <span>Prioritas</span>
+            </button>
+            <button type="button" data-pwa-tab="service">
+              <span class="pwa-nav-icon">SV</span>
+              <strong>Service</strong>
+              <span>Input</span>
+            </button>
+            <button type="button" data-pwa-tab="mso">
+              <span class="pwa-nav-icon">MS</span>
+              <span class="pwa-nav-dot" aria-hidden="true"></span>
+              <strong>MSO</strong>
+              <span>Motor</span>
+            </button>
+            <button type="button" data-pwa-tab="more">
+              <span class="pwa-nav-icon">MN</span>
+              <strong>Menu</strong>
+              <span>More</span>
+            </button>
           </nav>
         </section>
 
@@ -3349,12 +3442,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260502-02"></script>
+  <script src="app.js?v=20260502-03"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260502-02").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260502-03").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
