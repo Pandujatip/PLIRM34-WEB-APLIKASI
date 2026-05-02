@@ -18,7 +18,7 @@ function renderServiceCard(item) {
   card.dataset.detail = item.detail || "";
 
   const carbonBrushStatsPayload = item.formType === "service-motor-mv-carbon-brush"
-    ? (item.payload?.stats || computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || ""))
+    ? computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || "")
     : null;
   const inspectionDate = formatInspectionDate(item.payload?.inspectionDate);
   const msoMaxVibration = isMsoMotorItem

@@ -820,6 +820,70 @@ function parseCarbonBrushEquipmentCode(equipmentName) {
   return match ? match[1] : "";
 }
 
+function getFiniteNumber(value, fallback) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function resolveCarbonBrushPlantContext(equipmentName, explicitPlant = "") {
+  const code = parseCarbonBrushEquipmentCode(equipmentName);
+  const codeAreaDigit = code[2] || "";
+  if (codeAreaDigit === "3" || codeAreaDigit === "4") {
+    return {
+      code,
+      areaDigit: codeAreaDigit,
+      plantKey: codeAreaDigit === "4" ? "tuban4" : "tuban3",
+      plantLabel: codeAreaDigit === "4" ? "Tuban 4" : "Tuban 3",
+      thresholdSource: "equipment-code",
+      hasSource: true,
+    };
+  }
+
+  const plantText = String(explicitPlant || "").trim();
+  const isExplicitTuban4 = /\btuban\s*4\b|\bt4\b|\b2304\b|\bplant\s*4\b|(^|[^0-9])4([^0-9]|$)/i.test(plantText);
+  const isExplicitTuban3 = /\btuban\s*3\b|\bt3\b|\b2303\b|\bplant\s*3\b|(^|[^0-9])3([^0-9]|$)/i.test(plantText);
+  if (isExplicitTuban4 && !isExplicitTuban3) {
+    return {
+      code,
+      areaDigit: "4",
+      plantKey: "tuban4",
+      plantLabel: "Tuban 4",
+      thresholdSource: "explicit-plant",
+      hasSource: true,
+    };
+  }
+  if (isExplicitTuban3 && !isExplicitTuban4) {
+    return {
+      code,
+      areaDigit: "3",
+      plantKey: "tuban3",
+      plantLabel: "Tuban 3",
+      thresholdSource: "explicit-plant",
+      hasSource: true,
+    };
+  }
+
+  if (!code && !plantText) {
+    return {
+      code,
+      areaDigit: "",
+      plantKey: "unknown",
+      plantLabel: "-",
+      thresholdSource: "unknown",
+      hasSource: false,
+    };
+  }
+
+  return {
+    code,
+    areaDigit: "",
+    plantKey: "tuban3",
+    plantLabel: plantText ? `${plantText} (fallback Tuban 3)` : "Tuban 3",
+    thresholdSource: "fallback",
+    hasSource: true,
+  };
+}
+
 function getAppSetting(settingKey) {
   return backendState.masters.appSettings.find((item) => item.settingKey === settingKey)?.value || null;
 }
@@ -1031,26 +1095,34 @@ function hydrateElectricalRoomThresholdForm() {
 }
 
 function getCarbonBrushThresholdConfig(equipmentName, explicitPlant = "") {
-  const code = parseCarbonBrushEquipmentCode(equipmentName);
-  const areaDigit = code[2] || (String(explicitPlant).match(/(\d)$/)?.[1] || "");
-  const plantLabel = areaDigit === "4" ? "Tuban 4" : areaDigit === "3" ? "Tuban 3" : (explicitPlant || "-");
+  const plantContext = resolveCarbonBrushPlantContext(equipmentName, explicitPlant);
   const savedThresholds = getAppSetting("carbon_brush_thresholds") || {};
   const tuban3 = savedThresholds.tuban3 || {};
   const tuban4 = savedThresholds.tuban4 || {};
-  const tuban3Low = Number(tuban3.low ?? 30);
-  const tuban3High = Number(tuban3.high ?? 34);
-  const tuban4Low = Number(tuban4.low ?? 35);
-  const tuban4High = Number(tuban4.high ?? 38);
+  const tuban3Low = getFiniteNumber(tuban3.low, 30);
+  const tuban3High = getFiniteNumber(tuban3.high, 34);
+  const tuban4Low = getFiniteNumber(tuban4.low, 35);
+  const tuban4High = getFiniteNumber(tuban4.high, 38);
 
-  if (!code && !explicitPlant) {
-    return { plantLabel: "-", low: tuban3Low, high: tuban3High, legend: "-" };
+  if (!plantContext.hasSource) {
+    return {
+      ...plantContext,
+      low: tuban3Low,
+      high: tuban3High,
+      legend: "-",
+    };
   }
 
-  if (plantLabel === "Tuban 4") {
-    return { plantLabel, low: tuban4Low, high: tuban4High, legend: `Merah < ${tuban4Low} | Kuning ${tuban4Low}-${(tuban4High - 0.01).toFixed(2)} | Hijau >= ${tuban4High}` };
-  }
+  const isTuban4 = plantContext.plantKey === "tuban4";
+  const low = isTuban4 ? tuban4Low : tuban3Low;
+  const high = isTuban4 ? tuban4High : tuban3High;
 
-  return { plantLabel: plantLabel === "-" ? "Tuban 3" : plantLabel, low: tuban3Low, high: tuban3High, legend: `Merah < ${tuban3Low} | Kuning ${tuban3Low}-${(tuban3High - 0.01).toFixed(2)} | Hijau >= ${tuban3High}` };
+  return {
+    ...plantContext,
+    low,
+    high,
+    legend: `${plantContext.plantLabel}: Merah < ${low} | Kuning ${low}-${(high - 0.01).toFixed(2)} | Hijau >= ${high}`,
+  };
 }
 
 function getCarbonBrushAlertConfig() {
@@ -2496,11 +2568,12 @@ function isDcsTextAbnormal(value) {
 function formatCarbonBrushPayloadLines(item) {
   const payload = item.payload || {};
   const meta = decodeCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
-  const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
+  const stats = computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
   const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
   const photoSummary = buildFindingPhotoCompatibility(getInspectionPhotoEntries(payload)).findingPhotoName;
   return [
-    ["Plant", payload.plant || meta.plant || "-"],
+    ["Area threshold", meta.plant || payload.plant || "-"],
+    ["Batas Carbon Brush", meta.thresholdLegend || "-"],
     ["Lokasi", payload.location || meta.location || "-"],
     ["Kategori", payload.category || meta.category || "-"],
     ["PIC", payload.pic || "-"],
@@ -2519,12 +2592,13 @@ function formatCarbonBrushPayloadLines(item) {
 function buildCarbonBrushPayloadDetailHtml(item) {
   const payload = item.payload || {};
   const meta = decodeCarbonBrushEquipmentMeta(item.equipmentName || "", payload.plant || "");
-  const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
+  const stats = computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
   const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
   const photoSummary = buildFindingPhotoCompatibility(getInspectionPhotoEntries(payload)).findingPhotoName;
   const meggerValue = String(payload.megger || "-").trim() || "-";
   const rows = [
-    ["Plant", escapeHtml(payload.plant || meta.plant || "-")],
+    ["Area threshold", escapeHtml(meta.plant || payload.plant || "-")],
+    ["Batas Carbon Brush", escapeHtml(meta.thresholdLegend || "-")],
     ["Lokasi", escapeHtml(payload.location || meta.location || "-")],
     ["Kategori", escapeHtml(payload.category || meta.category || "-")],
     ["PIC", escapeHtml(payload.pic || "-")],
@@ -2780,7 +2854,7 @@ function analyzeServiceItem(item) {
   }
 
   if (item.formType === "service-motor-mv-carbon-brush") {
-    const stats = payload.stats || computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
+    const stats = computeCarbonBrushStats(payload.measurements || {}, item.equipmentName || "", payload.plant || "");
     const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", payload.plant || "");
     const replacedPoints = normalizeCarbonBrushReplacedPoints(payload.replacedPoints);
     const meggerMinimum = 100;
@@ -9886,6 +9960,15 @@ adminCarbonBrushThresholdForm?.addEventListener("submit", async (event) => {
         carbonBrushEquipmentInput?.value || selectedCarbonBrushEquipmentReference || "",
       );
     }
+    const serviceItems = getServiceItemsFromDom();
+    renderServiceBoard(serviceItems);
+    applyServiceFilter();
+    updateDashboardStats({ renderDashboardVisuals: true });
+    renderPwaCompactApp(
+      getNegatifItemsFromDom(),
+      serviceItems.filter((entry) => shouldDisplayServiceItem(entry)),
+      getSpbItemsFromDom(),
+    );
     showToast("Admin Tools", "Threshold Carbon Brush berhasil diperbarui.");
   } catch (error) {
     showToast("Admin Tools", error.message || "Gagal menyimpan threshold Carbon Brush.");

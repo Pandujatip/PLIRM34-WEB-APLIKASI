@@ -39,10 +39,10 @@ function startCarbonBrushAlertRotation(totalItems) {
 
 function getCarbonBrushPlanningActionText(activeStatus, planningPoints) {
   if (!Array.isArray(planningPoints) || !planningPoints.length) {
-    return activeStatus.actionLabel || "Tidak ada titik lain dengan estimasi dekat dari titik utama.";
+    return activeStatus.actionLabel || "Belum ada titik lain yang perlu diganti bersamaan pada service terdekat.";
   }
   const pointText = planningPoints
-    .map((point) => `${point.pointKey} (${point.countdownDays} hari)`)
+    .map((point) => `${point.pointKey} (${point.currentValue ?? "-"} mm)`)
     .join(", ");
   return `Persiapkan sparepart dan sekalian ganti titik: ${pointText}`;
 }
@@ -55,14 +55,14 @@ function renderCarbonBrushCompanionPoints(planningPoints) {
       </div>
     `;
   }
-  const visiblePoints = planningPoints.slice(0, 3);
+  const visiblePoints = planningPoints.slice(0, 5);
   const overflowCount = Math.max(0, planningPoints.length - visiblePoints.length);
   return `
     <div class="carbon-brush-alert-companions">
       ${visiblePoints.map((point) => `
         <span class="carbon-brush-alert-companion-pill">
           <strong>${escapeHtml(point.pointKey)}</strong>
-          <small>${escapeHtml(point.countdownDays)} hari</small>
+          <small>${escapeHtml(point.currentValue ?? "-")} mm${point.countdownDays !== null ? ` | ${escapeHtml(point.countdownDays)} hari` : " | histori kurang"}</small>
         </span>
       `).join("")}
       ${overflowCount ? `<span class="carbon-brush-alert-companion-more">+${overflowCount} titik lain</span>` : ""}
@@ -90,21 +90,21 @@ function renderCarbonBrushAlertBanner(serviceItems) {
 
   dashboardCarbonBrushBanner.classList.remove("hidden");
   if (dashboardCarbonBrushBannerSummary) {
-    dashboardCarbonBrushBannerSummary.textContent = `Top ${alerts.length} prioritas carbon brush`;
+    dashboardCarbonBrushBannerSummary.textContent = `${alerts.length} equipment inspeksi terbaru`;
   }
-  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, status, displayStatus, predictionStatus, predictionQuality, planningPoints, rank, secondaryAlertPoints = [], companionPointCount = 0, totalAlertPointCount = 0, worstPoint }) => {
+  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, threshold, status, displayStatus, predictionStatus, predictionQuality, planningPoints, rank, secondaryAlertPoints = [], companionPointCount = 0, totalAlertPointCount = 0, worstPoint }) => {
     const activeStatus = displayStatus || status;
-    const countdownText = worstPoint.countdownDays !== null ? `${worstPoint.countdownDays} hari` : "prediksi belum siap";
+    const countdownText = worstPoint.countdownDays !== null ? `${worstPoint.countdownDays} hari` : "histori kurang";
     const actionText = getCarbonBrushPlanningActionText(activeStatus, planningPoints);
-    const statusBasisText = activeStatus.source === "prediction"
-      ? "Prioritas ini berasal dari prediksi countdown dengan histori yang cukup; nilai aktual tetap menjadi acuan utama."
-      : "Prioritas ini berasal dari nilai aktual terhadap threshold carbon brush.";
+    const thresholdPlantLabel = worstPoint.thresholdPlantLabel || threshold?.plantLabel || item.payload?.plant || "-";
+    const thresholdLegend = worstPoint.thresholdLegend || threshold?.legend || `Merah < ${worstPoint.thresholdLow} | Hijau >= ${worstPoint.thresholdHigh}`;
+    const statusBasisText = "Urutan banner memakai ketebalan aktual titik terbaru. Countdown dipakai sebagai indikator tambahan, bukan dasar ranking utama.";
     const secondarySummary = secondaryAlertPoints.length
-      ? secondaryAlertPoints.map((point) => `${point.pointKey} ${point.currentValue ?? "-"} mm`).join(", ")
+      ? secondaryAlertPoints.map((point) => `${point.pointKey} ${point.currentValue ?? "-"} mm${point.countdownDays !== null ? ` (${point.countdownDays} hari)` : ""}`).join(", ")
       : "Belum ada titik lain yang lebih dekat dari titik utama.";
     const companionSummaryText = companionPointCount > 0
-      ? `${companionPointCount} titik lain juga masuk range planning.`
-      : "Belum ada titik lain yang perlu disiapkan bersamaan.";
+      ? `${companionPointCount} titik berikutnya layak dipertimbangkan untuk diganti sekalian.`
+      : "Belum ada titik pendamping yang perlu disiapkan bersamaan.";
     return `
     <article class="carbon-brush-alert-slide ${activeStatus.className}" data-service-id="${escapeHtml(item.id || "")}" tabindex="0" aria-hidden="true">
       <div class="carbon-brush-alert-rank">#${rank}</div>
@@ -114,8 +114,9 @@ function renderCarbonBrushAlertBanner(serviceItems) {
           <span class="carbon-brush-alert-days">${escapeHtml(countdownText)}</span>
         </div>
         <strong>${escapeHtml(item.equipmentName || "-")}</strong>
-        <p>Titik utama <strong>${escapeHtml(worstPoint.pointKey)}</strong> sekarang berada di <strong>${escapeHtml(worstPoint.currentValue ?? "-")} mm</strong> dengan limit <strong>${escapeHtml(worstPoint.thresholdLow)}</strong>. ${escapeHtml(statusBasisText)}</p>
+        <p>Titik utama <strong>${escapeHtml(worstPoint.pointKey)}</strong> sekarang berada di <strong>${escapeHtml(worstPoint.currentValue ?? "-")} mm</strong>. Area threshold <strong>${escapeHtml(thresholdPlantLabel)}</strong>, limit merah <strong>&lt; ${escapeHtml(worstPoint.thresholdLow)} mm</strong>. ${escapeHtml(statusBasisText)}</p>
         <div class="carbon-brush-alert-metrics">
+          <span>${escapeHtml(thresholdLegend)}</span>
           <span>Nilai sekarang ${escapeHtml(worstPoint.currentValue ?? "-")} mm</span>
           <span>Sisa saat inspeksi ${escapeHtml(worstPoint.remainingMm !== null ? worstPoint.remainingMm.toFixed(2) : "-")} mm</span>
           <span>Estimasi sisa hari ini ${escapeHtml(worstPoint.projectedRemainingMm !== null ? worstPoint.projectedRemainingMm.toFixed(2) : "-")} mm</span>
@@ -125,7 +126,7 @@ function renderCarbonBrushAlertBanner(serviceItems) {
         </div>
         <div class="carbon-brush-alert-secondary">
           <div class="carbon-brush-alert-secondary-head">
-            <span>Titik lain yang ikut perlu diperhatikan</span>
+            <span>Titik lain untuk service yang sama</span>
             <strong>${escapeHtml(totalAlertPointCount)}</strong>
           </div>
           <p>${escapeHtml(secondarySummary)}</p>

@@ -258,6 +258,10 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
       countdownDays: null,
       thresholdLow: threshold.low,
       thresholdHigh: threshold.high,
+      thresholdPlantLabel: threshold.plantLabel,
+      thresholdPlantKey: threshold.plantKey,
+      thresholdLegend: threshold.legend,
+      thresholdSource: threshold.thresholdSource,
       hasEnoughHistory: false,
       latestReplacedConfirmed,
       currentBucket: currentValue === null ? "" : classifyCarbonBrushValue(String(currentValue), item.equipmentName || "", item.payload?.plant || ""),
@@ -342,6 +346,10 @@ function analyzeCarbonBrushPointWear(item, pointKey) {
     latestInspectionDate,
     thresholdLow: threshold.low,
     thresholdHigh: threshold.high,
+    thresholdPlantLabel: threshold.plantLabel,
+    thresholdPlantKey: threshold.plantKey,
+    thresholdLegend: threshold.legend,
+    thresholdSource: threshold.thresholdSource,
     hasEnoughHistory: recentIntervals.length >= 3,
     latestReplacedConfirmed,
     currentBucket: latestCycleValue === null ? "" : classifyCarbonBrushValue(String(latestCycleValue), item.equipmentName || "", item.payload?.plant || ""),
@@ -410,19 +418,32 @@ function buildCarbonBrushAlertSummary(serviceItems) {
       }
     });
 
-  return [...latestByEquipment.values()]
+  const latestEquipmentItems = [...latestByEquipment.values()]
+    .sort((left, right) => {
+      const leftTime = new Date(left?.payload?.inspectionDate || 0).getTime() || 0;
+      const rightTime = new Date(right?.payload?.inspectionDate || 0).getTime() || 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 5);
+
+  return latestEquipmentItems
     .map((item) => {
+      const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
       const pointAnalyses = carbonBrushMeasurementKeys
         .map((pointKey) => analyzeCarbonBrushPointWear(item, pointKey))
         .filter((analysis) => analysis.currentValue !== null);
       if (!pointAnalyses.length) {
         return null;
       }
-      const alertPointAnalyses = pointAnalyses.filter((analysis) => getCarbonBrushAlertPriority(analysis).hasAlert);
-      if (!alertPointAnalyses.length) {
-        return null;
-      }
-      const worstPoint = [...alertPointAnalyses].sort((left, right) => {
+      const activePointAnalyses = pointAnalyses.filter((analysis) => !analysis.latestReplacedConfirmed);
+      const rankedPointSource = activePointAnalyses.length ? activePointAnalyses : pointAnalyses;
+      const pointPrioritySorter = (left, right) => {
+        if ((left.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
+          return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
+        }
+        if ((left.currentValue ?? Number.MAX_SAFE_INTEGER) !== (right.currentValue ?? Number.MAX_SAFE_INTEGER)) {
+          return (left.currentValue ?? Number.MAX_SAFE_INTEGER) - (right.currentValue ?? Number.MAX_SAFE_INTEGER);
+        }
         const leftPriority = getCarbonBrushAlertPriority(left);
         const rightPriority = getCarbonBrushAlertPriority(right);
         if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
@@ -431,46 +452,17 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
           return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
         }
-        if ((left.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
-          return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
-        }
         return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
-      })[0];
-      const secondaryAlertPoints = alertPointAnalyses
+      };
+      const sortedPoints = [...rankedPointSource].sort(pointPrioritySorter);
+      const worstPoint = sortedPoints[0];
+      const planningPoints = sortedPoints
         .filter((analysis) => analysis.pointKey !== worstPoint.pointKey)
-        .sort((left, right) => {
-          const leftPriority = getCarbonBrushAlertPriority(left);
-          const rightPriority = getCarbonBrushAlertPriority(right);
-          if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
-            return rightPriority.actualSeverity - leftPriority.actualSeverity;
-          }
-          if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
-            return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
-          }
-          if ((left.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
-            return (left.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.remainingMm ?? Number.MAX_SAFE_INTEGER);
-          }
-          return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
-        })
-        .slice(0, 3);
-      const planningBaseDays = worstPoint.countdownDays !== null ? worstPoint.countdownDays : 0;
-      const planningPoints = pointAnalyses
-        .filter((analysis) =>
-          analysis.pointKey !== worstPoint.pointKey
-          && !analysis.latestReplacedConfirmed
-          && analysis.countdownDays !== null
-          && analysis.countdownDays >= planningBaseDays
-          && analysis.countdownDays <= planningBaseDays + 30
-          && isCarbonBrushPredictionUsable(analysis))
-        .sort((left, right) => {
-          if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
-            return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
-          }
-          return String(left.pointKey || "").localeCompare(String(right.pointKey || ""));
-        })
-        .slice(0, 8);
+        .slice(0, 5);
+      const secondaryAlertPoints = planningPoints.slice(0, 5);
       return {
         item,
+        threshold,
         worstPoint,
         status: worstPoint.actualStatus,
         displayStatus: getCarbonBrushDisplayStatus(worstPoint),
@@ -478,26 +470,16 @@ function buildCarbonBrushAlertSummary(serviceItems) {
         predictionQuality: worstPoint.predictionQuality,
         planningPoints,
         secondaryAlertPoints,
-        totalAlertPointCount: alertPointAnalyses.length,
+        totalAlertPointCount: planningPoints.length + 1,
         companionPointCount: planningPoints.length,
       };
     })
     .filter(Boolean)
     .sort((left, right) => {
-      const leftPriority = getCarbonBrushAlertPriority(left.worstPoint);
-      const rightPriority = getCarbonBrushAlertPriority(right.worstPoint);
-      if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
-        return rightPriority.actualSeverity - leftPriority.actualSeverity;
-      }
-      if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
-        return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
-      }
-      if ((left.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER) !== (right.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER)) {
-        return (left.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER) - (right.worstPoint.remainingMm ?? Number.MAX_SAFE_INTEGER);
-      }
-      return (left.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.worstPoint.countdownDays ?? Number.MAX_SAFE_INTEGER);
+      const leftTime = new Date(left?.item?.payload?.inspectionDate || 0).getTime() || 0;
+      const rightTime = new Date(right?.item?.payload?.inspectionDate || 0).getTime() || 0;
+      return rightTime - leftTime;
     })
-    .slice(0, 5)
     .map((entry, index) => ({
       ...entry,
       rank: index + 1,
