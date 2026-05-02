@@ -3447,7 +3447,7 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260502-05").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260502-06").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
