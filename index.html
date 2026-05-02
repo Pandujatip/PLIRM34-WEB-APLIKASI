@@ -1404,6 +1404,12 @@
                 <option value="DCS">DCS</option>
               </select>
             </label>
+            <label class="search-field compact">
+              <span>Filter kategori</span>
+              <select id="filter-service-category">
+                <option value="semua">Semua kategori</option>
+              </select>
+            </label>
             <button class="btn btn-secondary export-button" data-export="service" type="button">Export Excel</button>
           </div>
           <div class="service-board" id="service-card-list"></div>
@@ -3343,12 +3349,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260428-11"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260501-05"></script>
+  <script src="app.js?v=20260502-01"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260501-10").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260502-01").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

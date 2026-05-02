@@ -252,6 +252,7 @@ const searchSparepart = document.getElementById("search-sparepart");
 const filterSparepartCondition = document.getElementById("filter-sparepart-condition");
 const searchService = document.getElementById("search-service");
 const filterServiceType = document.getElementById("filter-service-type");
+const filterServiceCategory = document.getElementById("filter-service-category");
 const searchBom = document.getElementById("search-bom");
 const filterBomArea = document.getElementById("filter-bom-area");
 const bomTabs = document.querySelectorAll("[data-bom-tab]");
@@ -2170,6 +2171,10 @@ function getServiceTag(type) {
     return "tag-green";
   }
   return "tag-purple";
+}
+
+function getServiceCategoryLabel(item) {
+  return String(item?.subtype || item?.type || item?.formType || "Service").trim();
 }
 
 function openServicePane(tabName) {
@@ -7503,7 +7508,7 @@ function renderPwaServiceCard(item, metaText = "") {
 }
 
 function getPwaServiceCategoryLabel(item) {
-  return String(item?.subtype || item?.type || item?.formType || "Service").trim();
+  return getServiceCategoryLabel(item);
 }
 
 function renderPwaServiceCategoryOptions(serviceItems) {
@@ -8254,30 +8259,58 @@ function applySparepartFilter() {
   });
 }
 
+function renderServiceCategoryFilterOptions(items) {
+  if (!filterServiceCategory) {
+    return;
+  }
+  const currentValue = filterServiceCategory.value || "semua";
+  const categories = [...new Set(items.map(getServiceCategoryLabel).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, "id"));
+  filterServiceCategory.innerHTML = "";
+  const allOption = document.createElement("option");
+  allOption.value = "semua";
+  allOption.textContent = "Semua kategori";
+  filterServiceCategory.append(allOption);
+  categories.forEach((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    filterServiceCategory.append(option);
+  });
+  filterServiceCategory.value = currentValue !== "semua" && categories.includes(currentValue)
+    ? currentValue
+    : "semua";
+}
+
 function applyServiceFilter() {
   const query = searchService?.value || "";
   const type = filterServiceType?.value || "semua";
-  const normalizedQuery = String(query || "").trim().toLowerCase();
   const allItems = getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item));
-  const filteredItems = allItems.filter((item) => {
+  const typeFilteredItems = allItems.filter((item) => type === "semua" || item.type === type);
+  renderServiceCategoryFilterOptions(typeFilteredItems);
+  const category = filterServiceCategory?.value || "semua";
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const filteredItems = typeFilteredItems.filter((item) => {
+    const categoryLabel = getServiceCategoryLabel(item);
     const searchableText = [
       item.equipmentName || "",
       item.type || "",
       item.subtype || "",
+      categoryLabel,
       item.description || "",
       item.detail || "",
     ].join(" ").toLowerCase();
     const matchesQuery = !normalizedQuery || searchableText.includes(normalizedQuery);
-    const matchesType = type === "semua" || item.type === type;
-    return matchesQuery && matchesType;
+    const matchesCategory = category === "semua" || categoryLabel === category;
+    return matchesQuery && matchesCategory;
   });
-  const isFiltered = Boolean(normalizedQuery) || type !== "semua";
+  const isFiltered = Boolean(normalizedQuery) || type !== "semua" || category !== "semua";
 
   renderServiceBoard(filteredItems, {
     syncCache: false,
     previewLimit: isFiltered ? Number.MAX_SAFE_INTEGER : 20,
   });
-  serviceCardList.classList.toggle("single-focus", (type !== "semua") || (isFiltered && [...new Set(filteredItems.map((item) => item.type))].length <= 1));
+  serviceCardList.classList.toggle("single-focus", (type !== "semua") || (category !== "semua") || (isFiltered && [...new Set(filteredItems.map((item) => item.type))].length <= 1));
 }
 
 function applyBomFilter() {
@@ -8319,6 +8352,7 @@ function resetFilters() {
   if (filterSparepartCondition) filterSparepartCondition.value = "semua";
   if (searchService) searchService.value = "";
   if (filterServiceType) filterServiceType.value = "semua";
+  if (filterServiceCategory) filterServiceCategory.value = "semua";
   if (searchBom) searchBom.value = "";
   if (filterBomArea) filterBomArea.value = "semua";
   if (searchSpb) searchSpb.value = "";
@@ -12607,6 +12641,7 @@ searchSparepart?.addEventListener("input", applySparepartFilter);
 filterSparepartCondition?.addEventListener("change", applySparepartFilter);
 searchService?.addEventListener("input", applyServiceFilter);
 filterServiceType?.addEventListener("change", applyServiceFilter);
+filterServiceCategory?.addEventListener("change", applyServiceFilter);
 searchBom?.addEventListener("input", applyBomFilter);
 filterBomArea?.addEventListener("change", applyBomFilter);
 bomTabs.forEach((button) => {
