@@ -96,6 +96,7 @@ select {
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 28px;
+  color: var(--text);
   background: linear-gradient(180deg, rgba(18, 29, 48, 0.98), rgba(11, 18, 32, 0.97));
   box-shadow: var(--shadow);
 }
@@ -2079,6 +2080,7 @@ img.pwa-app-logo {
   display: none !important;
 }
 .detail-card h4 {
+  color: var(--text);
   margin: 0 0 12px;
   font-size: 1rem;
 }
@@ -2103,6 +2105,7 @@ img.pwa-app-logo {
 }
 
 .detail-item strong {
+  color: var(--text);
   font-size: 0.95rem;
 }
 
@@ -2136,6 +2139,7 @@ img.pwa-app-logo {
   padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid rgba(124, 199, 255, 0.14);
+  color: var(--text);
   background: rgba(124, 199, 255, 0.05);
   line-height: 1.6;
 }
