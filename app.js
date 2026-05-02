@@ -9373,6 +9373,42 @@ function hydrateServiceForm(item) {
   setSubmitNote(form, `Mode edit aktif untuk service ${item.subtype || item.type}.`);
 }
 
+function isImportedMsoMotorItem(item) {
+  return (item?.formType === "service-motor-mv" || item?.formType === "service-motor-mso")
+    && String(item?.payload?.source || "").toUpperCase() === "MSO";
+}
+
+async function openServiceItemForEditing(item, options = {}) {
+  if (!item) {
+    return;
+  }
+
+  const resolvedItem = item.id
+    ? (await resolveServiceItem(item.id)) || item
+    : item;
+
+  if (isImportedMsoMotorItem(resolvedItem)) {
+    showToast("Motor MSO", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
+    return;
+  }
+
+  if (isPwaCompactMode()) {
+    if (!resolvedItem.id) {
+      showToast("Service", "Data service belum memiliki ID, tidak bisa dibuka di form edit PWA.");
+      return;
+    }
+    await editServiceFromPwa(resolvedItem.id);
+    return;
+  }
+
+  if (options.fromDetail) {
+    closeServiceDetail({ forceClose: true });
+  }
+  openSection("service");
+  hydrateServiceForm(resolvedItem);
+  openCreatePanel("service");
+}
+
 function hydrateSparepartForm(item) {
   const form = document.querySelector('[data-form-type="sparepart"]');
   form.code.value = item.code;
@@ -10442,16 +10478,7 @@ serviceDetailEdit?.addEventListener("click", () => {
   if (!activeServiceDetailItem) {
     return;
   }
-  if ((activeServiceDetailItem.formType === "service-motor-mv" || activeServiceDetailItem.formType === "service-motor-mso")
-    && String(activeServiceDetailItem.payload?.source || "").toUpperCase() === "MSO") {
-    showToast("Motor MSO", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
-    return;
-  }
-  const item = activeServiceDetailItem;
-  closeServiceDetail({ forceClose: true });
-  hydrateServiceForm(item);
-  openSection("service");
-  openCreatePanel("service");
+  void openServiceItemForEditing(activeServiceDetailItem, { fromDetail: true });
 });
 
 serviceDetailModal?.addEventListener("click", (event) => {
@@ -11411,13 +11438,7 @@ serviceCardList.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "edit-service") {
-    if ((item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO") {
-      showToast("Motor MSO", "Data sinkron MSO tidak diedit manual. Perbarui lewat file import berikutnya.");
-      return;
-    }
-    hydrateServiceForm(item);
-    openSection("service");
-    openCreatePanel("service");
+    void openServiceItemForEditing(item);
   }
 });
 
