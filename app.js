@@ -12964,15 +12964,10 @@ pwaBomStockNo?.addEventListener("blur", () => {
 });
 
 pwaBomStockResults?.addEventListener("pointerdown", (event) => {
-  const option = event.target instanceof HTMLElement ? event.target.closest("[data-pwa-bom-stock-option]") : null;
-  if (!option) {
-    return;
-  }
-  event.preventDefault();
-  applySparepartReferenceToPwaBomForm(getSparepartReferenceByStockNo(option.dataset.pwaBomStockOption || ""));
+  event.stopPropagation();
 });
 
-pwaBomStockResults?.addEventListener("mousedown", (event) => {
+pwaBomStockResults?.addEventListener("click", (event) => {
   const option = event.target instanceof HTMLElement ? event.target.closest("[data-pwa-bom-stock-option]") : null;
   if (!option) {
     return;
