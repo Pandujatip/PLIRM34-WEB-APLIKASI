@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260502-04">
+  <link rel="stylesheet" href="styles.css?v=20260503-01">
 </head>
 <body>
   <div class="app-shell">
@@ -1079,6 +1079,21 @@
               <small>Biaya ajuan</small>
             </article>
           </div>
+
+          <section class="content-card dashboard-area-insight" id="dashboard-area-insight">
+            <div class="card-head inline">
+              <div>
+                <p class="eyebrow">Infografis Area Inspeksi</p>
+                <h3>Drill-down hasil inspeksi per area equipment</h3>
+              </div>
+              <button class="chip-button" type="button" data-dashboard-area-reset>Reset view</button>
+            </div>
+            <div class="dashboard-area-visual-grid" id="dashboard-area-visual-grid"></div>
+            <div class="dashboard-area-drill-panel" id="dashboard-area-drill-panel">
+              <div class="dashboard-area-breadcrumb" id="dashboard-area-breadcrumb"></div>
+              <div class="dashboard-area-drill-content" id="dashboard-area-drill-content"></div>
+            </div>
+          </section>
 
           <div class="chart-grid dashboard-chart-grid">
             <section class="content-card dashboard-chart-card">
@@ -3442,12 +3457,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260502-06"></script>
+  <script src="app.js?v=20260503-01"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260502-06").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260503-01").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

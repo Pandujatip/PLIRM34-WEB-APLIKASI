@@ -129,6 +129,10 @@ const dashboardCarbonBrushBanner = document.getElementById("dashboard-carbon-bru
 const dashboardCarbonBrushBannerViewport = document.getElementById("dashboard-carbon-brush-banner-viewport");
 const dashboardCarbonBrushBannerDots = document.getElementById("dashboard-carbon-brush-banner-dots");
 const dashboardCarbonBrushBannerSummary = document.getElementById("dashboard-carbon-brush-banner-summary");
+const dashboardAreaInsight = document.getElementById("dashboard-area-insight");
+const dashboardAreaVisualGrid = document.getElementById("dashboard-area-visual-grid");
+const dashboardAreaBreadcrumb = document.getElementById("dashboard-area-breadcrumb");
+const dashboardAreaDrillContent = document.getElementById("dashboard-area-drill-content");
 const pwaCompactShell = document.getElementById("pwa-compact-shell");
 const pwaPages = document.querySelectorAll("[data-pwa-page]");
 const pwaTabs = document.querySelectorAll("[data-pwa-tab]");
@@ -445,8 +449,47 @@ let dashboardSlideshowIndex = 0;
 let dashboardSlideshowTimer = null;
 let dashboardCarbonBrushAlertIndex = 0;
 let dashboardCarbonBrushAlertTimer = null;
+let dashboardAreaDrillState = {
+  areaKey: "",
+  category: "",
+  subcategory: "",
+};
 let idleLogoutTimer = null;
 const MSO_MOTOR_IMPORT_BATCH_SIZE = 240;
+const DASHBOARD_EQUIPMENT_AREAS = [
+  {
+    key: "2",
+    code: "323 / 324",
+    label: "Reclaimer",
+    title: "Area Reclaimer",
+    accentClass: "is-reclaimer",
+    hint: "Equipment dengan digit tengah 2",
+  },
+  {
+    key: "3",
+    code: "333 / 334",
+    label: "Mixbin",
+    title: "Area Mixbin",
+    accentClass: "is-mixbin",
+    hint: "Equipment dengan digit tengah 3",
+  },
+  {
+    key: "4",
+    code: "343 / 344",
+    label: "Rawmill",
+    title: "Area Rawmill",
+    accentClass: "is-rawmill",
+    hint: "Equipment dengan digit tengah 4",
+  },
+  {
+    key: "5",
+    code: "353 / 354",
+    label: "Transport",
+    title: "Area Transport",
+    accentClass: "is-transport",
+    hint: "Equipment dengan digit tengah 5",
+  },
+];
 
 const roleLabels = {
   admin: "Admin",
@@ -8051,7 +8094,258 @@ function renderMobileCards(negatifItems, spbItems) {
   }
 }
 
+function getDashboardEquipmentAreaKey(equipmentName) {
+  const match = String(equipmentName || "").trim().match(/(\d{3})/);
+  const areaDigit = match?.[1]?.[1] || "";
+  return DASHBOARD_EQUIPMENT_AREAS.some((area) => area.key === areaDigit) ? areaDigit : "";
+}
+
+function getDashboardAreaConfig(areaKey) {
+  return DASHBOARD_EQUIPMENT_AREAS.find((area) => area.key === areaKey) || null;
+}
+
+function getDashboardServiceItemTime(item) {
+  return Date.parse(String(item?.payload?.inspectionDate || "")) || 0;
+}
+
+function getDashboardServiceConditionLabel(item) {
+  const payload = item?.payload || {};
+  const rawValue = payload.condition
+    || payload.status
+    || payload.result
+    || payload.inspectionStatus
+    || payload.overallStatus
+    || "";
+  const normalized = String(rawValue || "").trim();
+  if (normalized) {
+    return normalized;
+  }
+  const text = [item?.description || "", item?.detail || ""].join(" ");
+  if (/\bBAD\b|\bWARNING\b|MERAH|CRITICAL/i.test(text)) {
+    return "Attention";
+  }
+  return "-";
+}
+
+function isDashboardAttentionServiceItem(item) {
+  const label = getDashboardServiceConditionLabel(item);
+  return /BAD|WARNING|ATTENTION|CRITICAL|MERAH/i.test(label);
+}
+
+function groupDashboardRows(items, getLabel) {
+  return [...items.reduce((map, item) => {
+    const label = String(getLabel(item) || "Lainnya").trim() || "Lainnya";
+    if (!map.has(label)) {
+      map.set(label, []);
+    }
+    map.get(label).push(item);
+    return map;
+  }, new Map()).entries()]
+    .map(([label, rows]) => ({
+      label,
+      items: rows.sort((left, right) => getDashboardServiceItemTime(right) - getDashboardServiceItemTime(left)),
+      count: rows.length,
+      attentionCount: rows.filter(isDashboardAttentionServiceItem).length,
+      latestTime: Math.max(...rows.map(getDashboardServiceItemTime), 0),
+    }))
+    .sort((left, right) => right.count - left.count || right.latestTime - left.latestTime || left.label.localeCompare(right.label, "id"));
+}
+
+function getDashboardAreaServiceItems(serviceItems, areaKey) {
+  return serviceItems
+    .filter((item) => getDashboardEquipmentAreaKey(item.equipmentName) === areaKey)
+    .sort((left, right) => getDashboardServiceItemTime(right) - getDashboardServiceItemTime(left));
+}
+
+function ensureDashboardAreaDrillState(serviceItems) {
+  const areaRows = DASHBOARD_EQUIPMENT_AREAS.map((area) => ({
+    ...area,
+    items: getDashboardAreaServiceItems(serviceItems, area.key),
+  }));
+  const selectedAreaHasData = areaRows.some((area) => area.key === dashboardAreaDrillState.areaKey && area.items.length);
+  if (!selectedAreaHasData) {
+    const firstAreaWithData = areaRows.find((area) => area.items.length);
+    dashboardAreaDrillState = {
+      areaKey: firstAreaWithData?.key || "",
+      category: "",
+      subcategory: "",
+    };
+  }
+
+  const areaItems = getDashboardAreaServiceItems(serviceItems, dashboardAreaDrillState.areaKey);
+  const categoryRows = groupDashboardRows(areaItems, (item) => item.type || "Lainnya");
+  if (dashboardAreaDrillState.category && !categoryRows.some((row) => row.label === dashboardAreaDrillState.category)) {
+    dashboardAreaDrillState = {
+      ...dashboardAreaDrillState,
+      category: "",
+      subcategory: "",
+    };
+  }
+
+  const categoryItems = dashboardAreaDrillState.category
+    ? areaItems.filter((item) => String(item.type || "Lainnya").trim() === dashboardAreaDrillState.category)
+    : [];
+  const subcategoryRows = groupDashboardRows(categoryItems, getServiceCategoryLabel);
+  if (dashboardAreaDrillState.subcategory && !subcategoryRows.some((row) => row.label === dashboardAreaDrillState.subcategory)) {
+    dashboardAreaDrillState = {
+      ...dashboardAreaDrillState,
+      subcategory: "",
+    };
+  }
+
+  return {
+    areaRows,
+    areaItems,
+    categoryRows,
+    categoryItems,
+    subcategoryRows,
+  };
+}
+
+function renderDashboardAreaBreadcrumb(areaConfig) {
+  if (!dashboardAreaBreadcrumb) {
+    return;
+  }
+  const crumbs = [
+    areaConfig?.label || "Pilih area",
+    dashboardAreaDrillState.category || "",
+    dashboardAreaDrillState.subcategory || "",
+  ].filter(Boolean);
+  dashboardAreaBreadcrumb.innerHTML = `
+    <span>${escapeHtml(crumbs.join(" / ") || "Pilih area inspeksi")}</span>
+    <small>Area dari digit tengah kode equipment: 323, 333, 343, 353</small>
+  `;
+}
+
+function renderDashboardAreaInfographic(serviceItems) {
+  if (!dashboardAreaVisualGrid || !dashboardAreaDrillContent) {
+    return;
+  }
+
+  const {
+    areaRows,
+    areaItems,
+    categoryRows,
+    subcategoryRows,
+  } = ensureDashboardAreaDrillState(serviceItems);
+  const selectedArea = getDashboardAreaConfig(dashboardAreaDrillState.areaKey);
+  renderDashboardAreaBreadcrumb(selectedArea);
+
+  dashboardAreaVisualGrid.innerHTML = areaRows.map((area) => {
+    const latestItem = area.items[0] || null;
+    const categoryCount = groupDashboardRows(area.items, (item) => item.type || "Lainnya").length;
+    const attentionCount = area.items.filter(isDashboardAttentionServiceItem).length;
+    const activeClass = area.key === dashboardAreaDrillState.areaKey ? "is-active" : "";
+    const emptyClass = area.items.length ? "" : "is-empty";
+    return `
+      <button class="dashboard-area-tile ${area.accentClass} ${activeClass} ${emptyClass}" type="button" data-dashboard-area="${escapeHtml(area.key)}">
+        <span class="dashboard-area-code">${escapeHtml(area.code)}</span>
+        <strong>${escapeHtml(area.label)}</strong>
+        <small>${escapeHtml(area.hint)}</small>
+        <span class="dashboard-area-count">${area.items.length}</span>
+        <span class="dashboard-area-meta">${categoryCount} kategori | ${attentionCount} perhatian</span>
+        <span class="dashboard-area-latest">Terbaru: ${escapeHtml(latestItem ? formatInspectionDate(latestItem.payload?.inspectionDate) : "-")}</span>
+      </button>
+    `;
+  }).join("");
+
+  if (!selectedArea) {
+    dashboardAreaDrillContent.innerHTML = `
+      <div class="dashboard-area-empty">
+        <strong>Belum ada area terdeteksi</strong>
+        <span>Data akan muncul jika equipment memiliki kode 323/324, 333/334, 343/344, atau 353/354.</span>
+      </div>
+    `;
+    return;
+  }
+
+  const selectedCategory = dashboardAreaDrillState.category;
+  const selectedSubcategory = dashboardAreaDrillState.subcategory;
+  const subcategoryItems = selectedCategory && selectedSubcategory
+    ? areaItems.filter((item) =>
+      String(item.type || "Lainnya").trim() === selectedCategory
+      && getServiceCategoryLabel(item) === selectedSubcategory)
+    : [];
+  const latestAreaItem = areaItems[0] || null;
+
+  dashboardAreaDrillContent.innerHTML = `
+    <div class="dashboard-area-stage">
+      <div class="dashboard-area-stage-head">
+        <div>
+          <span>${escapeHtml(selectedArea.title)}</span>
+          <strong>${areaItems.length} hasil inspeksi</strong>
+        </div>
+        <small>Contoh kode ${escapeHtml(selectedArea.code)} | update terbaru ${escapeHtml(latestAreaItem ? formatInspectionDate(latestAreaItem.payload?.inspectionDate) : "-")}</small>
+      </div>
+      <div class="dashboard-area-chip-row">
+        ${
+          categoryRows.length
+            ? categoryRows.map((row) => `
+              <button class="dashboard-area-chip ${row.label === selectedCategory ? "is-active" : ""}" type="button" data-dashboard-category="${escapeHtml(row.label)}">
+                <strong>${escapeHtml(row.label)}</strong>
+                <span>${row.count} inspeksi</span>
+                ${row.attentionCount ? `<small>${row.attentionCount} perhatian</small>` : "<small>Aman / monitor</small>"}
+              </button>
+            `).join("")
+            : `<div class="dashboard-area-empty"><strong>Belum ada kategori</strong><span>Area ini belum memiliki hasil inspeksi.</span></div>`
+        }
+      </div>
+    </div>
+
+    <div class="dashboard-area-stage ${selectedCategory ? "is-open" : "is-muted"}">
+      <div class="dashboard-area-stage-head">
+        <div>
+          <span>Subkategori</span>
+          <strong>${escapeHtml(selectedCategory || "Pilih kategori dulu")}</strong>
+        </div>
+        <small>Klik subkategori untuk membuka daftar hasil inspeksi.</small>
+      </div>
+      <div class="dashboard-area-chip-row">
+        ${
+          selectedCategory
+            ? subcategoryRows.map((row) => `
+              <button class="dashboard-area-chip is-sub ${row.label === selectedSubcategory ? "is-active" : ""}" type="button" data-dashboard-subcategory="${escapeHtml(row.label)}">
+                <strong>${escapeHtml(row.label)}</strong>
+                <span>${row.count} data</span>
+                ${row.attentionCount ? `<small>${row.attentionCount} perhatian</small>` : "<small>Monitor</small>"}
+              </button>
+            `).join("")
+            : `<div class="dashboard-area-empty"><strong>Belum ada subkategori dipilih</strong><span>Pilih kategori di atas untuk melihat subkategori.</span></div>`
+        }
+      </div>
+    </div>
+
+    <div class="dashboard-area-stage ${selectedSubcategory ? "is-open" : "is-muted"}">
+      <div class="dashboard-area-stage-head">
+        <div>
+          <span>List hasil inspeksi</span>
+          <strong>${escapeHtml(selectedSubcategory || "Pilih subkategori")}</strong>
+        </div>
+        <small>${selectedSubcategory ? `Menampilkan ${Math.min(subcategoryItems.length, 40)} data terbaru. Klik item untuk detail.` : "List muncul setelah subkategori dipilih."}</small>
+      </div>
+      <div class="dashboard-area-result-list">
+        ${
+          selectedSubcategory
+            ? subcategoryItems.slice(0, 40).map((item) => `
+              <button class="dashboard-area-result-item" type="button" data-dashboard-area-item="${escapeHtml(item.id || "")}">
+                <span>
+                  <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+                  <small>${escapeHtml(item.description || item.detail || "-")}</small>
+                </span>
+                <em>${escapeHtml(formatInspectionDate(item.payload?.inspectionDate))}</em>
+                <b>${escapeHtml(getDashboardServiceConditionLabel(item))}</b>
+              </button>
+            `).join("")
+            : `<div class="dashboard-area-empty"><strong>Belum ada list</strong><span>Pilih subkategori untuk menampilkan hasil inspeksi yang diinginkan.</span></div>`
+        }
+      </div>
+    </div>
+  `;
+}
+
 function renderDashboardPreviews(negatifItems, serviceItems, spbItems) {
+  renderDashboardAreaInfographic(serviceItems);
+
   if (dashboardNegatifPreview) {
     const previewItems = negatifItems
       .filter((item) => String(item.workStatus || "").toLowerCase() === "open")
@@ -11457,6 +11751,59 @@ serviceCardList.addEventListener("keydown", async (event) => {
   const item = await resolveServiceItem(card.dataset.id || "");
   if (item) {
     openServiceDetail(item);
+  }
+});
+
+dashboardAreaInsight?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  if (target.closest("[data-dashboard-area-reset]")) {
+    dashboardAreaDrillState = { areaKey: "", category: "", subcategory: "" };
+    renderDashboardAreaInfographic(getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item)));
+    return;
+  }
+
+  const areaButton = target.closest("[data-dashboard-area]");
+  if (areaButton instanceof HTMLElement) {
+    dashboardAreaDrillState = {
+      areaKey: areaButton.dataset.dashboardArea || "",
+      category: "",
+      subcategory: "",
+    };
+    renderDashboardAreaInfographic(getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item)));
+    return;
+  }
+
+  const categoryButton = target.closest("[data-dashboard-category]");
+  if (categoryButton instanceof HTMLElement) {
+    dashboardAreaDrillState = {
+      ...dashboardAreaDrillState,
+      category: categoryButton.dataset.dashboardCategory || "",
+      subcategory: "",
+    };
+    renderDashboardAreaInfographic(getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item)));
+    return;
+  }
+
+  const subcategoryButton = target.closest("[data-dashboard-subcategory]");
+  if (subcategoryButton instanceof HTMLElement) {
+    dashboardAreaDrillState = {
+      ...dashboardAreaDrillState,
+      subcategory: subcategoryButton.dataset.dashboardSubcategory || "",
+    };
+    renderDashboardAreaInfographic(getServiceItemsFromDom().filter((item) => shouldDisplayServiceItem(item)));
+    return;
+  }
+
+  const resultButton = target.closest("[data-dashboard-area-item]");
+  if (resultButton instanceof HTMLElement) {
+    const item = await resolveServiceItem(resultButton.dataset.dashboardAreaItem || "");
+    if (item) {
+      openServiceDetail(item);
+    }
   }
 });
 
