@@ -2600,7 +2600,7 @@
             <button class="btn btn-primary" data-editable-for="admin" data-create-target="bom" type="button">Create New</button>
             <label class="search-field">
               <span>Cari</span>
-              <input type="search" id="search-bom" placeholder="Cari equipment, part, manufacture, atau metadata">
+              <input type="search" id="search-bom" placeholder="Cari equipment, part, no stock, deskripsi material, manufacture, atau metadata">
             </label>
             <label class="search-field compact">
               <span>Area</span>
@@ -2634,6 +2634,14 @@
                   <label>
                     Part
                     <input type="text" name="part" placeholder="Contoh: PLC CPU" required>
+                  </label>
+                  <label>
+                    No Stock SAP
+                    <input type="text" name="stockNo" placeholder="Contoh: 1000123456">
+                  </label>
+                  <label class="full-span">
+                    Deskripsi Material
+                    <textarea name="materialDescription" rows="3" placeholder="Contoh: PLC CPU MODULE, SIMATIC S7"></textarea>
                   </label>
                   <label>
                     Jumlah
@@ -2703,6 +2711,14 @@
                     <input type="text" name="serialNumber" placeholder="Contoh: F1612280508">
                   </label>
                   <label>
+                    No Stock SAP
+                    <input type="text" name="stockNo" placeholder="Contoh: 1000123456">
+                  </label>
+                  <label class="full-span">
+                    Deskripsi Material
+                    <textarea name="materialDescription" rows="3" placeholder="Contoh: MOTOR, AC INDUCTION; ABB; 75KW; 400V"></textarea>
+                  </label>
+                  <label>
                     Foto nameplate
                     <input type="text" name="nameplatePhoto" placeholder="Contoh: 5513f3b2.Foto Nameplate.033504.jpg">
                   </label>
@@ -2742,6 +2758,8 @@
                   <strong>864MP01</strong>
                   <p>PLC CPU</p>
                   <small>Jumlah: 1</small>
+                  <span>No Stock SAP: -</span>
+                  <span>Deskripsi Material: -</span>
                   <span>Catatan item BOM</span>
                 </div>
                 <div class="card-actions">
@@ -2763,6 +2781,8 @@
                   <strong>323BC8M01</strong>
                   <p>ABB</p>
                   <small>75 kW • 400 V • 1484 rpm</small>
+                  <span>No Stock SAP: -</span>
+                  <span>Deskripsi Material: -</span>
                   <span>Frame: M3BP280 SMA 4 / IMB3 / IM 1001</span>
                 </div>
                 <div class="card-actions">
@@ -3457,12 +3477,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260503-03"></script>
+  <script src="app.js?v=20260503-04"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260503-03").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260503-04").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

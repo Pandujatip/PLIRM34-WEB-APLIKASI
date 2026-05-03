@@ -4091,6 +4091,8 @@ function openBomDetail(item) {
   const infoRows = [
     ["Equipment", item.equipment || "-"],
     ["Part", item.part || "-"],
+    ["No Stock SAP", item.stockNo || "-"],
+    ["Deskripsi Material", item.materialDescription || "-"],
     ["Jumlah", item.qty || "-"],
     ["Keterangan", item.note || "-"],
   ];
@@ -4158,6 +4160,8 @@ function openBomMotorDetail(item) {
     ["Speed", item.speed || "-"],
     ["Frame", item.frame || "-"],
     ["Serial Nr.", item.serialNumber || "-"],
+    ["No Stock SAP", item.stockNo || "-"],
+    ["Deskripsi Material", item.materialDescription || "-"],
     ["Keterangan", item.note || "-"],
   ];
 
@@ -9048,6 +9052,8 @@ function renderSparepartRow(item) {
 function renderBomCard(item) {
   const equipment = escapeHtml(item.equipment || "-");
   const part = escapeHtml(item.part || "-");
+  const stockNo = escapeHtml(item.stockNo || "-");
+  const materialDescription = escapeHtml(item.materialDescription || "-");
   const qty = escapeHtml(item.qty || "-");
   const note = escapeHtml(item.note || "-");
   const area = getBomAreaFromEquipment(item.equipment || "");
@@ -9056,6 +9062,12 @@ function renderBomCard(item) {
   card.className = "bom-card";
   card.dataset.id = item.id;
   card.dataset.equipment = item.equipment || "";
+  card.dataset.part = item.part || "";
+  card.dataset.stockNo = item.stockNo || "";
+  card.dataset.materialDescription = item.materialDescription || "";
+  card.dataset.qty = item.qty || "";
+  card.dataset.note = item.note || "";
+  card.dataset.longText = item.longText || "";
   card.dataset.area = area;
   card.dataset.openable = "true";
   card.tabIndex = 0;
@@ -9069,6 +9081,8 @@ function renderBomCard(item) {
       <strong>${equipment}</strong>
       <p>${part}</p>
       <small data-value="${qty}">Jumlah: ${qty}</small>
+      <span>No Stock SAP: ${stockNo}</span>
+      <span>Deskripsi Material: ${materialDescription}</span>
       <span>Area: ${escapeHtml(area)}</span>
       <span>${note}</span>
       ${longText}
@@ -9084,6 +9098,8 @@ function renderBomCard(item) {
 function renderBomMotorCard(item) {
   const equipment = escapeHtml(item.equipment || "-");
   const manufacture = escapeHtml(item.manufacture || "-");
+  const stockNo = escapeHtml(item.stockNo || "-");
+  const materialDescription = escapeHtml(item.materialDescription || "-");
   const area = getBomAreaFromEquipment(item.equipment || "");
   const specs = [
     item.power ? `${escapeHtml(item.power)} kW` : null,
@@ -9106,6 +9122,8 @@ function renderBomMotorCard(item) {
   card.dataset.speed = item.speed || "";
   card.dataset.frame = item.frame || "";
   card.dataset.serialNumber = item.serialNumber || "";
+  card.dataset.stockNo = item.stockNo || "";
+  card.dataset.materialDescription = item.materialDescription || "";
   card.dataset.note = item.note || "";
   card.dataset.longText = item.longText || "";
   card.dataset.openable = "true";
@@ -9120,6 +9138,8 @@ function renderBomMotorCard(item) {
       <strong>${equipment}</strong>
       <p>${manufacture}</p>
       <small>${specs}</small>
+      <span>No Stock SAP: ${stockNo}</span>
+      <span>Deskripsi Material: ${materialDescription}</span>
       <span>Area: ${escapeHtml(area)}</span>
       <span>Frame: ${frame}</span>
       <span>Serial: ${serialNumber}</span>
@@ -9244,11 +9264,13 @@ function getSparepartItemsFromDom() {
 function getBomItemsFromDom() {
   return [...bomList.querySelectorAll(".bom-card")].map((card) => ({
     id: card.dataset.id,
-    equipment: card.querySelector(".bom-copy strong")?.textContent || "-",
-    part: card.querySelector(".bom-copy p")?.textContent || "-",
-    qty: card.querySelector(".bom-copy small")?.dataset.value || "-",
-    note: card.querySelector(".bom-copy span")?.textContent || "-",
-    longText: card.querySelector(".bom-long-text")?.textContent || "",
+    equipment: card.dataset.equipment || card.querySelector(".bom-copy strong")?.textContent || "-",
+    part: card.dataset.part || card.querySelector(".bom-copy p")?.textContent || "-",
+    stockNo: card.dataset.stockNo || "",
+    materialDescription: card.dataset.materialDescription || "",
+    qty: card.dataset.qty || card.querySelector(".bom-copy small")?.dataset.value || "-",
+    note: card.dataset.note || "-",
+    longText: card.dataset.longText || card.querySelector(".bom-long-text")?.textContent || "",
     itemPhoto: card.querySelector('[data-bom-photo="item"]')?.dataset.filename || "",
     nameplatePhoto: card.querySelector('[data-bom-photo="nameplate"]')?.dataset.filename || "",
     extraPhoto: card.querySelector('[data-bom-photo="extra"]')?.dataset.filename || "",
@@ -9267,6 +9289,8 @@ function getBomMotorItemsFromDom() {
     speed: card.dataset.speed || "",
     frame: card.dataset.frame || "",
     serialNumber: card.dataset.serialNumber || "",
+    stockNo: card.dataset.stockNo || "",
+    materialDescription: card.dataset.materialDescription || "",
     note: card.dataset.note || "",
     longText: card.dataset.longText || "",
     nameplatePhoto: card.querySelector('[data-bom-motor-photo="nameplate"]')?.dataset.filename || "",
@@ -9758,6 +9782,8 @@ function hydrateBomForm(item) {
   const form = document.querySelector('[data-form-type="bom"]');
   form.equipment.value = item.equipment || "";
   form.part.value = item.part || "";
+  form.stockNo.value = item.stockNo || "";
+  form.materialDescription.value = item.materialDescription || "";
   form.qty.value = item.qty || "";
   form.itemPhoto.value = item.itemPhoto || "";
   form.nameplatePhoto.value = item.nameplatePhoto || "";
@@ -9779,6 +9805,8 @@ function hydrateBomMotorForm(item) {
   form.speed.value = item.speed || "";
   form.frame.value = item.frame || "";
   form.serialNumber.value = item.serialNumber || "";
+  form.stockNo.value = item.stockNo || "";
+  form.materialDescription.value = item.materialDescription || "";
   form.nameplatePhoto.value = item.nameplatePhoto || "";
   form.connectionPhoto.value = item.connectionPhoto || "";
   form.motorPhoto.value = item.motorPhoto || "";
@@ -11512,6 +11540,8 @@ forms.forEach((form) => {
         id: editingBomId || createId("bom"),
         equipment: String(formData.get("equipment") || "-").trim() || "-",
         part: String(formData.get("part") || "-").trim() || "-",
+        stockNo: String(formData.get("stockNo") || "").trim(),
+        materialDescription: String(formData.get("materialDescription") || "").trim(),
         qty: String(formData.get("qty") || "-").trim() || "-",
         itemPhoto: String(formData.get("itemPhoto") || "").trim(),
         nameplatePhoto: String(formData.get("nameplatePhoto") || "").trim(),
@@ -11548,6 +11578,8 @@ forms.forEach((form) => {
         speed: String(formData.get("speed") || "").trim(),
         frame: String(formData.get("frame") || "").trim(),
         serialNumber: String(formData.get("serialNumber") || "").trim(),
+        stockNo: String(formData.get("stockNo") || "").trim(),
+        materialDescription: String(formData.get("materialDescription") || "").trim(),
         nameplatePhoto: String(formData.get("nameplatePhoto") || "").trim(),
         connectionPhoto: String(formData.get("connectionPhoto") || "").trim(),
         motorPhoto: String(formData.get("motorPhoto") || "").trim(),
@@ -13032,11 +13064,13 @@ bomList.addEventListener("click", async (event) => {
   if (target.dataset.action === "edit-bom") {
     hydrateBomForm({
       id: card.dataset.id,
-      equipment: card.querySelector(".bom-copy strong")?.textContent || "",
-      part: card.querySelector(".bom-copy p")?.textContent || "",
-      qty: card.querySelector(".bom-copy small")?.dataset.value || "",
-      note: card.querySelector(".bom-copy span")?.textContent || "",
-      longText: card.querySelector(".bom-long-text")?.textContent || "",
+      equipment: card.dataset.equipment || card.querySelector(".bom-copy strong")?.textContent || "",
+      part: card.dataset.part || card.querySelector(".bom-copy p")?.textContent || "",
+      stockNo: card.dataset.stockNo || "",
+      materialDescription: card.dataset.materialDescription || "",
+      qty: card.dataset.qty || card.querySelector(".bom-copy small")?.dataset.value || "",
+      note: card.dataset.note || "",
+      longText: card.dataset.longText || card.querySelector(".bom-long-text")?.textContent || "",
       itemPhoto: card.querySelector('[data-bom-photo="item"]')?.dataset.filename || "",
       nameplatePhoto: card.querySelector('[data-bom-photo="nameplate"]')?.dataset.filename || "",
       extraPhoto: card.querySelector('[data-bom-photo="extra"]')?.dataset.filename || "",
@@ -13104,6 +13138,8 @@ bomMotorList?.addEventListener("click", async (event) => {
       speed: card.dataset.speed || "",
       frame: card.dataset.frame || "",
       serialNumber: card.dataset.serialNumber || "",
+      stockNo: card.dataset.stockNo || "",
+      materialDescription: card.dataset.materialDescription || "",
       note: card.dataset.note || "",
       longText: card.dataset.longText || "",
       nameplatePhoto: card.querySelector('[data-bom-motor-photo="nameplate"]')?.dataset.filename || "",
@@ -13240,16 +13276,16 @@ exportButtons.forEach((button) => {
         const items = getBomMotorItemsFromDom();
         downloadExcel(
           "bom-motor.xls",
-          ["Tanggal", "Equipment", "Manufacture", "Power", "Ampere", "Voltage", "Speed", "Frame", "Serial Nr.", "Keterangan", "Long Text", "Foto Nameplate", "Foto Koneksi", "Foto Motor"],
-          items.map((item) => [item.inspectionDate, item.equipment, item.manufacture, item.power, item.ampere, item.voltage, item.speed, item.frame, item.serialNumber, item.note, item.longText, item.nameplatePhoto, item.connectionPhoto, item.motorPhoto]),
+          ["Tanggal", "Equipment", "Manufacture", "Power", "Ampere", "Voltage", "Speed", "Frame", "Serial Nr.", "No Stock SAP", "Deskripsi Material", "Keterangan", "Long Text", "Foto Nameplate", "Foto Koneksi", "Foto Motor"],
+          items.map((item) => [item.inspectionDate, item.equipment, item.manufacture, item.power, item.ampere, item.voltage, item.speed, item.frame, item.serialNumber, item.stockNo, item.materialDescription, item.note, item.longText, item.nameplatePhoto, item.connectionPhoto, item.motorPhoto]),
         );
         showToast("Export", "BOM Motor berhasil diexport ke Excel.");
       } else {
         const items = getBomItemsFromDom();
         downloadExcel(
           "bom.xls",
-          ["Equipment", "Part", "Jumlah", "Keterangan", "Long Text", "Foto Barang", "Foto Nameplate", "Foto Lain"],
-          items.map((item) => [item.equipment, item.part, item.qty, item.note, item.longText, item.itemPhoto, item.nameplatePhoto, item.extraPhoto]),
+          ["Equipment", "Part", "No Stock SAP", "Deskripsi Material", "Jumlah", "Keterangan", "Long Text", "Foto Barang", "Foto Nameplate", "Foto Lain"],
+          items.map((item) => [item.equipment, item.part, item.stockNo, item.materialDescription, item.qty, item.note, item.longText, item.itemPhoto, item.nameplatePhoto, item.extraPhoto]),
         );
         showToast("Export", "BOM berhasil diexport ke Excel.");
       }

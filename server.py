@@ -122,6 +122,8 @@ RESOURCE_TABLES = {
             "id",
             "name",
             "description",
+            "stock_no",
+            "material_description",
             "meta",
             "item_photo",
             "nameplate_photo",
@@ -133,6 +135,8 @@ RESOURCE_TABLES = {
             "id",
             "equipment",
             "part",
+            "stockNo",
+            "materialDescription",
             "note",
             "itemPhoto",
             "nameplatePhoto",
@@ -154,6 +158,8 @@ RESOURCE_TABLES = {
             "speed",
             "frame",
             "serial_number",
+            "stock_no",
+            "material_description",
             "nameplate_photo",
             "connection_photo",
             "motor_photo",
@@ -171,6 +177,8 @@ RESOURCE_TABLES = {
             "speed",
             "frame",
             "serialNumber",
+            "stockNo",
+            "materialDescription",
             "nameplatePhoto",
             "connectionPhoto",
             "motorPhoto",
@@ -259,6 +267,8 @@ IMPORT_FIELD_ALIASES = {
         "id": ["id"],
         "equipment": ["equipment", "name", "nama"],
         "part": ["part", "description", "deskripsi"],
+        "stockNo": ["stockNo", "noStock", "no stock", "no stock sap", "NO STOCK", "materialNo", "noMaterial", "no material"],
+        "materialDescription": ["materialDescription", "deskripsiMaterial", "deskripsi material", "description material"],
         "qty": ["qty", "jumlah"],
         "note": ["note", "meta", "keterangan"],
         "longText": ["longText", "long text"],
@@ -277,6 +287,8 @@ IMPORT_FIELD_ALIASES = {
         "speed": ["speed", "rpm", "kecepatan"],
         "frame": ["frame"],
         "serialNumber": ["serialNumber", "serial nr.", "serial nr", "serial number"],
+        "stockNo": ["stockNo", "noStock", "no stock", "no stock sap", "NO STOCK", "materialNo", "noMaterial", "no material"],
+        "materialDescription": ["materialDescription", "deskripsiMaterial", "deskripsi material", "description material"],
         "nameplatePhoto": ["nameplatePhoto", "foto nameplate"],
         "connectionPhoto": ["connectionPhoto", "foto koneksi"],
         "motorPhoto": ["motorPhoto", "foto motor"],
@@ -969,6 +981,8 @@ def init_db() -> None:
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT NOT NULL,
+                stock_no TEXT NOT NULL DEFAULT '',
+                material_description TEXT NOT NULL DEFAULT '',
                 meta TEXT NOT NULL,
                 item_photo TEXT NOT NULL,
                 nameplate_photo TEXT NOT NULL,
@@ -991,6 +1005,8 @@ def init_db() -> None:
                 speed TEXT NOT NULL,
                 frame TEXT NOT NULL,
                 serial_number TEXT NOT NULL,
+                stock_no TEXT NOT NULL DEFAULT '',
+                material_description TEXT NOT NULL DEFAULT '',
                 nameplate_photo TEXT NOT NULL,
                 connection_photo TEXT NOT NULL,
                 motor_photo TEXT NOT NULL,
@@ -2084,6 +2100,8 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("id", "")),
             str(item.get("equipment", item.get("name", ""))),
             str(item.get("part", item.get("description", ""))),
+            str(item.get("stockNo", item.get("materialNo", ""))),
+            str(item.get("materialDescription", "")),
             str(item.get("note", item.get("meta", ""))),
             str(item.get("itemPhoto", "")),
             str(item.get("nameplatePhoto", "")),
@@ -2104,6 +2122,8 @@ def serialize_resource_item(resource_key: str, item: dict) -> tuple:
             str(item.get("speed", "")),
             str(item.get("frame", "")),
             str(item.get("serialNumber", "")),
+            str(item.get("stockNo", item.get("materialNo", ""))),
+            str(item.get("materialDescription", "")),
             str(item.get("nameplatePhoto", "")),
             str(item.get("connectionPhoto", "")),
             str(item.get("motorPhoto", "")),
@@ -2192,6 +2212,8 @@ def deserialize_resource_item(resource_key: str, row: sqlite3.Row, *, include_me
             "id": row["id"],
             "equipment": row["name"],
             "part": row["description"],
+            "stockNo": row["stock_no"] if "stock_no" in row.keys() else "",
+            "materialDescription": row["material_description"] if "material_description" in row.keys() else "",
             "note": row["meta"],
             "itemPhoto": row["item_photo"],
             "nameplatePhoto": row["nameplate_photo"],
@@ -2212,6 +2234,8 @@ def deserialize_resource_item(resource_key: str, row: sqlite3.Row, *, include_me
             "speed": row["speed"],
             "frame": row["frame"],
             "serialNumber": row["serial_number"],
+            "stockNo": row["stock_no"] if "stock_no" in row.keys() else "",
+            "materialDescription": row["material_description"] if "material_description" in row.keys() else "",
             "nameplatePhoto": row["nameplate_photo"],
             "connectionPhoto": row["connection_photo"],
             "motorPhoto": row["motor_photo"],
@@ -2318,6 +2342,19 @@ def ensure_bom_columns(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE bom_items ADD COLUMN long_text TEXT NOT NULL DEFAULT ''")
     if "qty" not in columns:
         connection.execute("ALTER TABLE bom_items ADD COLUMN qty TEXT NOT NULL DEFAULT ''")
+    if "stock_no" not in columns:
+        connection.execute("ALTER TABLE bom_items ADD COLUMN stock_no TEXT NOT NULL DEFAULT ''")
+    if "material_description" not in columns:
+        connection.execute("ALTER TABLE bom_items ADD COLUMN material_description TEXT NOT NULL DEFAULT ''")
+
+    motor_columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(bom_motor_items)").fetchall()
+    }
+    if "stock_no" not in motor_columns:
+        connection.execute("ALTER TABLE bom_motor_items ADD COLUMN stock_no TEXT NOT NULL DEFAULT ''")
+    if "material_description" not in motor_columns:
+        connection.execute("ALTER TABLE bom_motor_items ADD COLUMN material_description TEXT NOT NULL DEFAULT ''")
 
 
 def ensure_spb_columns(connection: sqlite3.Connection) -> None:
@@ -3283,9 +3320,13 @@ def export_resource_excel(resource_key: str) -> str:
         rows = [[item["type"], item["subtype"], item["formType"], item["equipmentName"], item["description"], item["detail"]] for item in items]
         return build_excel_table("Service", headers, rows)
     if resource_key == "bom":
-        headers = ["Nama", "Deskripsi", "Meta", "Foto Barang", "Foto Nameplate"]
-        rows = [[item["name"], item["description"], item["meta"], item["itemPhoto"], item["nameplatePhoto"]] for item in items]
+        headers = ["Equipment", "Part", "No Stock SAP", "Deskripsi Material", "Jumlah", "Keterangan", "Long Text", "Foto Barang", "Foto Nameplate", "Foto Lain"]
+        rows = [[item["equipment"], item["part"], item.get("stockNo", ""), item.get("materialDescription", ""), item.get("qty", ""), item["note"], item.get("longText", ""), item["itemPhoto"], item["nameplatePhoto"], item.get("extraPhoto", "")] for item in items]
         return build_excel_table("BOM", headers, rows)
+    if resource_key == "bom-motor":
+        headers = ["Tanggal", "Equipment", "Manufacture", "Power", "Ampere", "Voltage", "Speed", "Frame", "Serial Nr.", "No Stock SAP", "Deskripsi Material", "Keterangan", "Long Text", "Foto Nameplate", "Foto Koneksi", "Foto Motor"]
+        rows = [[item["inspectionDate"], item["equipment"], item["manufacture"], item["power"], item["ampere"], item["voltage"], item["speed"], item["frame"], item["serialNumber"], item.get("stockNo", ""), item.get("materialDescription", ""), item["note"], item.get("longText", ""), item["nameplatePhoto"], item["connectionPhoto"], item["motorPhoto"]] for item in items]
+        return build_excel_table("BOM Motor", headers, rows)
     if resource_key == "spb":
         headers = ["ID", "TAHUN", "QUARTER", "TYPE", "NOTIF", "ORDER", "RESERVASI", "NO STOCK", "DESKRIPSI MATERIAL", "QTY", "MRP", "TOTAL ECE", "KETERANGAN", "PR", "PO", "DELIV DATE"]
         rows = [[item["id"], item["year"], item["quarter"], item["spbType"], item["notificationNo"], item["orderNo"], item["reservationNo"], item["stockNo"], item["materialDescription"], item["qty"], item["mrp"], item["totalEce"], item["note"], item["prNo"], item["poNo"], item["deliveryDate"]] for item in items]
