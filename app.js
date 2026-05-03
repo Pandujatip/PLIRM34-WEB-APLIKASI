@@ -168,6 +168,10 @@ const pwaBomList = document.getElementById("pwa-bom-list");
 const pwaBomSearch = document.getElementById("pwa-bom-search");
 const pwaBomType = document.getElementById("pwa-bom-type");
 const pwaBomNote = document.getElementById("pwa-bom-note");
+const pwaBomDetailPanel = document.getElementById("pwa-bom-detail-panel");
+const pwaBomDetailType = document.getElementById("pwa-bom-detail-type");
+const pwaBomDetailTitle = document.getElementById("pwa-bom-detail-title");
+const pwaBomDetailBody = document.getElementById("pwa-bom-detail-body");
 const pwaBomFormPanel = document.getElementById("pwa-bom-form-panel");
 const pwaBomForm = document.getElementById("pwa-bom-form");
 const pwaBomFormMode = document.getElementById("pwa-bom-form-mode");
@@ -177,6 +181,7 @@ const pwaBomPart = document.getElementById("pwa-bom-part");
 const pwaBomManufacture = document.getElementById("pwa-bom-manufacture");
 const pwaBomQty = document.getElementById("pwa-bom-qty");
 const pwaBomStockNo = document.getElementById("pwa-bom-stock-no");
+const pwaBomStockResults = document.getElementById("pwa-bom-stock-results");
 const pwaBomMaterialDescription = document.getElementById("pwa-bom-material-description");
 const pwaBomLongText = document.getElementById("pwa-bom-long-text");
 const pwaBomItemPhoto = document.getElementById("pwa-bom-item-photo");
@@ -8084,6 +8089,93 @@ function renderPwaBomCatalog() {
     || renderPwaEmpty("Belum ada item BOM yang cocok.");
 }
 
+function renderPwaBomStockSearchResults(query) {
+  if (!pwaBomStockResults) {
+    return;
+  }
+  const results = searchMasterSparepartReferences(query);
+  if (!results.length) {
+    pwaBomStockResults.classList.remove("visible");
+    pwaBomStockResults.innerHTML = "";
+    return;
+  }
+  pwaBomStockResults.innerHTML = results.map((item) => `
+    <button type="button" class="bom-stock-search-option" data-pwa-bom-stock-option="${escapeHtml(item.stockNo || "")}">
+      <strong>${escapeHtml(item.stockNo || "-")}</strong>
+      <span>${escapeHtml(item.materialDescription || "-")}</span>
+      ${item.longText ? `<small>${escapeHtml(item.longText)}</small>` : ""}
+    </button>
+  `).join("");
+  pwaBomStockResults.classList.add("visible");
+}
+
+function closePwaBomStockSearch() {
+  if (pwaBomStockResults) {
+    pwaBomStockResults.classList.remove("visible");
+    pwaBomStockResults.innerHTML = "";
+  }
+}
+
+function applySparepartReferenceToPwaBomForm(reference) {
+  if (!reference) {
+    return;
+  }
+  if (pwaBomStockNo) pwaBomStockNo.value = reference.stockNo || "";
+  if (pwaBomMaterialDescription) pwaBomMaterialDescription.value = reference.materialDescription || "";
+  if (pwaBomLongText) pwaBomLongText.value = reference.longText || reference.materialDescription || "";
+  closePwaBomStockSearch();
+}
+
+function getPwaBomItemById(itemId, type = "general") {
+  return type === "motor"
+    ? getBomMotorItemsFromDom().find((entry) => entry.id === itemId)
+    : getBomItemsFromDom().find((entry) => entry.id === itemId);
+}
+
+function openPwaBomDetail(item, type = "general") {
+  if (!item || !pwaBomDetailPanel || !pwaBomDetailBody) {
+    return;
+  }
+  const catalogItem = {
+    ...item,
+    catalogType: type,
+    title: type === "motor"
+      ? (item.materialDescription || item.manufacture || item.stockNo || "BOM Motor")
+      : (item.part || item.materialDescription || item.stockNo || "BOM General"),
+    unit: item.equipment || "-",
+    quantity: type === "motor" ? (item.power || "1") : (item.qty || "-"),
+    photoName: type === "motor" ? (item.motorPhoto || "") : (item.itemPhoto || ""),
+    photoUrl: type === "motor" ? buildBomMotorPhotoPath(item.motorPhoto || "") : buildBomPhotoPath(item.itemPhoto || ""),
+  };
+  if (pwaBomDetailType) {
+    pwaBomDetailType.textContent = type === "motor" ? "Detail BOM Motor" : "Detail BOM General";
+  }
+  if (pwaBomDetailTitle) {
+    pwaBomDetailTitle.textContent = catalogItem.title || "-";
+  }
+  const photoHtml = catalogItem.photoName
+    ? `<img src="${escapeHtml(catalogItem.photoUrl)}" alt="Foto ${escapeHtml(catalogItem.title)}" loading="lazy">`
+    : `<span>${escapeHtml(String(catalogItem.title || "BM").slice(0, 2))}</span>`;
+  pwaBomDetailBody.innerHTML = `
+    <div class="pwa-bom-detail-hero">${photoHtml}</div>
+    <div class="pwa-bom-detail-grid">
+      <span>Equipment</span><strong>${escapeHtml(catalogItem.unit || "-")}</strong>
+      <span>Jumlah / Power</span><strong>${escapeHtml(catalogItem.quantity || "-")}</strong>
+      <span>No Stock SAP</span><strong>${escapeHtml(item.stockNo || "-")}</strong>
+      <span>Deskripsi</span><strong>${escapeHtml(item.materialDescription || "-")}</strong>
+      <span>Keterangan</span><strong>${escapeHtml(item.note || "-")}</strong>
+    </div>
+    ${item.longText ? `<p class="pwa-bom-detail-long">${escapeHtml(item.longText)}</p>` : ""}
+  `;
+  pwaBomDetailPanel.classList.remove("hidden");
+  pwaBomFormPanel?.classList.add("hidden");
+  window.setTimeout(() => pwaBomDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" }), 20);
+}
+
+function closePwaBomDetail() {
+  pwaBomDetailPanel?.classList.add("hidden");
+}
+
 function updatePwaBomFormTypeFields() {
   const type = pwaBomFormType?.value || "general";
   document.querySelectorAll("[data-pwa-bom-general-field]").forEach((element) => {
@@ -12474,6 +12566,20 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const bomRow = target.closest(".pwa-bom-row");
+  if (bomRow instanceof HTMLElement && !target.closest(".pwa-bom-actions")) {
+    const itemId = bomRow.dataset.pwaBomId || "";
+    const itemType = bomRow.dataset.pwaBomType || "general";
+    const item = getPwaBomItemById(itemId, itemType);
+    openPwaBomDetail(item, itemType);
+    return;
+  }
+
+  if (target.closest("[data-pwa-bom-close-detail]")) {
+    closePwaBomDetail();
+    return;
+  }
+
   if (target.closest("[data-pwa-bom-close-form]")) {
     closePwaBomForm();
     return;
@@ -12840,17 +12946,39 @@ pwaOpacityEquipment?.addEventListener("focus", () => {
 
 pwaBomFormType?.addEventListener("change", updatePwaBomFormTypeFields);
 
-pwaBomStockNo?.addEventListener("change", () => {
+pwaBomStockNo?.addEventListener("input", () => {
   const reference = getSparepartReferenceByStockNo(pwaBomStockNo.value);
-  if (!reference) {
+  if (reference) {
+    applySparepartReferenceToPwaBomForm(reference);
     return;
   }
-  if (pwaBomMaterialDescription) {
-    pwaBomMaterialDescription.value = reference.materialDescription || "";
+  renderPwaBomStockSearchResults(pwaBomStockNo.value);
+});
+
+pwaBomStockNo?.addEventListener("change", () => {
+  applySparepartReferenceToPwaBomForm(getSparepartReferenceByStockNo(pwaBomStockNo.value));
+});
+
+pwaBomStockNo?.addEventListener("blur", () => {
+  window.setTimeout(closePwaBomStockSearch, 260);
+});
+
+pwaBomStockResults?.addEventListener("pointerdown", (event) => {
+  const option = event.target instanceof HTMLElement ? event.target.closest("[data-pwa-bom-stock-option]") : null;
+  if (!option) {
+    return;
   }
-  if (pwaBomLongText) {
-    pwaBomLongText.value = reference.longText || reference.materialDescription || "";
+  event.preventDefault();
+  applySparepartReferenceToPwaBomForm(getSparepartReferenceByStockNo(option.dataset.pwaBomStockOption || ""));
+});
+
+pwaBomStockResults?.addEventListener("mousedown", (event) => {
+  const option = event.target instanceof HTMLElement ? event.target.closest("[data-pwa-bom-stock-option]") : null;
+  if (!option) {
+    return;
   }
+  event.preventDefault();
+  applySparepartReferenceToPwaBomForm(getSparepartReferenceByStockNo(option.dataset.pwaBomStockOption || ""));
 });
 
 pwaBomForm?.addEventListener("submit", async (event) => {

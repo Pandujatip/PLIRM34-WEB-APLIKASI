@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260503-06">
+  <link rel="stylesheet" href="styles.css?v=20260503-07">
 </head>
 <body>
   <div class="app-shell">
@@ -925,6 +925,16 @@
                   </label>
                 </div>
                 <p class="pwa-form-note" id="pwa-bom-note">Menampilkan BOM dalam format catalog mobile.</p>
+                <section class="pwa-bom-detail-panel hidden" id="pwa-bom-detail-panel">
+                  <div class="pwa-block-head">
+                    <div>
+                      <span id="pwa-bom-detail-type">Detail BOM</span>
+                      <h3 id="pwa-bom-detail-title">-</h3>
+                    </div>
+                    <button class="pwa-text-button" type="button" data-pwa-bom-close-detail>Tutup</button>
+                  </div>
+                  <div class="pwa-bom-detail-body" id="pwa-bom-detail-body"></div>
+                </section>
                 <section class="pwa-bom-form-panel hidden" id="pwa-bom-form-panel">
                   <div class="pwa-block-head">
                     <div>
@@ -961,6 +971,7 @@
                       <label class="pwa-form-field">
                         <span>No Stock SAP</span>
                         <input id="pwa-bom-stock-no" name="stockNo" type="text" placeholder="Cari No Stock / NM-00001">
+                        <div class="bom-stock-search-results pwa-bom-stock-results" id="pwa-bom-stock-results"></div>
                       </label>
                     </div>
                     <label class="pwa-form-field">
@@ -3646,12 +3657,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260503-11"></script>
+  <script src="app.js?v=20260503-12"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260503-11").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260503-12").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
