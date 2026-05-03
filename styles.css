@@ -5566,9 +5566,9 @@ th.sort-desc::after {
 }
 
 .image-placeholder {
-  min-height: 210px;
+  min-height: 165px;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   border-radius: 18px;
   border: 1px solid rgba(255, 122, 24, 0.24);
   background:
@@ -5592,7 +5592,7 @@ th.sort-desc::after {
 
 .image-placeholder img {
   width: 100%;
-  height: 126px;
+  height: 122px;
   object-fit: cover;
   display: block;
   background: rgba(0, 0, 0, 0.18);
@@ -5605,14 +5605,6 @@ th.sort-desc::after {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(255, 224, 199, 0.88);
-}
-
-.bom-image-name {
-  padding: 9px 12px 12px;
-  color: var(--muted);
-  font-size: 0.76rem;
-  line-height: 1.4;
-  word-break: break-word;
 }
 
 .bom-image-empty {

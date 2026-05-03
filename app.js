@@ -2738,7 +2738,6 @@ function renderBomImageTile(label, filename, tone) {
           ? `<img src="${imageUrl}" alt="${escapeHtml(label)} ${escapeHtml(normalized)}" loading="lazy" onerror="this.closest('.image-placeholder')?.classList.add('is-missing'); this.remove();">`
           : `<div class="bom-image-empty">Belum ada foto</div>`
       }
-      <div class="bom-image-name">${escapeHtml(normalized || "-")}</div>
     </div>
   `;
 }
@@ -2755,7 +2754,6 @@ function renderBomMotorImageTile(label, filename, tone) {
           ? `<img src="${imageUrl}" alt="${escapeHtml(label)} ${escapeHtml(normalized)}" loading="lazy" onerror="this.closest('.image-placeholder')?.classList.add('is-missing'); this.remove();">`
           : `<div class="bom-image-empty">Belum ada foto</div>`
       }
-      <div class="bom-image-name">${escapeHtml(normalized || "-")}</div>
     </div>
   `;
 }
