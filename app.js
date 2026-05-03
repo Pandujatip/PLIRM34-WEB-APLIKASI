@@ -463,7 +463,6 @@ const DASHBOARD_EQUIPMENT_AREAS = [
     label: "Reclaimer",
     title: "Area Reclaimer",
     accentClass: "is-reclaimer",
-    hint: "Equipment dengan digit tengah 2",
   },
   {
     key: "3",
@@ -471,7 +470,6 @@ const DASHBOARD_EQUIPMENT_AREAS = [
     label: "Mixbin",
     title: "Area Mixbin",
     accentClass: "is-mixbin",
-    hint: "Equipment dengan digit tengah 3",
   },
   {
     key: "4",
@@ -479,7 +477,6 @@ const DASHBOARD_EQUIPMENT_AREAS = [
     label: "Rawmill",
     title: "Area Rawmill",
     accentClass: "is-rawmill",
-    hint: "Equipment dengan digit tengah 4",
   },
   {
     key: "5",
@@ -487,7 +484,6 @@ const DASHBOARD_EQUIPMENT_AREAS = [
     label: "Transport",
     title: "Area Transport",
     accentClass: "is-transport",
-    hint: "Equipment dengan digit tengah 5",
   },
 ];
 
@@ -8213,7 +8209,7 @@ function renderDashboardAreaBreadcrumb(areaConfig) {
   ].filter(Boolean);
   dashboardAreaBreadcrumb.innerHTML = `
     <span>${escapeHtml(crumbs.join(" / ") || "Pilih area inspeksi")}</span>
-    <small>Area dari digit tengah kode equipment: 323, 333, 343, 353</small>
+    <small>Klik area, kategori, lalu subkategori untuk membuka list inspeksi.</small>
   `;
 }
 
@@ -8241,7 +8237,6 @@ function renderDashboardAreaInfographic(serviceItems) {
       <button class="dashboard-area-tile ${area.accentClass} ${activeClass} ${emptyClass}" type="button" data-dashboard-area="${escapeHtml(area.key)}">
         <span class="dashboard-area-code">${escapeHtml(area.code)}</span>
         <strong>${escapeHtml(area.label)}</strong>
-        <small>${escapeHtml(area.hint)}</small>
         <span class="dashboard-area-count">${area.items.length}</span>
         <span class="dashboard-area-meta">${categoryCount} kategori | ${attentionCount} perhatian</span>
         <span class="dashboard-area-latest">Terbaru: ${escapeHtml(latestItem ? formatInspectionDate(latestItem.payload?.inspectionDate) : "-")}</span>
