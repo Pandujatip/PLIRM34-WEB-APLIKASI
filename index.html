@@ -2637,7 +2637,7 @@
                   </label>
                   <label>
                     No Stock SAP
-                    <input type="text" name="stockNo" placeholder="Contoh: 1000123456">
+                    <input type="text" name="stockNo" list="master-sparepart-stock-list" placeholder="Contoh: SI00037639 atau NM-00001">
                   </label>
                   <label class="full-span">
                     Deskripsi Material
@@ -2712,7 +2712,7 @@
                   </label>
                   <label>
                     No Stock SAP
-                    <input type="text" name="stockNo" placeholder="Contoh: 1000123456">
+                    <input type="text" name="stockNo" list="master-sparepart-stock-list" placeholder="Contoh: SI00037639 atau NM-00001">
                   </label>
                   <label class="full-span">
                     Deskripsi Material
@@ -3541,19 +3541,20 @@
   </div>
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+  <datalist id="master-sparepart-stock-list"></datalist>
 
   <script src="app.auth.js?v=20260426-15"></script>
   <script src="app.carbon-brush.js?v=20260502-05"></script>
   <script src="app.service.js?v=20260502-02"></script>
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
-  <script src="app.admin.js?v=20260503-01"></script>
-  <script src="app.js?v=20260503-05"></script>
+  <script src="app.admin.js?v=20260503-02"></script>
+  <script src="app.js?v=20260503-06"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260503-05").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260503-06").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

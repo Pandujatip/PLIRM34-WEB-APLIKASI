@@ -20,6 +20,7 @@ async function refreshAdminMasters() {
     renderAdminEquipmentSourceFilter(equipmentReferences);
     applyAdminEquipmentFilter();
     applyAdminSparepartMasterFilter();
+    renderMasterSparepartStockOptions();
     renderAdminTemplatesTable(templates);
     hydrateCarbonBrushThresholdForm();
     hydrateElectricalRoomThresholdForm();

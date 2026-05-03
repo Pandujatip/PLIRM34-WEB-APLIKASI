@@ -112,6 +112,7 @@ const adminSparepartMasterImportButton = document.getElementById("admin-sparepar
 const searchAdminSparepartMaster = document.getElementById("search-admin-sparepart-master");
 const resetAdminSparepartMasterFilterButton = document.getElementById("reset-admin-sparepart-master-filter");
 const adminSparepartMasterFilterSummary = document.getElementById("admin-sparepart-master-filter-summary");
+const masterSparepartStockList = document.getElementById("master-sparepart-stock-list");
 const adminTemplateForm = document.getElementById("admin-template-form");
 const adminAreasBody = document.getElementById("admin-areas-body");
 const adminElectricalRoomBody = document.getElementById("admin-electrical-room-body");
@@ -7180,6 +7181,67 @@ function applyAdminSparepartMasterFilter() {
   }
 }
 
+function getSparepartReferenceByStockNo(stockNo) {
+  const normalizedStockNo = String(stockNo || "").trim().toUpperCase();
+  if (!normalizedStockNo) {
+    return null;
+  }
+  const references = Array.isArray(backendState.masters.sparepartReferences)
+    ? backendState.masters.sparepartReferences
+    : [];
+  return references.find((item) => String(item.stockNo || "").trim().toUpperCase() === normalizedStockNo) || null;
+}
+
+function isManualStockNo(stockNo) {
+  return /^NM-[A-Z0-9][A-Z0-9-]*$/i.test(String(stockNo || "").trim());
+}
+
+function renderMasterSparepartStockOptions() {
+  if (!masterSparepartStockList) {
+    return;
+  }
+  const references = Array.isArray(backendState.masters.sparepartReferences)
+    ? backendState.masters.sparepartReferences
+    : [];
+  const fragment = document.createDocumentFragment();
+  references.slice(0, 5000).forEach((item) => {
+    if (!item.stockNo) {
+      return;
+    }
+    const option = document.createElement("option");
+    option.value = item.stockNo;
+    option.label = item.materialDescription || item.longText || "";
+    fragment.append(option);
+  });
+  masterSparepartStockList.replaceChildren(fragment);
+}
+
+function syncBomMaterialDescriptionFromStock(stockInput) {
+  const form = stockInput?.closest("form");
+  if (!form) {
+    return;
+  }
+  const descriptionField = form.elements.materialDescription;
+  const stockNo = String(stockInput.value || "").trim();
+  const reference = getSparepartReferenceByStockNo(stockNo);
+  if (reference && descriptionField) {
+    descriptionField.value = reference.materialDescription || reference.longText || descriptionField.value || "";
+  }
+}
+
+function validateBomStockReference(form, formLabel) {
+  const stockNo = String(form?.elements.stockNo?.value || "").trim();
+  if (!stockNo) {
+    return true;
+  }
+  if (getSparepartReferenceByStockNo(stockNo) || isManualStockNo(stockNo)) {
+    return true;
+  }
+  showToast(formLabel, "No Stock SAP belum ada di Master Sparepart. Jika input manual, gunakan format NM-xxxxx.");
+  form.elements.stockNo?.focus();
+  return false;
+}
+
 function normalizeTableSortValue(value) {
   const text = String(value || "").trim();
   if (!text) {
@@ -10634,6 +10696,7 @@ adminSparepartMasterForm?.addEventListener("submit", async (event) => {
     });
     resetAdminSparepartMasterForm();
     await refreshAdminMasters();
+    renderMasterSparepartStockOptions();
     showToast("Master Sparepart", "Referensi sparepart berhasil disimpan.");
   } catch (error) {
     showToast("Master Sparepart", error.message || "Gagal menyimpan referensi sparepart.");
@@ -10661,6 +10724,7 @@ adminSparepartMasterImportButton?.addEventListener("click", async () => {
     const result = await importSparepartMasterFromUrl(sourceUrl);
     backendState.masters.sparepartReferences = Array.isArray(result.items) ? result.items : backendState.masters.sparepartReferences;
     applyAdminSparepartMasterFilter();
+    renderMasterSparepartStockOptions();
     showToast("Master Sparepart", `Import selesai: ${result.imported || 0} data, skip ${result.skipped || 0}.`);
   } catch (error) {
     showToast("Master Sparepart", error.message || "Gagal import Master Sparepart.");
@@ -10761,10 +10825,16 @@ adminSparepartMasterBody?.addEventListener("click", async (event) => {
   try {
     await deleteAdminMaster("sparepart-references", identifier);
     await refreshAdminMasters();
+    renderMasterSparepartStockOptions();
     showToast("Master Sparepart", "Referensi sparepart berhasil dihapus.");
   } catch (error) {
     showToast("Master Sparepart", error.message || "Gagal menghapus referensi sparepart.");
   }
+});
+
+document.querySelectorAll('[data-form-type="bom"] [name="stockNo"], [data-form-type="bom-motor"] [name="stockNo"]').forEach((input) => {
+  input.addEventListener("input", () => syncBomMaterialDescriptionFromStock(input));
+  input.addEventListener("change", () => syncBomMaterialDescriptionFromStock(input));
 });
 
 adminTemplatesBody?.addEventListener("click", async (event) => {
@@ -11720,6 +11790,9 @@ forms.forEach((form) => {
     }
 
     if (formType === "bom") {
+      if (!validateBomStockReference(form, "BOM")) {
+        return;
+      }
       const item = {
         id: editingBomId || createId("bom"),
         equipment: String(formData.get("equipment") || "-").trim() || "-",
@@ -11751,6 +11824,9 @@ forms.forEach((form) => {
     }
 
     if (formType === "bom-motor") {
+      if (!validateBomStockReference(form, "BOM Motor")) {
+        return;
+      }
       const item = {
         id: editingBomMotorId || createId("bom-motor"),
         inspectionDate: String(formData.get("inspectionDate") || "").trim(),
