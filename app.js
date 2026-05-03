@@ -164,6 +164,10 @@ const pwaServiceCategory = document.getElementById("pwa-service-category");
 const pwaServiceFilterNote = document.getElementById("pwa-service-filter-note");
 const pwaMsoList = document.getElementById("pwa-mso-list");
 const pwaCarbonList = document.getElementById("pwa-carbon-list");
+const pwaBomList = document.getElementById("pwa-bom-list");
+const pwaBomSearch = document.getElementById("pwa-bom-search");
+const pwaBomType = document.getElementById("pwa-bom-type");
+const pwaBomNote = document.getElementById("pwa-bom-note");
 const pwaCarbonForm = document.getElementById("pwa-carbon-form");
 const pwaCarbonEquipment = document.getElementById("pwa-carbon-equipment");
 const pwaCarbonEquipmentList = document.getElementById("pwa-carbon-equipment-list");
@@ -7841,6 +7845,19 @@ function openPwaTab(tabName) {
     if (transitionToken !== pwaTransitionToken) {
       return;
     }
+    if (tabName === "bom") {
+      void ensureBackendResourcesLoaded(["bom", "bom-motor"]).then(() => {
+        renderPwaCompactApp(
+          getNegatifItemsFromDom(),
+          getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)),
+          getSpbItemsFromDom(),
+        );
+        setUiBusyState(activePage, false);
+      }).catch(() => {
+        setUiBusyState(activePage, false);
+      });
+      return;
+    }
     if (["home", "service", "mso", "carbon"].includes(tabName)) {
       renderPwaCompactApp(
         getNegatifItemsFromDom(),
@@ -7963,6 +7980,93 @@ function filterPwaServiceItems(serviceItems) {
   });
 }
 
+function getPwaBomCatalogItems() {
+  const generalItems = getBomItemsFromDom().map((item) => ({
+    ...item,
+    catalogType: "general",
+    title: item.part || item.materialDescription || item.stockNo || "BOM General",
+    unit: item.equipment || "-",
+    quantity: item.qty || "-",
+    photoName: item.itemPhoto || "",
+    photoUrl: buildBomPhotoPath(item.itemPhoto || ""),
+  }));
+  const motorItems = getBomMotorItemsFromDom().map((item) => ({
+    ...item,
+    catalogType: "motor",
+    title: item.materialDescription || item.manufacture || item.stockNo || "BOM Motor",
+    unit: item.equipment || "-",
+    quantity: item.power || item.qty || "1",
+    photoName: item.motorPhoto || "",
+    photoUrl: buildBomMotorPhotoPath(item.motorPhoto || ""),
+  }));
+  return [...generalItems, ...motorItems].sort((left, right) => {
+    const leftUnit = String(left.unit || "");
+    const rightUnit = String(right.unit || "");
+    return leftUnit.localeCompare(rightUnit, "id", { numeric: true })
+      || String(left.title || "").localeCompare(String(right.title || ""), "id", { numeric: true });
+  });
+}
+
+function filterPwaBomCatalogItems(items) {
+  const query = String(pwaBomSearch?.value || "").trim().toLowerCase();
+  const type = String(pwaBomType?.value || "").trim();
+  return items.filter((item) => {
+    const matchesType = !type || item.catalogType === type;
+    const searchableText = [
+      item.title,
+      item.unit,
+      item.stockNo,
+      item.materialDescription,
+      item.longText,
+      item.note,
+      item.manufacture,
+    ].join(" ").toLowerCase();
+    return matchesType && (!query || searchableText.includes(query));
+  });
+}
+
+function renderPwaBomCatalogItem(item) {
+  const title = String(item.title || "-").toUpperCase();
+  const unit = item.unit || "-";
+  const quantity = item.quantity || "-";
+  const typeLabel = item.catalogType === "motor" ? "BOM MOTOR" : "BOM GENERAL";
+  const photoUrl = item.photoName ? item.photoUrl : "";
+  return `
+    <article class="pwa-bom-row" data-pwa-bom-id="${escapeHtml(item.id || "")}" data-pwa-bom-type="${escapeHtml(item.catalogType || "general")}">
+      <div class="pwa-bom-thumb">
+        ${photoUrl
+          ? `<img src="${escapeHtml(photoUrl)}" alt="Foto ${escapeHtml(title)}" loading="lazy" onerror="this.closest('.pwa-bom-thumb')?.classList.add('is-missing'); this.remove();">`
+          : `<span>${escapeHtml(String(title).slice(0, 2) || "BM")}</span>`}
+      </div>
+      <div class="pwa-bom-main">
+        <strong>${escapeHtml(title)}</strong>
+        <small>${escapeHtml(unit)}</small>
+        <span>${escapeHtml(typeLabel)}${item.stockNo ? ` | ${escapeHtml(item.stockNo)}` : ""}</span>
+      </div>
+      <div class="pwa-bom-side">
+        <strong>${escapeHtml(quantity)}</strong>
+        <div class="pwa-bom-actions">
+          <button type="button" data-pwa-bom-delete="${escapeHtml(item.id || "")}" data-pwa-bom-action-type="${escapeHtml(item.catalogType || "general")}" aria-label="Hapus BOM">Del</button>
+          <button type="button" data-pwa-bom-edit="${escapeHtml(item.id || "")}" data-pwa-bom-action-type="${escapeHtml(item.catalogType || "general")}" aria-label="Edit BOM">Edit</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderPwaBomCatalog() {
+  if (!pwaBomList) {
+    return;
+  }
+  const items = getPwaBomCatalogItems();
+  const filteredItems = filterPwaBomCatalogItems(items);
+  if (pwaBomNote) {
+    pwaBomNote.textContent = `Menampilkan ${filteredItems.length} dari ${items.length} item BOM.`;
+  }
+  pwaBomList.innerHTML = filteredItems.map(renderPwaBomCatalogItem).join("")
+    || renderPwaEmpty("Belum ada item BOM yang cocok.");
+}
+
 function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
   if (!pwaCompactShell || !isPwaCompactMode()) {
     return;
@@ -7982,6 +8086,7 @@ function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
   const filteredServiceItems = filterPwaServiceItems(serviceItems);
   const hasServiceFilter = Boolean(String(pwaServiceSearch?.value || "").trim()) || Boolean(String(pwaServiceCategory?.value || "").trim());
   const recentService = filteredServiceItems.slice(0, hasServiceFilter ? 50 : 14);
+  renderPwaBomCatalog();
 
   if (pwaUserLine) {
     pwaUserLine.textContent = `${currentUser?.textContent || "-"} | ${currentRole?.textContent || "Role"}`;
@@ -12278,6 +12383,64 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const bomAddButton = target.closest("[data-pwa-bom-add]");
+  if (bomAddButton) {
+    document.documentElement.classList.add("pwa-web-view");
+    openSection("bom");
+    openCreatePanel("bom");
+    openBomPane("general");
+    return;
+  }
+
+  const bomEditButton = target.closest("[data-pwa-bom-edit]");
+  if (bomEditButton instanceof HTMLElement) {
+    const itemId = bomEditButton.dataset.pwaBomEdit || "";
+    const itemType = bomEditButton.dataset.pwaBomActionType || "general";
+    document.documentElement.classList.add("pwa-web-view");
+    openSection("bom");
+    openCreatePanel("bom");
+    if (itemType === "motor") {
+      const item = getBomMotorItemsFromDom().find((entry) => entry.id === itemId);
+      if (item) {
+        openBomPane("motor");
+        hydrateBomMotorForm(item);
+      }
+    } else {
+      const item = getBomItemsFromDom().find((entry) => entry.id === itemId);
+      if (item) {
+        openBomPane("general");
+        hydrateBomForm(item);
+      }
+    }
+    return;
+  }
+
+  const bomDeleteButton = target.closest("[data-pwa-bom-delete]");
+  if (bomDeleteButton instanceof HTMLElement) {
+    const itemId = bomDeleteButton.dataset.pwaBomDelete || "";
+    const itemType = bomDeleteButton.dataset.pwaBomActionType || "general";
+    if (!confirmDeleteAction("item BOM ini")) {
+      return;
+    }
+    try {
+      if (itemType === "motor") {
+        await deleteItemFromBackend("bom-motor", itemId);
+        bomMotorList?.querySelector(`[data-id="${CSS.escape(itemId)}"]`)?.remove();
+        persistBomMotorList();
+      } else {
+        await deleteItemFromBackend("bom", itemId);
+        bomList?.querySelector(`[data-id="${CSS.escape(itemId)}"]`)?.remove();
+        persistBomList();
+      }
+      updateDashboardStats();
+      renderPwaBomCatalog();
+      showToast("BOM", "Item BOM berhasil dihapus.");
+    } catch (error) {
+      showToast("BOM", error.message || "Gagal menghapus item BOM.");
+    }
+    return;
+  }
+
   const tabButton = target.closest("[data-pwa-tab]");
   if (tabButton instanceof HTMLElement) {
     openPwaTab(tabButton.dataset.pwaTab || "home");
@@ -12604,6 +12767,11 @@ pwaOpacityEquipment?.addEventListener("focus", () => {
   control?.addEventListener("change", () => {
     renderPwaCompactApp(getNegatifItemsFromDom(), getServiceItemsFromDom().filter((entry) => shouldDisplayServiceItem(entry)), getSpbItemsFromDom());
   });
+});
+
+[pwaBomSearch, pwaBomType].forEach((control) => {
+  control?.addEventListener("input", renderPwaBomCatalog);
+  control?.addEventListener("change", renderPwaBomCatalog);
 });
 
 pwaGlobalSearch?.addEventListener("keydown", (event) => {

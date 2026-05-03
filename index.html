@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260503-04">
+  <link rel="stylesheet" href="styles.css?v=20260503-05">
 </head>
 <body>
   <div class="app-shell">
@@ -901,6 +901,35 @@
               </section>
             </section>
 
+            <section class="pwa-page" data-pwa-page="bom">
+              <section class="pwa-block pwa-block-flush pwa-bom-page">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>BOM Catalog</span>
+                    <h3>Daftar komponen area</h3>
+                  </div>
+                  <button class="pwa-text-button" type="button" data-pwa-section="bom">Form web</button>
+                </div>
+                <div class="pwa-service-filter-panel pwa-bom-filter-panel">
+                  <label class="pwa-form-field">
+                    <span>Cari BOM</span>
+                    <input id="pwa-bom-search" type="search" placeholder="Cari part, equipment, no stock">
+                  </label>
+                  <label class="pwa-form-field">
+                    <span>Tipe</span>
+                    <select id="pwa-bom-type">
+                      <option value="">Semua BOM</option>
+                      <option value="general">BOM General</option>
+                      <option value="motor">BOM Motor</option>
+                    </select>
+                  </label>
+                </div>
+                <p class="pwa-form-note" id="pwa-bom-note">Menampilkan BOM dalam format catalog mobile.</p>
+                <div class="pwa-bom-catalog-list" id="pwa-bom-list"></div>
+                <button class="pwa-floating-add" type="button" data-pwa-bom-add aria-label="Tambah BOM">+</button>
+              </section>
+            </section>
+
             <section class="pwa-page" data-pwa-page="carbon">
               <section class="pwa-block pwa-block-flush">
                 <div class="pwa-block-head">
@@ -951,6 +980,11 @@
               <span class="pwa-nav-dot" aria-hidden="true"></span>
               <strong>MSO</strong>
               <span>Motor</span>
+            </button>
+            <button type="button" data-pwa-tab="bom">
+              <span class="pwa-nav-icon">BM</span>
+              <strong>BOM</strong>
+              <span>Catalog</span>
             </button>
             <button type="button" data-pwa-tab="more">
               <span class="pwa-nav-icon">MN</span>
@@ -3550,12 +3584,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260503-09"></script>
+  <script src="app.js?v=20260503-10"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260503-09").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260503-10").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

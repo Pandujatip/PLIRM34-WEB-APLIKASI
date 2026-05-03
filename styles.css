@@ -1623,6 +1623,148 @@ select {
   background: rgba(255, 255, 255, 0.18);
 }
 
+.pwa-bom-page {
+  position: relative;
+  padding-bottom: 92px;
+  color: #f8fafc;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.98)),
+    #020617;
+}
+
+.pwa-bom-filter-panel {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.pwa-bom-catalog-list {
+  display: grid;
+  gap: 0;
+  margin-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.pwa-bom-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 70px;
+  gap: 13px;
+  align-items: center;
+  min-height: 98px;
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  color: #f8fafc;
+}
+
+.pwa-bom-thumb {
+  width: 68px;
+  height: 68px;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 76% 20%, rgba(56, 189, 248, 0.38), transparent 22%),
+    linear-gradient(145deg, #1e293b, #0f172a);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.pwa-bom-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pwa-bom-thumb span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #bae6fd;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.pwa-bom-main {
+  min-width: 0;
+}
+
+.pwa-bom-main strong,
+.pwa-bom-main small,
+.pwa-bom-main span {
+  display: block;
+}
+
+.pwa-bom-main strong {
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.18;
+  letter-spacing: 0.02em;
+}
+
+.pwa-bom-main small {
+  margin-top: 6px;
+  color: #cbd5e1;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.pwa-bom-main span {
+  margin-top: 5px;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pwa-bom-side {
+  display: grid;
+  justify-items: end;
+  align-self: stretch;
+}
+
+.pwa-bom-side > strong {
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.pwa-bom-actions {
+  align-self: end;
+  display: flex;
+  gap: 6px;
+}
+
+.pwa-bom-actions button {
+  min-width: 30px;
+  min-height: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #cbd5e1;
+  font-size: 0.64rem;
+  font-weight: 900;
+}
+
+.pwa-floating-add {
+  position: fixed;
+  right: 22px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #2563eb, #38bdf8);
+  color: #ffffff;
+  box-shadow: 0 18px 36px rgba(37, 99, 235, 0.36);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
 .pwa-empty {
   color: var(--pwa-muted);
   border-color: rgba(15, 118, 110, 0.18);
@@ -1861,7 +2003,7 @@ select {
   left: 12px;
   right: 12px;
   bottom: max(10px, env(safe-area-inset-bottom));
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 3px;
   padding: 8px;
   border: 1px solid rgba(15, 118, 110, 0.12);
@@ -1874,8 +2016,8 @@ select {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 76px;
-  padding: 7px 2px 9px;
+  min-height: 74px;
+  padding: 7px 1px 9px;
   border-radius: 24px;
   color: #9aa6a0;
   background: transparent;
@@ -1900,8 +2042,8 @@ select {
 .pwa-nav-icon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 12px;
   color: currentColor;
   background: rgba(100, 115, 108, 0.1);
