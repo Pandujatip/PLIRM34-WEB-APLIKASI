@@ -112,7 +112,6 @@ const adminSparepartMasterImportButton = document.getElementById("admin-sparepar
 const searchAdminSparepartMaster = document.getElementById("search-admin-sparepart-master");
 const resetAdminSparepartMasterFilterButton = document.getElementById("reset-admin-sparepart-master-filter");
 const adminSparepartMasterFilterSummary = document.getElementById("admin-sparepart-master-filter-summary");
-const masterSparepartStockList = document.getElementById("master-sparepart-stock-list");
 const adminTemplateForm = document.getElementById("admin-template-form");
 const adminAreasBody = document.getElementById("admin-areas-body");
 const adminElectricalRoomBody = document.getElementById("admin-electrical-room-body");
@@ -7196,24 +7195,72 @@ function isManualStockNo(stockNo) {
   return /^NM-[A-Z0-9][A-Z0-9-]*$/i.test(String(stockNo || "").trim());
 }
 
-function renderMasterSparepartStockOptions() {
-  if (!masterSparepartStockList) {
+function getBomStockSearchResultsElement(stockInput) {
+  return stockInput?.closest("label")?.querySelector("[data-bom-stock-results]") || null;
+}
+
+function closeBomStockSearch(stockInput) {
+  const resultsElement = getBomStockSearchResultsElement(stockInput);
+  if (resultsElement) {
+    resultsElement.classList.remove("visible");
+    resultsElement.innerHTML = "";
+  }
+}
+
+function applySparepartReferenceToBomForm(form, reference) {
+  if (!form || !reference) {
     return;
   }
+  form.elements.stockNo.value = reference.stockNo || "";
+  form.elements.materialDescription.value = reference.materialDescription || "";
+  if (form.elements.longText) {
+    form.elements.longText.value = reference.longText || reference.materialDescription || "";
+  }
+}
+
+function searchMasterSparepartReferences(query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (normalizedQuery.length < 2) {
+    return [];
+  }
+  const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
   const references = Array.isArray(backendState.masters.sparepartReferences)
     ? backendState.masters.sparepartReferences
     : [];
-  const fragment = document.createDocumentFragment();
-  references.slice(0, 5000).forEach((item) => {
-    if (!item.stockNo) {
-      return;
-    }
-    const option = document.createElement("option");
-    option.value = item.stockNo;
-    option.label = item.materialDescription || item.longText || "";
-    fragment.append(option);
-  });
-  masterSparepartStockList.replaceChildren(fragment);
+  return references
+    .filter((item) => {
+      const searchable = [
+        item.stockNo,
+        item.materialDescription,
+        item.longText,
+        item.materialType,
+        item.materialGroup,
+        item.category,
+      ].join(" ").toLowerCase();
+      return tokens.every((token) => searchable.includes(token));
+    })
+    .slice(0, 12);
+}
+
+function renderBomStockSearchResults(stockInput) {
+  const resultsElement = getBomStockSearchResultsElement(stockInput);
+  if (!resultsElement) {
+    return;
+  }
+  const query = String(stockInput.value || "").trim();
+  const results = searchMasterSparepartReferences(query);
+  if (!results.length) {
+    closeBomStockSearch(stockInput);
+    return;
+  }
+  resultsElement.innerHTML = results.map((item) => `
+    <button type="button" class="bom-stock-search-option" data-stock-no="${escapeHtml(item.stockNo || "")}">
+      <strong>${escapeHtml(item.stockNo || "-")}</strong>
+      <span>${escapeHtml(item.materialDescription || "-")}</span>
+      ${item.longText ? `<small>${escapeHtml(item.longText)}</small>` : ""}
+    </button>
+  `).join("");
+  resultsElement.classList.add("visible");
 }
 
 function syncBomMaterialDescriptionFromStock(stockInput) {
@@ -7225,7 +7272,10 @@ function syncBomMaterialDescriptionFromStock(stockInput) {
   const stockNo = String(stockInput.value || "").trim();
   const reference = getSparepartReferenceByStockNo(stockNo);
   if (reference && descriptionField) {
-    descriptionField.value = reference.materialDescription || reference.longText || descriptionField.value || "";
+    applySparepartReferenceToBomForm(form, reference);
+    closeBomStockSearch(stockInput);
+  } else {
+    renderBomStockSearchResults(stockInput);
   }
 }
 
@@ -10696,7 +10746,6 @@ adminSparepartMasterForm?.addEventListener("submit", async (event) => {
     });
     resetAdminSparepartMasterForm();
     await refreshAdminMasters();
-    renderMasterSparepartStockOptions();
     showToast("Master Sparepart", "Referensi sparepart berhasil disimpan.");
   } catch (error) {
     showToast("Master Sparepart", error.message || "Gagal menyimpan referensi sparepart.");
@@ -10724,7 +10773,6 @@ adminSparepartMasterImportButton?.addEventListener("click", async () => {
     const result = await importSparepartMasterFromUrl(sourceUrl);
     backendState.masters.sparepartReferences = Array.isArray(result.items) ? result.items : backendState.masters.sparepartReferences;
     applyAdminSparepartMasterFilter();
-    renderMasterSparepartStockOptions();
     showToast("Master Sparepart", `Import selesai: ${result.imported || 0} data, skip ${result.skipped || 0}.`);
   } catch (error) {
     showToast("Master Sparepart", error.message || "Gagal import Master Sparepart.");
@@ -10825,7 +10873,6 @@ adminSparepartMasterBody?.addEventListener("click", async (event) => {
   try {
     await deleteAdminMaster("sparepart-references", identifier);
     await refreshAdminMasters();
-    renderMasterSparepartStockOptions();
     showToast("Master Sparepart", "Referensi sparepart berhasil dihapus.");
   } catch (error) {
     showToast("Master Sparepart", error.message || "Gagal menghapus referensi sparepart.");
@@ -10835,6 +10882,16 @@ adminSparepartMasterBody?.addEventListener("click", async (event) => {
 document.querySelectorAll('[data-form-type="bom"] [name="stockNo"], [data-form-type="bom-motor"] [name="stockNo"]').forEach((input) => {
   input.addEventListener("input", () => syncBomMaterialDescriptionFromStock(input));
   input.addEventListener("change", () => syncBomMaterialDescriptionFromStock(input));
+  input.addEventListener("blur", () => window.setTimeout(() => closeBomStockSearch(input), 180));
+  getBomStockSearchResultsElement(input)?.addEventListener("click", (event) => {
+    const option = event.target instanceof HTMLElement ? event.target.closest("[data-stock-no]") : null;
+    if (!option) {
+      return;
+    }
+    const reference = getSparepartReferenceByStockNo(option.dataset.stockNo || "");
+    applySparepartReferenceToBomForm(input.closest("form"), reference);
+    closeBomStockSearch(input);
+  });
 });
 
 adminTemplatesBody?.addEventListener("click", async (event) => {
