@@ -10882,16 +10882,19 @@ adminSparepartMasterBody?.addEventListener("click", async (event) => {
 document.querySelectorAll('[data-form-type="bom"] [name="stockNo"], [data-form-type="bom-motor"] [name="stockNo"]').forEach((input) => {
   input.addEventListener("input", () => syncBomMaterialDescriptionFromStock(input));
   input.addEventListener("change", () => syncBomMaterialDescriptionFromStock(input));
-  input.addEventListener("blur", () => window.setTimeout(() => closeBomStockSearch(input), 180));
-  getBomStockSearchResultsElement(input)?.addEventListener("click", (event) => {
+  input.addEventListener("blur", () => window.setTimeout(() => closeBomStockSearch(input), 260));
+  const selectBomStockReference = (event) => {
     const option = event.target instanceof HTMLElement ? event.target.closest("[data-stock-no]") : null;
     if (!option) {
       return;
     }
+    event.preventDefault();
     const reference = getSparepartReferenceByStockNo(option.dataset.stockNo || "");
     applySparepartReferenceToBomForm(input.closest("form"), reference);
     closeBomStockSearch(input);
-  });
+  };
+  getBomStockSearchResultsElement(input)?.addEventListener("pointerdown", selectBomStockReference);
+  getBomStockSearchResultsElement(input)?.addEventListener("mousedown", selectBomStockReference);
 });
 
 adminTemplatesBody?.addEventListener("click", async (event) => {
