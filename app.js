@@ -168,6 +168,22 @@ const pwaBomList = document.getElementById("pwa-bom-list");
 const pwaBomSearch = document.getElementById("pwa-bom-search");
 const pwaBomType = document.getElementById("pwa-bom-type");
 const pwaBomNote = document.getElementById("pwa-bom-note");
+const pwaBomFormPanel = document.getElementById("pwa-bom-form-panel");
+const pwaBomForm = document.getElementById("pwa-bom-form");
+const pwaBomFormMode = document.getElementById("pwa-bom-form-mode");
+const pwaBomFormType = document.getElementById("pwa-bom-form-type");
+const pwaBomEquipment = document.getElementById("pwa-bom-equipment");
+const pwaBomPart = document.getElementById("pwa-bom-part");
+const pwaBomManufacture = document.getElementById("pwa-bom-manufacture");
+const pwaBomQty = document.getElementById("pwa-bom-qty");
+const pwaBomStockNo = document.getElementById("pwa-bom-stock-no");
+const pwaBomMaterialDescription = document.getElementById("pwa-bom-material-description");
+const pwaBomLongText = document.getElementById("pwa-bom-long-text");
+const pwaBomItemPhoto = document.getElementById("pwa-bom-item-photo");
+const pwaBomMotorPhoto = document.getElementById("pwa-bom-motor-photo");
+const pwaBomFormNoteInput = document.getElementById("pwa-bom-form-note-input");
+const pwaBomFormStatus = document.getElementById("pwa-bom-form-status");
+const pwaBomSubmit = document.getElementById("pwa-bom-submit");
 const pwaCarbonForm = document.getElementById("pwa-carbon-form");
 const pwaCarbonEquipment = document.getElementById("pwa-carbon-equipment");
 const pwaCarbonEquipmentList = document.getElementById("pwa-carbon-equipment-list");
@@ -445,6 +461,7 @@ let editingBomId = null;
 let editingBomMotorId = null;
 let editingSpbId = null;
 let pwaEditingServiceItem = null;
+let pwaEditingBomItem = null;
 let activeServiceGroupDetailType = "";
 let activeServiceDetailItem = null;
 let serviceDetailReturnState = null;
@@ -8067,6 +8084,56 @@ function renderPwaBomCatalog() {
     || renderPwaEmpty("Belum ada item BOM yang cocok.");
 }
 
+function updatePwaBomFormTypeFields() {
+  const type = pwaBomFormType?.value || "general";
+  document.querySelectorAll("[data-pwa-bom-general-field]").forEach((element) => {
+    element.classList.toggle("hidden", type !== "general");
+  });
+  document.querySelectorAll("[data-pwa-bom-motor-field]").forEach((element) => {
+    element.classList.toggle("hidden", type !== "motor");
+  });
+  if (pwaBomQty) {
+    pwaBomQty.previousElementSibling.textContent = type === "motor" ? "Power" : "Jumlah";
+    pwaBomQty.placeholder = type === "motor" ? "Contoh: 75" : "Contoh: 2";
+  }
+}
+
+function openPwaBomForm(item = null, type = "general") {
+  if (!pwaBomForm || !pwaBomFormPanel) {
+    return;
+  }
+  pwaEditingBomItem = item ? { ...item, catalogType: type } : null;
+  pwaBomForm.reset();
+  pwaBomFormPanel.classList.remove("hidden");
+  pwaBomFormType.value = type;
+  if (pwaBomFormMode) {
+    pwaBomFormMode.textContent = item ? "Edit BOM" : "Create New";
+  }
+  if (item) {
+    pwaBomEquipment.value = item.equipment || "";
+    pwaBomPart.value = item.part || "";
+    pwaBomManufacture.value = item.manufacture || "";
+    pwaBomQty.value = type === "motor" ? (item.power || "") : (item.qty || "");
+    pwaBomStockNo.value = item.stockNo || "";
+    pwaBomMaterialDescription.value = item.materialDescription || "";
+    pwaBomLongText.value = item.longText || "";
+    pwaBomItemPhoto.value = item.itemPhoto || "";
+    pwaBomMotorPhoto.value = item.motorPhoto || "";
+    pwaBomFormNoteInput.value = item.note || "";
+  }
+  updatePwaBomFormTypeFields();
+  if (pwaBomFormStatus) {
+    pwaBomFormStatus.textContent = "No Stock manual gunakan format NM-xxxxx.";
+  }
+  window.setTimeout(() => pwaBomFormPanel.scrollIntoView({ behavior: "smooth", block: "start" }), 20);
+}
+
+function closePwaBomForm() {
+  pwaEditingBomItem = null;
+  pwaBomForm?.reset();
+  pwaBomFormPanel?.classList.add("hidden");
+}
+
 function renderPwaCompactApp(negatifItems, serviceItems, spbItems) {
   if (!pwaCompactShell || !isPwaCompactMode()) {
     return;
@@ -12385,10 +12452,7 @@ pwaCompactShell?.addEventListener("click", async (event) => {
 
   const bomAddButton = target.closest("[data-pwa-bom-add]");
   if (bomAddButton) {
-    document.documentElement.classList.add("pwa-web-view");
-    openSection("bom");
-    openCreatePanel("bom");
-    openBomPane("general");
+    openPwaBomForm(null, pwaBomType?.value === "motor" ? "motor" : "general");
     return;
   }
 
@@ -12396,22 +12460,22 @@ pwaCompactShell?.addEventListener("click", async (event) => {
   if (bomEditButton instanceof HTMLElement) {
     const itemId = bomEditButton.dataset.pwaBomEdit || "";
     const itemType = bomEditButton.dataset.pwaBomActionType || "general";
-    document.documentElement.classList.add("pwa-web-view");
-    openSection("bom");
-    openCreatePanel("bom");
     if (itemType === "motor") {
       const item = getBomMotorItemsFromDom().find((entry) => entry.id === itemId);
       if (item) {
-        openBomPane("motor");
-        hydrateBomMotorForm(item);
+        openPwaBomForm(item, "motor");
       }
     } else {
       const item = getBomItemsFromDom().find((entry) => entry.id === itemId);
       if (item) {
-        openBomPane("general");
-        hydrateBomForm(item);
+        openPwaBomForm(item, "general");
       }
     }
+    return;
+  }
+
+  if (target.closest("[data-pwa-bom-close-form]")) {
+    closePwaBomForm();
     return;
   }
 
@@ -12772,6 +12836,106 @@ pwaOpacityEquipment?.addEventListener("focus", () => {
 [pwaBomSearch, pwaBomType].forEach((control) => {
   control?.addEventListener("input", renderPwaBomCatalog);
   control?.addEventListener("change", renderPwaBomCatalog);
+});
+
+pwaBomFormType?.addEventListener("change", updatePwaBomFormTypeFields);
+
+pwaBomStockNo?.addEventListener("change", () => {
+  const reference = getSparepartReferenceByStockNo(pwaBomStockNo.value);
+  if (!reference) {
+    return;
+  }
+  if (pwaBomMaterialDescription) {
+    pwaBomMaterialDescription.value = reference.materialDescription || "";
+  }
+  if (pwaBomLongText) {
+    pwaBomLongText.value = reference.longText || reference.materialDescription || "";
+  }
+});
+
+pwaBomForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const type = pwaBomFormType?.value || "general";
+  const stockNo = String(pwaBomStockNo?.value || "").trim();
+  if (stockNo && !getSparepartReferenceByStockNo(stockNo) && !isManualStockNo(stockNo)) {
+    if (pwaBomFormStatus) {
+      pwaBomFormStatus.textContent = "No Stock SAP belum ada di Master Sparepart. Jika manual gunakan format NM-xxxxx.";
+    }
+    pwaBomStockNo?.focus();
+    return;
+  }
+  try {
+    const isEditingBom = Boolean(pwaEditingBomItem?.id);
+    if (pwaBomSubmit) {
+      pwaBomSubmit.disabled = true;
+      pwaBomSubmit.textContent = "Menyimpan...";
+    }
+    if (type === "motor") {
+      const item = {
+        id: pwaEditingBomItem?.id || createId("bom-motor"),
+        inspectionDate: pwaEditingBomItem?.inspectionDate || new Date().toISOString().slice(0, 10),
+        equipment: String(pwaBomEquipment?.value || "-").trim() || "-",
+        manufacture: String(pwaBomManufacture?.value || "-").trim() || "-",
+        power: String(pwaBomQty?.value || "").trim(),
+        ampere: pwaEditingBomItem?.ampere || "",
+        voltage: pwaEditingBomItem?.voltage || "",
+        speed: pwaEditingBomItem?.speed || "",
+        frame: pwaEditingBomItem?.frame || "",
+        serialNumber: pwaEditingBomItem?.serialNumber || "",
+        stockNo,
+        materialDescription: String(pwaBomMaterialDescription?.value || "").trim(),
+        nameplatePhoto: pwaEditingBomItem?.nameplatePhoto || "",
+        connectionPhoto: pwaEditingBomItem?.connectionPhoto || "",
+        motorPhoto: String(pwaBomMotorPhoto?.value || "").trim(),
+        note: String(pwaBomFormNoteInput?.value || "-").trim() || "-",
+        longText: String(pwaBomLongText?.value || "").trim(),
+      };
+      const savedItem = await saveItemToBackend("bom-motor", item, Boolean(pwaEditingBomItem?.id));
+      const existing = bomMotorList?.querySelector(`[data-id="${CSS.escape(savedItem.id)}"]`);
+      if (existing) {
+        existing.replaceWith(renderBomMotorCard(savedItem));
+      } else {
+        bomMotorList?.prepend(renderBomMotorCard(savedItem));
+      }
+      persistBomMotorList();
+    } else {
+      const item = {
+        id: pwaEditingBomItem?.id || createId("bom"),
+        equipment: String(pwaBomEquipment?.value || "-").trim() || "-",
+        part: String(pwaBomPart?.value || "-").trim() || "-",
+        stockNo,
+        materialDescription: String(pwaBomMaterialDescription?.value || "").trim(),
+        qty: String(pwaBomQty?.value || "-").trim() || "-",
+        itemPhoto: String(pwaBomItemPhoto?.value || "").trim(),
+        nameplatePhoto: pwaEditingBomItem?.nameplatePhoto || "",
+        extraPhoto: pwaEditingBomItem?.extraPhoto || "",
+        note: String(pwaBomFormNoteInput?.value || "-").trim() || "-",
+        longText: String(pwaBomLongText?.value || "").trim(),
+      };
+      const savedItem = await saveItemToBackend("bom", item, Boolean(pwaEditingBomItem?.id));
+      const existing = bomList?.querySelector(`[data-id="${CSS.escape(savedItem.id)}"]`);
+      if (existing) {
+        existing.replaceWith(renderBomCard(savedItem));
+      } else {
+        bomList?.prepend(renderBomCard(savedItem));
+      }
+      persistBomList();
+    }
+    closePwaBomForm();
+    updateDashboardStats();
+    renderPwaBomCatalog();
+    showToast("BOM", isEditingBom ? "BOM berhasil diperbarui." : "BOM berhasil ditambahkan.");
+  } catch (error) {
+    if (pwaBomFormStatus) {
+      pwaBomFormStatus.textContent = error.message || "Gagal menyimpan BOM.";
+    }
+    showToast("BOM", error.message || "Gagal menyimpan BOM.");
+  } finally {
+    if (pwaBomSubmit) {
+      pwaBomSubmit.disabled = false;
+      pwaBomSubmit.textContent = "Simpan BOM";
+    }
+  }
 });
 
 pwaGlobalSearch?.addEventListener("keydown", (event) => {

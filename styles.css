@@ -1637,6 +1637,37 @@ select {
   border-color: rgba(148, 163, 184, 0.18);
 }
 
+.pwa-bom-form-panel {
+  display: grid;
+  gap: 14px;
+  margin: 12px 0 16px;
+  padding: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96)),
+    #0f172a;
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.28);
+}
+
+.pwa-bom-form-panel.hidden,
+.pwa-bom-form-panel .hidden {
+  display: none;
+}
+
+.pwa-bom-form-panel .pwa-form-field span,
+.pwa-bom-form-panel .pwa-form-note {
+  color: #cbd5e1;
+}
+
+.pwa-bom-form-panel .pwa-form-field input,
+.pwa-bom-form-panel .pwa-form-field textarea,
+.pwa-bom-form-panel .pwa-form-field select {
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.62);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
 .pwa-bom-catalog-list {
   display: grid;
   gap: 0;

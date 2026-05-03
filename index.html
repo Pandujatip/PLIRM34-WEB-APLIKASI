@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260503-05">
+  <link rel="stylesheet" href="styles.css?v=20260503-06">
 </head>
 <body>
   <div class="app-shell">
@@ -925,6 +925,68 @@
                   </label>
                 </div>
                 <p class="pwa-form-note" id="pwa-bom-note">Menampilkan BOM dalam format catalog mobile.</p>
+                <section class="pwa-bom-form-panel hidden" id="pwa-bom-form-panel">
+                  <div class="pwa-block-head">
+                    <div>
+                      <span id="pwa-bom-form-mode">Create New</span>
+                      <h3>Input BOM</h3>
+                    </div>
+                    <button class="pwa-text-button" type="button" data-pwa-bom-close-form>Tutup</button>
+                  </div>
+                  <form class="pwa-carbon-form" id="pwa-bom-form" autocomplete="off">
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>Tipe BOM</span>
+                        <select id="pwa-bom-form-type" name="catalogType">
+                          <option value="general">BOM General</option>
+                          <option value="motor">BOM Motor</option>
+                        </select>
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Equipment / Unit</span>
+                        <input id="pwa-bom-equipment" name="equipment" type="text" placeholder="Contoh: 323BC1" required>
+                      </label>
+                      <label class="pwa-form-field" data-pwa-bom-general-field>
+                        <span>Part / Nama item</span>
+                        <input id="pwa-bom-part" name="part" type="text" placeholder="Contoh: DRIFT SWITCH">
+                      </label>
+                      <label class="pwa-form-field" data-pwa-bom-motor-field>
+                        <span>Manufacture</span>
+                        <input id="pwa-bom-manufacture" name="manufacture" type="text" placeholder="Contoh: ABB">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Jumlah / Power</span>
+                        <input id="pwa-bom-qty" name="qty" type="text" placeholder="Contoh: 2">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>No Stock SAP</span>
+                        <input id="pwa-bom-stock-no" name="stockNo" type="text" placeholder="Cari No Stock / NM-00001">
+                      </label>
+                    </div>
+                    <label class="pwa-form-field">
+                      <span>Deskripsi Material</span>
+                      <textarea id="pwa-bom-material-description" name="materialDescription" rows="2" placeholder="Material description"></textarea>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Long Text</span>
+                      <textarea id="pwa-bom-long-text" name="longText" rows="3" placeholder="Deskripsi panjang / spesifikasi"></textarea>
+                    </label>
+                    <label class="pwa-form-field" data-pwa-bom-general-field>
+                      <span>Foto Barang</span>
+                      <input id="pwa-bom-item-photo" name="itemPhoto" type="text" placeholder="Nama file foto barang">
+                    </label>
+                    <label class="pwa-form-field" data-pwa-bom-motor-field>
+                      <span>Foto Motor</span>
+                      <input id="pwa-bom-motor-photo" name="motorPhoto" type="text" placeholder="Nama file foto motor">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Keterangan</span>
+                      <textarea id="pwa-bom-form-note-input" name="note" rows="2" placeholder="Catatan singkat"></textarea>
+                    </label>
+                    <button class="pwa-submit-button" id="pwa-bom-submit" type="submit">Simpan BOM</button>
+                    <p class="pwa-form-note" id="pwa-bom-form-status">No Stock manual gunakan format NM-xxxxx.</p>
+                  </form>
+                </section>
                 <div class="pwa-bom-catalog-list" id="pwa-bom-list"></div>
                 <button class="pwa-floating-add" type="button" data-pwa-bom-add aria-label="Tambah BOM">+</button>
               </section>
@@ -3584,12 +3646,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260503-10"></script>
+  <script src="app.js?v=20260503-11"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260503-10").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260503-11").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
