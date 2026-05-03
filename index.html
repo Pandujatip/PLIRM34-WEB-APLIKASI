@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260503-01">
+  <link rel="stylesheet" href="styles.css?v=20260503-02">
 </head>
 <body>
   <div class="app-shell">
@@ -3378,6 +3378,77 @@
               </div>
             </section>
 
+            <section class="content-card admin-card">
+              <div class="card-head compact-head">
+                <p class="eyebrow">Master Sparepart</p>
+                <h4>Kelola referensi No Stock SAP</h4>
+              </div>
+              <form class="input-form compact-form" id="admin-sparepart-master-form">
+                <div class="form-grid form-grid-6">
+                  <label>
+                    No Stock SAP
+                    <input name="stockNo" type="text" placeholder="SI00001831" required>
+                  </label>
+                  <label class="full-span">
+                    Deskripsi Material
+                    <input name="materialDescription" type="text" placeholder="PAPER,KRAFT..." required>
+                  </label>
+                  <label>
+                    Stock
+                    <input name="unrestrictedStock" type="text" placeholder="7506140.964">
+                  </label>
+                  <label>
+                    Price
+                    <input name="price" type="text" placeholder="18982">
+                  </label>
+                  <label>
+                    MRPC
+                    <input name="mrpc" type="text" placeholder="201">
+                  </label>
+                  <label>
+                    Category
+                    <input name="category" type="text" placeholder="Electrical">
+                  </label>
+                </div>
+                <input name="originalIdentifier" type="hidden">
+                <div class="form-actions compact-actions">
+                  <button class="btn btn-primary" type="submit">Simpan Sparepart</button>
+                  <button class="btn btn-secondary" type="button" id="admin-sparepart-master-cancel-edit">Reset</button>
+                </div>
+              </form>
+              <div class="master-equipment-filter-bar">
+                <label class="full-span">
+                  URL CSV Google Sheet
+                  <input type="url" id="admin-sparepart-master-url" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vR4bNeQcoQ1iI-f_iF_MVZ236NzP_9f3Hik_Wvfk9WqHRkvHv7bRVNkSKRQEuzdRciW1-nShA5b466M/pub?output=csv">
+                </label>
+                <button class="btn btn-primary" type="button" id="admin-sparepart-master-import-button">Import CSV</button>
+              </div>
+              <div class="master-equipment-filter-bar">
+                <label>
+                  Search
+                  <input type="search" id="search-admin-sparepart-master" placeholder="Cari no stock, deskripsi, MRPC, kategori">
+                </label>
+                <button class="btn btn-secondary" type="button" id="reset-admin-sparepart-master-filter">Reset Filter</button>
+                <span id="admin-sparepart-master-filter-summary">0 sparepart</span>
+              </div>
+              <div class="table-wrap compact-table master-sparepart-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>No Stock SAP</th>
+                      <th>Deskripsi Material</th>
+                      <th>Stock</th>
+                      <th>Price</th>
+                      <th>MRPC</th>
+                      <th>Category</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-sparepart-master-body"></tbody>
+                </table>
+              </div>
+            </section>
+
           </div>
 
           <div class="table-wrap">
@@ -3476,13 +3547,13 @@
   <script src="app.service.js?v=20260502-02"></script>
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
-  <script src="app.admin.js?v=20260426-15"></script>
-  <script src="app.js?v=20260503-04"></script>
+  <script src="app.admin.js?v=20260503-01"></script>
+  <script src="app.js?v=20260503-05"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260503-04").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260503-05").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

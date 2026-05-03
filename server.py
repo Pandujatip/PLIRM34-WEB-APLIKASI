@@ -850,6 +850,22 @@ def init_db() -> None:
                 UNIQUE(source_group, equipment_code, equipment_name)
             );
 
+            CREATE TABLE IF NOT EXISTS master_spareparts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                stock_no TEXT NOT NULL UNIQUE,
+                material_description TEXT NOT NULL DEFAULT '',
+                unrestricted_stock TEXT NOT NULL DEFAULT '',
+                price TEXT NOT NULL DEFAULT '',
+                mrpc TEXT NOT NULL DEFAULT '',
+                long_text TEXT NOT NULL DEFAULT '',
+                material_type TEXT NOT NULL DEFAULT '',
+                matl_group TEXT NOT NULL DEFAULT '',
+                category TEXT NOT NULL DEFAULT '',
+                raw_json TEXT NOT NULL DEFAULT '{}',
+                is_active INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS negatif_list_items (
                 id TEXT PRIMARY KEY,
                 equipment TEXT NOT NULL,
@@ -2951,6 +2967,129 @@ def list_app_settings() -> list[dict]:
     return items
 
 
+def list_sparepart_references() -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, stock_no, material_description, unrestricted_stock, price, mrpc,
+                   long_text, material_type, matl_group, category, raw_json, updated_at
+            FROM master_spareparts
+            WHERE is_active = 1
+            ORDER BY stock_no
+            """
+        ).fetchall()
+    items = []
+    for row in rows:
+        items.append(
+            {
+                "id": row["id"],
+                "stockNo": row["stock_no"],
+                "materialDescription": row["material_description"],
+                "unrestrictedStock": row["unrestricted_stock"],
+                "price": row["price"],
+                "mrpc": row["mrpc"],
+                "longText": row["long_text"],
+                "materialType": row["material_type"],
+                "materialGroup": row["matl_group"],
+                "category": row["category"],
+                "updatedAt": row["updated_at"],
+            }
+        )
+    return items
+
+
+def normalize_sparepart_record(record: dict) -> dict:
+    def pick(*keys: str) -> str:
+        lowered = {str(key).strip().lower(): value for key, value in record.items()}
+        for key in keys:
+            if key.lower() in lowered:
+                return str(lowered[key.lower()] or "").strip()
+        return ""
+
+    return {
+        "stockNo": pick("stockNo", "stock_no", "Material", "No Stock SAP", "No Stock", "Kode Material"),
+        "materialDescription": pick(
+            "materialDescription",
+            "material_description",
+            "Material Description",
+            "Deskripsi Material",
+            "Description",
+            "Nama Material",
+        ),
+        "unrestrictedStock": pick("Unrestr.", "Unrestricted Stock", "Stock", "Stok"),
+        "price": pick("Price", "Harga"),
+        "mrpc": pick("MRPC"),
+        "longText": pick("Long Text", "LongText", "Keterangan"),
+        "materialType": pick("Material Type", "Type"),
+        "materialGroup": pick("Matl Group", "Material Group"),
+        "category": pick("Category", "Kategori"),
+        "raw": record,
+    }
+
+
+def save_sparepart_reference(connection: sqlite3.Connection, record: dict) -> dict:
+    normalized = normalize_sparepart_record(record)
+    stock_no = normalized["stockNo"]
+    if not stock_no:
+        raise ValueError("No Stock SAP / Material wajib diisi")
+    connection.execute(
+        """
+        INSERT INTO master_spareparts (
+            stock_no, material_description, unrestricted_stock, price, mrpc,
+            long_text, material_type, matl_group, category, raw_json, is_active, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+        ON CONFLICT(stock_no) DO UPDATE SET
+            material_description = excluded.material_description,
+            unrestricted_stock = excluded.unrestricted_stock,
+            price = excluded.price,
+            mrpc = excluded.mrpc,
+            long_text = excluded.long_text,
+            material_type = excluded.material_type,
+            matl_group = excluded.matl_group,
+            category = excluded.category,
+            raw_json = excluded.raw_json,
+            is_active = 1,
+            updated_at = excluded.updated_at
+        """,
+        (
+            stock_no,
+            normalized["materialDescription"],
+            normalized["unrestrictedStock"],
+            normalized["price"],
+            normalized["mrpc"],
+            normalized["longText"],
+            normalized["materialType"],
+            normalized["materialGroup"],
+            normalized["category"],
+            json.dumps(normalized["raw"] if isinstance(normalized["raw"], dict) else {}, ensure_ascii=False),
+            utc_now().isoformat(),
+        ),
+    )
+    return normalized
+
+
+def import_sparepart_references_from_url(source_url: str) -> dict:
+    url = str(source_url or "").strip()
+    if not url:
+        raise ValueError("URL CSV Master Sparepart wajib diisi")
+    with urlopen(url, timeout=30) as response:
+        csv_text = response.read().decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(csv_text))
+    if not reader.fieldnames:
+        raise ValueError("CSV Master Sparepart tidak memiliki header")
+    imported = 0
+    skipped = 0
+    with get_connection() as connection:
+        for row in reader:
+            try:
+                save_sparepart_reference(connection, row)
+                imported += 1
+            except ValueError:
+                skipped += 1
+        checkpoint_connection(connection)
+    return {"imported": imported, "skipped": skipped, "items": list_sparepart_references()}
+
+
 def get_app_setting_value(setting_key: str, default: dict | None = None) -> dict:
     with get_connection() as connection:
         row = connection.execute(
@@ -2993,6 +3132,8 @@ def list_master_records(resource_name: str) -> list[dict]:
         return list_inspection_templates()
     if resource_name == "equipment-references":
         return list_equipment_references()
+    if resource_name == "sparepart-references":
+        return list_sparepart_references()
     if resource_name == "app-settings":
         return list_app_settings()
     raise ValueError("Master resource tidak dikenal")
@@ -3120,6 +3261,11 @@ def save_master_record(resource_name: str, record: dict) -> dict:
             )
             return next((item for item in list_app_settings() if item["settingKey"] == setting_key), {})
 
+        if resource_name == "sparepart-references":
+            normalized = save_sparepart_reference(connection, record)
+            checkpoint_connection(connection)
+            return next((item for item in list_sparepart_references() if item["stockNo"] == normalized["stockNo"]), {})
+
     raise ValueError("Master resource tidak dikenal")
 
 
@@ -3151,6 +3297,12 @@ def delete_master_record(resource_name: str, identifier: str) -> bool:
                 (identifier, identifier, identifier),
             )
             return cursor.rowcount > 0
+        if resource_name == "sparepart-references":
+            cursor = connection.execute(
+                "UPDATE master_spareparts SET is_active = 0, updated_at = ? WHERE CAST(id AS TEXT) = ? OR stock_no = ?",
+                (utc_now().isoformat(), identifier, identifier),
+            )
+            return cursor.rowcount > 0
         if resource_name == "app-settings":
             cursor = connection.execute("DELETE FROM app_settings WHERE setting_key = ?", (identifier,))
             return cursor.rowcount > 0
@@ -3168,6 +3320,7 @@ def build_backup_payload() -> dict:
         "areas": list_areas(),
         "inspectionTemplates": list_inspection_templates(),
         "equipmentReferences": list_equipment_references(),
+        "sparepartReferences": list_sparepart_references(),
         "appSettings": list_app_settings(),
         "data": get_state_snapshot(),
     }
@@ -3251,6 +3404,12 @@ def restore_backup_payload(payload: dict) -> None:
                         utc_now().isoformat(),
                     ),
                 )
+
+        sparepart_references = payload.get("sparepartReferences", [])
+        if isinstance(sparepart_references, list):
+            connection.execute("DELETE FROM master_spareparts")
+            for reference in sparepart_references:
+                save_sparepart_reference(connection, reference if isinstance(reference, dict) else {})
 
         app_settings = payload.get("appSettings", [])
         if isinstance(app_settings, list):
@@ -3487,6 +3646,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_admin_carbon_brush_import_post()
             return
 
+        if parsed.path == "/api/admin/import-sparepart-master":
+            self._handle_admin_sparepart_master_import_post()
+            return
+
         if parsed.path == "/api/admin/import-mso-motor-latest":
             self._handle_admin_mso_motor_import_post()
             return
@@ -3666,6 +3829,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 "areas": list_areas(),
                 "inspectionTemplates": list_inspection_templates(),
                 "equipmentReferences": list_equipment_references(source_group),
+                "sparepartReferences": [],
                 "appSettings": list_app_settings(),
             }
         )
@@ -3772,8 +3936,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         try:
             saved_item = save_master_record(resource_name, item)
-            label = saved_item.get("title") or saved_item.get("equipmentName") or saved_item.get("name") or saved_item.get("code") or saved_item.get("settingKey") or item.get("settingKey") or resource_name
-            identifier = saved_item.get("settingKey") or saved_item.get("equipmentName") or saved_item.get("code") or label
+            label = saved_item.get("title") or saved_item.get("equipmentName") or saved_item.get("materialDescription") or saved_item.get("name") or saved_item.get("code") or saved_item.get("settingKey") or item.get("settingKey") or resource_name
+            identifier = saved_item.get("settingKey") or saved_item.get("stockNo") or saved_item.get("equipmentName") or saved_item.get("code") or label
             log_activity(
                 actor_user_id=int(user["id"]),
                 actor_username=str(user["username"]),
@@ -4030,6 +4194,36 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
         except Exception:
             self._send_json({"error": "Gagal mengambil data negatif list dari link sumber"}, status=HTTPStatus.BAD_GATEWAY)
+
+    def _handle_admin_sparepart_master_import_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+
+        source_url = str(payload.get("sourceUrl") or "").strip()
+        try:
+            result = import_sparepart_references_from_url(source_url)
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="import",
+                resource="master:sparepart-references",
+                target_label="Import Master Sparepart",
+                detail={"imported": result.get("imported", 0), "skipped": result.get("skipped", 0), "sourceUrl": source_url},
+            )
+            self._send_json({"ok": True, **result}, status=HTTPStatus.CREATED)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception:
+            self._send_json({"error": "Gagal mengambil CSV Master Sparepart dari link sumber"}, status=HTTPStatus.BAD_GATEWAY)
 
     def _handle_admin_masters_delete(self, path: str):
         user = self._require_user()

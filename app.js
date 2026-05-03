@@ -105,10 +105,18 @@ const searchAdminEquipment = document.getElementById("search-admin-equipment");
 const filterAdminEquipmentSource = document.getElementById("filter-admin-equipment-source");
 const resetAdminEquipmentFilterButton = document.getElementById("reset-admin-equipment-filter");
 const adminEquipmentFilterSummary = document.getElementById("admin-equipment-filter-summary");
+const adminSparepartMasterForm = document.getElementById("admin-sparepart-master-form");
+const adminSparepartMasterCancelEditButton = document.getElementById("admin-sparepart-master-cancel-edit");
+const adminSparepartMasterUrl = document.getElementById("admin-sparepart-master-url");
+const adminSparepartMasterImportButton = document.getElementById("admin-sparepart-master-import-button");
+const searchAdminSparepartMaster = document.getElementById("search-admin-sparepart-master");
+const resetAdminSparepartMasterFilterButton = document.getElementById("reset-admin-sparepart-master-filter");
+const adminSparepartMasterFilterSummary = document.getElementById("admin-sparepart-master-filter-summary");
 const adminTemplateForm = document.getElementById("admin-template-form");
 const adminAreasBody = document.getElementById("admin-areas-body");
 const adminElectricalRoomBody = document.getElementById("admin-electrical-room-body");
 const adminEquipmentBody = document.getElementById("admin-equipment-body");
+const adminSparepartMasterBody = document.getElementById("admin-sparepart-master-body");
 const adminTemplatesBody = document.getElementById("admin-templates-body");
 const activityLogBody = document.getElementById("activity-log-body");
 const searchActivityLog = document.getElementById("search-activity-log");
@@ -418,6 +426,7 @@ const backendState = {
     areas: [],
     inspectionTemplates: [],
     equipmentReferences: [],
+    sparepartReferences: [],
     appSettings: [],
   },
 };
@@ -6116,6 +6125,7 @@ async function loadMastersFromBackend(sourceGroup = "") {
       areas: Array.isArray(result.areas) ? result.areas : backendState.masters.areas,
       inspectionTemplates: Array.isArray(result.inspectionTemplates) ? result.inspectionTemplates : backendState.masters.inspectionTemplates,
       equipmentReferences: backendState.masters.equipmentReferences,
+      sparepartReferences: backendState.masters.sparepartReferences,
       appSettings: Array.isArray(result.appSettings) ? result.appSettings : backendState.masters.appSettings,
     };
   } else {
@@ -6123,6 +6133,7 @@ async function loadMastersFromBackend(sourceGroup = "") {
       areas: Array.isArray(result.areas) ? result.areas : [],
       inspectionTemplates: Array.isArray(result.inspectionTemplates) ? result.inspectionTemplates : [],
       equipmentReferences: Array.isArray(result.equipmentReferences) ? result.equipmentReferences : [],
+      sparepartReferences: Array.isArray(result.sparepartReferences) ? result.sparepartReferences : [],
       appSettings: Array.isArray(result.appSettings) ? result.appSettings : [],
     };
   }
@@ -6154,6 +6165,13 @@ async function saveAdminMaster(resourceName, item) {
 async function deleteAdminMaster(resourceName, identifier) {
   await apiRequest(`/admin/masters/${resourceName}/${encodeURIComponent(identifier)}`, {
     method: "DELETE",
+  });
+}
+
+async function importSparepartMasterFromUrl(sourceUrl) {
+  return apiRequest("/admin/import-sparepart-master", {
+    method: "POST",
+    body: { sourceUrl },
   });
 }
 
@@ -7107,6 +7125,61 @@ function applyAdminEquipmentFilter() {
   }
 }
 
+function renderAdminSparepartMasterTable(items) {
+  if (!adminSparepartMasterBody) {
+    return;
+  }
+  adminSparepartMasterBody.innerHTML = "";
+  items.slice(0, 500).forEach((item) => {
+    const row = document.createElement("tr");
+    const identifier = item.stockNo || item.id || "";
+    row.dataset.identifier = identifier;
+    row.dataset.stockNo = item.stockNo || "";
+    row.dataset.materialDescription = item.materialDescription || "";
+    row.dataset.unrestrictedStock = item.unrestrictedStock || "";
+    row.dataset.price = item.price || "";
+    row.dataset.mrpc = item.mrpc || "";
+    row.dataset.category = item.category || "";
+    row.innerHTML = `
+      <td>${escapeHtml(item.stockNo || "-")}</td>
+      <td>${escapeHtml(item.materialDescription || item.longText || "-")}</td>
+      <td>${escapeHtml(item.unrestrictedStock || "-")}</td>
+      <td>${escapeHtml(item.price || "-")}</td>
+      <td>${escapeHtml(item.mrpc || "-")}</td>
+      <td>${escapeHtml(item.category || "-")}</td>
+      <td class="action-cell">
+        <button class="table-action" data-action="edit-sparepart-master" type="button">Edit</button>
+        <button class="table-action danger" data-action="delete-sparepart-master" type="button">Hapus</button>
+      </td>
+    `;
+    adminSparepartMasterBody.append(row);
+  });
+}
+
+function applyAdminSparepartMasterFilter() {
+  const items = Array.isArray(backendState.masters.sparepartReferences)
+    ? backendState.masters.sparepartReferences
+    : [];
+  const query = String(searchAdminSparepartMaster?.value || "").trim().toLowerCase();
+  const filteredItems = items.filter((item) => {
+    const searchText = [
+      item.stockNo,
+      item.materialDescription,
+      item.longText,
+      item.mrpc,
+      item.materialType,
+      item.materialGroup,
+      item.category,
+    ].join(" ").toLowerCase();
+    return !query || searchText.includes(query);
+  });
+  renderAdminSparepartMasterTable(filteredItems);
+  if (adminSparepartMasterFilterSummary) {
+    const capped = filteredItems.length > 500 ? "ditampilkan 500 pertama, " : "";
+    adminSparepartMasterFilterSummary.textContent = `${capped}${filteredItems.length} dari ${items.length} sparepart`;
+  }
+}
+
 function normalizeTableSortValue(value) {
   const text = String(value || "").trim();
   if (!text) {
@@ -7221,6 +7294,36 @@ function fillAdminEquipmentFormFromRow(row) {
     submitButton.textContent = "Update Equipment";
   }
   adminEquipmentForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function resetAdminSparepartMasterForm() {
+  if (!adminSparepartMasterForm) {
+    return;
+  }
+  adminSparepartMasterForm.reset();
+  adminSparepartMasterForm.elements.originalIdentifier.value = "";
+  const submitButton = adminSparepartMasterForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.textContent = "Simpan Sparepart";
+  }
+}
+
+function fillAdminSparepartMasterFormFromRow(row) {
+  if (!adminSparepartMasterForm || !row) {
+    return;
+  }
+  adminSparepartMasterForm.elements.stockNo.value = row.dataset.stockNo || "";
+  adminSparepartMasterForm.elements.materialDescription.value = row.dataset.materialDescription || "";
+  adminSparepartMasterForm.elements.unrestrictedStock.value = row.dataset.unrestrictedStock || "";
+  adminSparepartMasterForm.elements.price.value = row.dataset.price || "";
+  adminSparepartMasterForm.elements.mrpc.value = row.dataset.mrpc || "";
+  adminSparepartMasterForm.elements.category.value = row.dataset.category || "";
+  adminSparepartMasterForm.elements.originalIdentifier.value = row.dataset.identifier || "";
+  const submitButton = adminSparepartMasterForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.textContent = "Update Sparepart";
+  }
+  adminSparepartMasterForm.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function renderAdminTemplatesTable(items) {
@@ -10512,6 +10615,61 @@ resetAdminEquipmentFilterButton?.addEventListener("click", () => {
   applyAdminEquipmentFilter();
 });
 
+adminSparepartMasterForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(adminSparepartMasterForm);
+  const originalIdentifier = String(formData.get("originalIdentifier") || "").trim();
+  const stockNo = String(formData.get("stockNo") || "").trim();
+  try {
+    if (originalIdentifier && originalIdentifier !== stockNo) {
+      await deleteAdminMaster("sparepart-references", originalIdentifier);
+    }
+    await saveAdminMaster("sparepart-references", {
+      stockNo,
+      materialDescription: String(formData.get("materialDescription") || "").trim(),
+      unrestrictedStock: String(formData.get("unrestrictedStock") || "").trim(),
+      price: String(formData.get("price") || "").trim(),
+      mrpc: String(formData.get("mrpc") || "").trim(),
+      category: String(formData.get("category") || "").trim(),
+    });
+    resetAdminSparepartMasterForm();
+    await refreshAdminMasters();
+    showToast("Master Sparepart", "Referensi sparepart berhasil disimpan.");
+  } catch (error) {
+    showToast("Master Sparepart", error.message || "Gagal menyimpan referensi sparepart.");
+  }
+});
+
+adminSparepartMasterCancelEditButton?.addEventListener("click", resetAdminSparepartMasterForm);
+searchAdminSparepartMaster?.addEventListener("input", applyAdminSparepartMasterFilter);
+resetAdminSparepartMasterFilterButton?.addEventListener("click", () => {
+  if (searchAdminSparepartMaster) {
+    searchAdminSparepartMaster.value = "";
+  }
+  applyAdminSparepartMasterFilter();
+});
+
+adminSparepartMasterImportButton?.addEventListener("click", async () => {
+  const sourceUrl = String(adminSparepartMasterUrl?.value || "").trim();
+  if (!sourceUrl) {
+    showToast("Master Sparepart", "URL CSV wajib diisi.");
+    return;
+  }
+  try {
+    adminSparepartMasterImportButton.disabled = true;
+    adminSparepartMasterImportButton.textContent = "Importing...";
+    const result = await importSparepartMasterFromUrl(sourceUrl);
+    backendState.masters.sparepartReferences = Array.isArray(result.items) ? result.items : backendState.masters.sparepartReferences;
+    applyAdminSparepartMasterFilter();
+    showToast("Master Sparepart", `Import selesai: ${result.imported || 0} data, skip ${result.skipped || 0}.`);
+  } catch (error) {
+    showToast("Master Sparepart", error.message || "Gagal import Master Sparepart.");
+  } finally {
+    adminSparepartMasterImportButton.disabled = false;
+    adminSparepartMasterImportButton.textContent = "Import CSV";
+  }
+});
+
 adminTemplateForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(adminTemplateForm);
@@ -10580,6 +10738,32 @@ adminEquipmentBody?.addEventListener("click", async (event) => {
     showToast("Master Equipment", "Equipment reference berhasil dihapus.");
   } catch (error) {
     showToast("Master Equipment", error.message || "Gagal menghapus equipment reference.");
+  }
+});
+
+adminSparepartMasterBody?.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const row = target.closest("tr");
+  if (target.dataset.action === "edit-sparepart-master") {
+    fillAdminSparepartMasterFormFromRow(row);
+    return;
+  }
+  if (target.dataset.action !== "delete-sparepart-master") {
+    return;
+  }
+  if (!confirmDeleteAction("referensi sparepart ini")) {
+    return;
+  }
+  const identifier = row?.dataset.identifier || "";
+  try {
+    await deleteAdminMaster("sparepart-references", identifier);
+    await refreshAdminMasters();
+    showToast("Master Sparepart", "Referensi sparepart berhasil dihapus.");
+  } catch (error) {
+    showToast("Master Sparepart", error.message || "Gagal menghapus referensi sparepart.");
   }
 });
 

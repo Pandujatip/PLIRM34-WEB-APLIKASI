@@ -4688,7 +4688,19 @@ th.sort-desc::after {
   overscroll-behavior: contain;
 }
 
+.master-sparepart-table-wrap {
+  max-height: 460px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 .master-equipment-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.master-sparepart-table-wrap thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -4697,6 +4709,16 @@ th.sort-desc::after {
 .master-equipment-table-wrap td,
 .master-equipment-table-wrap th {
   white-space: nowrap;
+}
+
+.master-sparepart-table-wrap td,
+.master-sparepart-table-wrap th {
+  white-space: nowrap;
+}
+
+.master-sparepart-table-wrap td:nth-child(2) {
+  min-width: 320px;
+  white-space: normal;
 }
 
 .master-equipment-filter-bar {
