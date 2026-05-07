@@ -10197,13 +10197,13 @@ function hydrateServiceForm(item) {
     [
       "condition", "inspId", "idAmtrans", "creator", "mplant", "equipmentDesc",
       "temperaturDs", "temperaturNds", "kelengkapanMotor", "inspectionNote",
-      "geDsVertBefore", "geDsHorBefore", "geDsAxialBefore",
-      "vibrasiDsVertBefore", "vibrasiDsHorBefore", "vibrasiDsAxialBefore",
-      "geNdsVertBefore", "geNdsHorBefore", "geNdsAxialBefore",
-      "vibrasiNdsVertBefore", "vibrasiNdsHorBefore", "vibrasiNdsAxialBefore",
+      "geDsVertBefore", "geDsHorBefore",
+      "vibrasiDsVertBefore", "vibrasiDsHorBefore",
+      "geNdsVertBefore", "geNdsHorBefore",
+      "vibrasiNdsVertBefore", "vibrasiNdsHorBefore",
       "regreaseDe", "regreaseNde",
-      "geDsVertAfter", "geDsHorAfter", "geDsAxialAfter",
-      "geNdsVertAfter", "geNdsHorAfter", "geNdsAxialAfter",
+      "geDsVertAfter", "geDsHorAfter",
+      "geNdsVertAfter", "geNdsHorAfter",
     ].forEach((fieldName) => {
       if (form[fieldName]) {
         form[fieldName].value = payload[fieldName] || "";
@@ -13064,13 +13064,13 @@ async function editServiceFromPwa(itemId) {
     openPwaQuickForm("mso");
     hydratePwaFormValues(pwaMsoForm, item, [
       "condition", "creator", "mplant", "equipmentDesc", "temperaturDs", "temperaturNds", "kelengkapanMotor",
-      "vibrasiDsVertBefore", "vibrasiDsHorBefore", "vibrasiDsAxialBefore",
-      "vibrasiNdsVertBefore", "vibrasiNdsHorBefore", "vibrasiNdsAxialBefore",
+      "vibrasiDsVertBefore", "vibrasiDsHorBefore",
+      "vibrasiNdsVertBefore", "vibrasiNdsHorBefore",
       "regreaseDe", "regreaseNde",
-      "geDsVertBefore", "geDsHorBefore", "geDsAxialBefore",
-      "geNdsVertBefore", "geNdsHorBefore", "geNdsAxialBefore",
-      "geDsVertAfter", "geDsHorAfter", "geDsAxialAfter",
-      "geNdsVertAfter", "geNdsHorAfter", "geNdsAxialAfter",
+      "geDsVertBefore", "geDsHorBefore",
+      "geNdsVertBefore", "geNdsHorBefore",
+      "geDsVertAfter", "geDsHorAfter",
+      "geNdsVertAfter", "geNdsHorAfter",
       "inspectionNote",
     ]);
     if (pwaMsoFormNote) pwaMsoFormNote.textContent = "Mode edit Motor MSO aktif. Simpan untuk memperbarui data ini.";
