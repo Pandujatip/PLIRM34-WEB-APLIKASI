@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import csv
+import gzip
 import hashlib
 import hmac
 import html
@@ -28,6 +29,7 @@ SESSION_DURATION_DAYS = 7
 JAKARTA_TIMEZONE = timezone(timedelta(hours=7))
 CALENDAR_FEED_URL = "https://calendar.google.com/calendar/ical/adenairdrop%40gmail.com/public/basic.ics"
 CALENDAR_CACHE_TTL_SECONDS = 600
+CALENDAR_FETCH_TIMEOUT_SECONDS = 2.5
 MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
 MAX_ADMIN_IMPORT_BODY_BYTES = 6 * 1024 * 1024
 MAX_BACKUP_BODY_BYTES = 12 * 1024 * 1024
@@ -625,7 +627,7 @@ def build_calendar_schedule() -> dict[str, object]:
     }
 
     try:
-        with urlopen(CALENDAR_FEED_URL, timeout=10) as response:
+        with urlopen(CALENDAR_FEED_URL, timeout=CALENDAR_FETCH_TIMEOUT_SECONDS) as response:
             ics_text = response.read().decode("utf-8", errors="replace")
     except Exception:
         CALENDAR_CACHE["fetched_at"] = now
@@ -3760,8 +3762,14 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def _send_json(self, payload: dict, *, status: HTTPStatus = HTTPStatus.OK, extra_headers: dict | None = None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = dict(extra_headers or {})
+        accept_encoding = self.headers.get("Accept-Encoding", "")
+        if len(body) > 1024 and "gzip" in accept_encoding.lower():
+            body = gzip.compress(body, compresslevel=5)
+            headers["Content-Encoding"] = "gzip"
+            headers["Vary"] = "Accept-Encoding"
         self.send_response(status)
-        self._send_json_headers(extra_headers=extra_headers)
+        self._send_json_headers(extra_headers=headers)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

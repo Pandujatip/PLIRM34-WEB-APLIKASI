@@ -6267,7 +6267,7 @@ function runPostLoginBackgroundTasks(role = "") {
     Promise.allSettled(tasks).then(() => {
       renderUserManagementTable();
     });
-  }, 220);
+  }, role === "admin" ? 2400 : 1600);
 }
 
 async function loadMastersFromBackend(sourceGroup = "") {
@@ -7011,7 +7011,7 @@ async function restoreBackendSession() {
     runPostLoginBackgroundTasks(result.user?.role || "");
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
-    syncDashboardFromBackendInBackground({ delayMs: 120 });
+    syncDashboardFromBackendInBackground({ delayMs: 450 });
     return true;
   } catch {
     backendState.sessionActive = false;
@@ -7050,7 +7050,7 @@ async function restorePwaBackendSession() {
     loginWithUser(result.user);
     openPwaTab("home");
     loadStoredData({ resources: ["negatif-list", "service", "spb"] });
-    syncDashboardFromBackendInBackground({ delayMs: 120, toastOnError: true });
+    syncDashboardFromBackendInBackground({ delayMs: 450, toastOnError: true });
     return true;
   } catch {
     backendState.sessionActive = false;
@@ -10566,7 +10566,7 @@ if (loginForm) {
         loginWithUser(result.user);
         loadStoredData({ resources: ["negatif-list", "service", "spb"] });
         runPostLoginBackgroundTasks(result.user?.role || "");
-        syncDashboardFromBackendInBackground({ delayMs: 120, toastOnError: true });
+        syncDashboardFromBackendInBackground({ delayMs: 450, toastOnError: true });
         showToast("Login Berhasil", `Masuk sebagai ${result.user.username} (${roleLabels[result.user.role]}). Data terbaru dimuat di background.`);
       } catch (error) {
         showToast("Login Gagal", error.message || "Username atau password tidak cocok.");
