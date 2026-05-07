@@ -287,6 +287,11 @@
                     <strong>MCC</strong>
                     <small>Panel</small>
                   </button>
+                  <button type="button" data-pwa-form-choice="mso">
+                    <span class="pwa-menu-icon">MS</span>
+                    <strong>Motor MSO</strong>
+                    <small>Manual</small>
+                  </button>
                   <button type="button" data-pwa-form-choice="electrical-room">
                     <span class="pwa-menu-icon">ER</span>
                     <strong>Room</strong>
@@ -424,6 +429,165 @@
                   </label>
                   <button class="pwa-submit-button" id="pwa-mcc-submit" type="submit">Simpan MCC</button>
                   <p class="pwa-form-note" id="pwa-mcc-form-note">Pilih equipment MCC dari dropdown agar data rapi.</p>
+                </form>
+              </section>
+
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="mso">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Inspeksi Motor MSO</h3>
+                  </div>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                    <button class="pwa-text-button" type="button" data-pwa-section="service">Form web</button>
+                  </div>
+                </div>
+                <form class="pwa-carbon-form" id="pwa-mso-form" autocomplete="off">
+                  <label class="pwa-form-field pwa-typeahead-field">
+                    <span>Equipment</span>
+                    <input id="pwa-mso-equipment" name="equipmentName" type="text" placeholder="Ketik equipment motor MSO, lalu pilih" required>
+                    <div class="pwa-typeahead-list hidden" id="pwa-mso-equipment-dropdown"></div>
+                  </label>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Tanggal</span>
+                      <input id="pwa-mso-date" name="inspectionDate" type="date" required>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Condition</span>
+                      <select name="condition">
+                        <option value="GOOD">GOOD</option>
+                        <option value="BAD">BAD</option>
+                        <option value="WARNING">WARNING</option>
+                      </select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Creator / PIC</span>
+                      <input name="creator" type="text" placeholder="Nama pemeriksa">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Mplant</span>
+                      <input name="mplant" type="text" placeholder="Contoh: 2304">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Temp DS</span>
+                      <input name="temperaturDs" type="text" inputmode="decimal" placeholder="Contoh: 46">
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Temp NDS</span>
+                      <input name="temperaturNds" type="text" inputmode="decimal" placeholder="Contoh: 44">
+                    </label>
+                  </div>
+                  <details class="pwa-form-accordion" open>
+                    <summary>Vibrasi before</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>DS Vert</span>
+                        <input name="vibrasiDsVertBefore" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>DS Hor</span>
+                        <input name="vibrasiDsHorBefore" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>DS Axial</span>
+                        <input name="vibrasiDsAxialBefore" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>NDS Vert</span>
+                        <input name="vibrasiNdsVertBefore" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>NDS Hor</span>
+                        <input name="vibrasiNdsHorBefore" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>NDS Axial</span>
+                        <input name="vibrasiNdsAxialBefore" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Regrease dan vibrasi after</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>Regrease DE</span>
+                        <input name="regreaseDe" type="text" inputmode="decimal" placeholder="Contoh: 10">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Regrease NDE</span>
+                        <input name="regreaseNde" type="text" inputmode="decimal" placeholder="Contoh: 10">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>DS Vert After</span>
+                        <input name="vibrasiDsVertAfter" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>DS Hor After</span>
+                        <input name="vibrasiDsHorAfter" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>DS Axial After</span>
+                        <input name="vibrasiDsAxialAfter" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>NDS Vert After</span>
+                        <input name="vibrasiNdsVertAfter" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>NDS Hor After</span>
+                        <input name="vibrasiNdsHorAfter" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>NDS Axial After</span>
+                        <input name="vibrasiNdsAxialAfter" type="text" inputmode="decimal" placeholder="mm/s">
+                      </label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Detail tambahan</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>Equipment desc</span>
+                        <input name="equipmentDesc" type="text" placeholder="Deskripsi equipment">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Kelengkapan motor</span>
+                        <input name="kelengkapanMotor" type="text" placeholder="Opsional">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE DS Vert Before</span>
+                        <input name="geDsVertBefore" type="text" inputmode="decimal" placeholder="Opsional">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Vert Before</span>
+                        <input name="geNdsVertBefore" type="text" inputmode="decimal" placeholder="Opsional">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE DS Vert After</span>
+                        <input name="geDsVertAfter" type="text" inputmode="decimal" placeholder="Opsional">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Vert After</span>
+                        <input name="geNdsVertAfter" type="text" inputmode="decimal" placeholder="Opsional">
+                      </label>
+                      <label class="pwa-form-field full-span">
+                        <span>Foto temuan</span>
+                        <input name="findingPhoto" type="file" accept="image/*" multiple>
+                      </label>
+                    </div>
+                  </details>
+                  <label class="pwa-form-field">
+                    <span>Ringkasan</span>
+                    <textarea name="description" rows="2" placeholder="Catatan singkat inspeksi motor MSO"></textarea>
+                  </label>
+                  <label class="pwa-form-field">
+                    <span>Keterangan detail</span>
+                    <textarea name="inspectionNote" rows="2" placeholder="Catatan detail tambahan"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-mso-submit" type="submit">Simpan Motor MSO</button>
+                  <p class="pwa-form-note" id="pwa-mso-form-note">Import CSV/JSON MSO tetap jalan. Form ini untuk input manual satuan saat diperlukan.</p>
                 </form>
               </section>
 
@@ -1833,49 +1997,218 @@
                 <button class="btn btn-primary" type="submit">Simpan Electrical Room</button>
               </form>
 
-              <form class="input-form electrical-pane sync-only-form" data-electrical-pane="motor-mso" data-form-type="service-motor-mso">
+              <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mso" data-form-type="service-motor-mso">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Motor MSO</p>
-                  <h3>Sinkron inspeksi motor dari MSO</h3>
+                  <h3>Inspeksi motor MSO</h3>
                 </div>
                 <div class="sync-only-note">
-                  <strong>Sumber data motor ini hanya dari MSO.</strong>
-                  <span>Letakkan file CSV export mingguan MSO di folder server yang sudah ditentukan, lalu jalankan tombol <strong>Import MSO Mingguan</strong> di menu <strong>Manajemen User &gt; Admin Tools</strong>.</span>
+                  <strong>Import CSV / JSON MSO tetap aktif.</strong>
+                  <span>Form ini dipakai untuk input manual per equipment saat diperlukan. Data hasil import tetap masuk seperti biasa dan item sinkron MSO tetap tidak bisa diedit manual.</span>
                 </div>
-                <div class="form-grid form-grid-3">
-                  <label>
-                    Nama motor MV
-                    <input type="text" name="equipmentName" placeholder="Diisi otomatis dari file MSO" disabled>
-                  </label>
-                  <label>
-                    Vibrasi DE
-                    <input type="text" name="vibrationDe" placeholder="Diisi otomatis dari file MSO" disabled>
-                  </label>
-                  <label>
-                    Vibrasi NDE
-                    <input type="text" name="vibrationNde" placeholder="Diisi otomatis dari file MSO" disabled>
-                  </label>
-                  <label>
-                    Suhu winding
-                    <input type="text" name="windingTemperature" placeholder="Diisi otomatis dari file MSO" disabled>
-                  </label>
-                  <label>
-                    Kondisi bearing
-                    <input type="text" name="bearingCondition" placeholder="Diisi otomatis dari file MSO" disabled>
-                  </label>
-                  <label>
-                    Arus motor
-                    <input type="text" name="motorCurrent" placeholder="Diisi otomatis dari file MSO" disabled>
-                  </label>
-                  <label class="full-span">
-                    Keterangan
-                    <textarea name="description" rows="4" placeholder="Ringkasan inspeksi akan mengikuti data MSO" disabled></textarea>
-                  </label>
-                  <label class="full-span">
-                    Foto temuan
-                    <input type="file" name="findingPhoto" accept="image/*" multiple disabled>
-                  </label>
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Identitas inspeksi</strong>
+                    <span>Pilih equipment dari histori Motor MSO yang sudah ada atau ketik manual bila equipment baru.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Equipment
+                      <input id="motor-mso-equipment-input" type="text" name="equipmentName" list="motor-mso-reference-list" placeholder="Contoh: 343RM1M01" autocomplete="off" required>
+                    </label>
+                    <label>
+                      Tanggal inspeksi
+                      <input type="date" name="inspectionDate" required>
+                    </label>
+                    <label>
+                      Condition
+                      <select name="condition">
+                        <option value="GOOD">GOOD</option>
+                        <option value="BAD">BAD</option>
+                        <option value="WARNING">WARNING</option>
+                      </select>
+                    </label>
+                    <label>
+                      InspID
+                      <input type="text" name="inspId" placeholder="Opsional">
+                    </label>
+                    <label>
+                      ID AMTRANS
+                      <input type="text" name="idAmtrans" placeholder="Opsional">
+                    </label>
+                    <label>
+                      Creator / PIC
+                      <input type="text" name="creator" placeholder="Nama pemeriksa">
+                    </label>
+                    <label>
+                      Mplant
+                      <input type="text" name="mplant" placeholder="Contoh: 2304">
+                    </label>
+                    <label class="full-span">
+                      Equipment desc
+                      <input type="text" name="equipmentDesc" placeholder="Deskripsi equipment">
+                    </label>
+                  </div>
+                  <datalist id="motor-mso-reference-list"></datalist>
+                  <p class="form-hint" id="motor-mso-reference-hint">Referensi equipment Motor MSO dimuat dari histori service/import yang sudah ada.</p>
                 </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Temperature dan ringkasan</strong>
+                    <span>Isi temperatur aktual dan catatan singkat inspeksi.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Temperatur DS
+                      <input type="text" name="temperaturDs" inputmode="decimal" placeholder="Contoh: 46">
+                    </label>
+                    <label>
+                      Temperatur NDS
+                      <input type="text" name="temperaturNds" inputmode="decimal" placeholder="Contoh: 44">
+                    </label>
+                    <label>
+                      Kelengkapan motor
+                      <input type="text" name="kelengkapanMotor" placeholder="Opsional">
+                    </label>
+                    <label class="full-span">
+                      Ringkasan hasil inspeksi
+                      <textarea name="description" rows="2" placeholder="Contoh: regrease bearing, cek vibrasi, cek temperatur"></textarea>
+                    </label>
+                    <label class="full-span">
+                      Keterangan detail
+                      <textarea name="inspectionNote" rows="3" placeholder="Catatan tambahan untuk histori MSO manual"></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Vibrasi before</strong>
+                    <span>Nilai before adalah nilai sebelum regrease atau sebelum tindakan dilakukan.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      gE DS Vert Before
+                      <input type="text" name="geDsVertBefore" inputmode="decimal" placeholder="Contoh: 2.1">
+                    </label>
+                    <label>
+                      gE DS Hor Before
+                      <input type="text" name="geDsHorBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      gE DS Axial Before
+                      <input type="text" name="geDsAxialBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi DS Vert Before
+                      <input type="text" name="vibrasiDsVertBefore" inputmode="decimal" placeholder="Contoh: 1.3">
+                    </label>
+                    <label>
+                      Vibrasi DS Hor Before
+                      <input type="text" name="vibrasiDsHorBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi DS Axial Before
+                      <input type="text" name="vibrasiDsAxialBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      gE NDS Vert Before
+                      <input type="text" name="geNdsVertBefore" inputmode="decimal" placeholder="Contoh: 2.0">
+                    </label>
+                    <label>
+                      gE NDS Hor Before
+                      <input type="text" name="geNdsHorBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      gE NDS Axial Before
+                      <input type="text" name="geNdsAxialBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi NDS Vert Before
+                      <input type="text" name="vibrasiNdsVertBefore" inputmode="decimal" placeholder="Contoh: 0.9">
+                    </label>
+                    <label>
+                      Vibrasi NDS Hor Before
+                      <input type="text" name="vibrasiNdsHorBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi NDS Axial Before
+                      <input type="text" name="vibrasiNdsAxialBefore" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                  </div>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Regrease dan vibrasi after</strong>
+                    <span>Jika motor free maintenance, after bisa dibiarkan 0 atau kosong.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Regrease DE
+                      <input type="text" name="regreaseDe" inputmode="decimal" placeholder="Contoh: 10">
+                    </label>
+                    <label>
+                      Regrease NDE
+                      <input type="text" name="regreaseNde" inputmode="decimal" placeholder="Contoh: 10">
+                    </label>
+                    <div></div>
+                    <label>
+                      gE DS Vert After
+                      <input type="text" name="geDsVertAfter" inputmode="decimal" placeholder="Contoh: 2.0">
+                    </label>
+                    <label>
+                      gE DS Hor After
+                      <input type="text" name="geDsHorAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      gE DS Axial After
+                      <input type="text" name="geDsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi DS Vert After
+                      <input type="text" name="vibrasiDsVertAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi DS Hor After
+                      <input type="text" name="vibrasiDsHorAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi DS Axial After
+                      <input type="text" name="vibrasiDsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      gE NDS Vert After
+                      <input type="text" name="geNdsVertAfter" inputmode="decimal" placeholder="Contoh: 1.9">
+                    </label>
+                    <label>
+                      gE NDS Hor After
+                      <input type="text" name="geNdsHorAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      gE NDS Axial After
+                      <input type="text" name="geNdsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi NDS Vert After
+                      <input type="text" name="vibrasiNdsVertAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi NDS Hor After
+                      <input type="text" name="vibrasiNdsHorAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label>
+                      Vibrasi NDS Axial After
+                      <input type="text" name="vibrasiNdsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
+                    </label>
+                    <label class="full-span">
+                      Foto temuan
+                      <input type="file" name="findingPhoto" accept="image/*" multiple>
+                    </label>
+                  </div>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan Motor MSO</button>
               </form>
 
               <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mv-carbon-brush" data-form-type="service-motor-mv-carbon-brush">
@@ -3653,16 +3986,16 @@
 
   <script src="app.auth.js?v=20260426-15"></script>
   <script src="app.carbon-brush.js?v=20260502-05"></script>
-  <script src="app.service.js?v=20260502-02"></script>
+  <script src="app.service.js?v=20260507-01"></script>
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260503-13"></script>
+  <script src="app.js?v=20260507-01"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260503-13").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260507-01").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

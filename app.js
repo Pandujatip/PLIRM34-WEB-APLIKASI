@@ -44,11 +44,15 @@ const carbonBrushMeasurementGrid = document.getElementById("carbon-brush-measure
 const carbonBrushStats = document.getElementById("carbon-brush-stats");
 const serviceElectricalCarbonBrushForm = document.querySelector('[data-form-type="service-motor-mv-carbon-brush"]');
 const serviceElectricalRoomForm = document.querySelector('[data-form-type="service-electrical-room"]');
+const serviceMsoForm = document.querySelector('[data-form-type="service-motor-mso"]');
 const serviceMccForm = document.querySelector('[data-form-type="service-mcc"]');
 const serviceItemCache = new Map();
 const electricalRoomNameInput = document.getElementById("electrical-room-name-input");
 const electricalRoomReferenceListElement = document.getElementById("electrical-room-reference-list");
 const electricalRoomReferenceHint = document.getElementById("electrical-room-reference-hint");
+const motorMsoEquipmentInput = document.getElementById("motor-mso-equipment-input");
+const motorMsoReferenceListElement = document.getElementById("motor-mso-reference-list");
+const motorMsoReferenceHint = document.getElementById("motor-mso-reference-hint");
 const serviceMccEquipmentInput = document.getElementById("service-mcc-equipment-input");
 const serviceMccReferenceListElement = document.getElementById("service-mcc-reference-list");
 const serviceMccReferenceHint = document.getElementById("service-mcc-reference-hint");
@@ -206,6 +210,12 @@ const pwaMccEquipmentDropdown = document.getElementById("pwa-mcc-equipment-dropd
 const pwaMccDate = document.getElementById("pwa-mcc-date");
 const pwaMccFormNote = document.getElementById("pwa-mcc-form-note");
 const pwaMccSubmit = document.getElementById("pwa-mcc-submit");
+const pwaMsoForm = document.getElementById("pwa-mso-form");
+const pwaMsoEquipment = document.getElementById("pwa-mso-equipment");
+const pwaMsoEquipmentDropdown = document.getElementById("pwa-mso-equipment-dropdown");
+const pwaMsoDate = document.getElementById("pwa-mso-date");
+const pwaMsoFormNote = document.getElementById("pwa-mso-form-note");
+const pwaMsoSubmit = document.getElementById("pwa-mso-submit");
 const pwaElectricalRoomForm = document.getElementById("pwa-electrical-room-form");
 const pwaElectricalRoomName = document.getElementById("pwa-electrical-room-name");
 const pwaElectricalRoomDropdown = document.getElementById("pwa-electrical-room-dropdown");
@@ -1042,6 +1052,38 @@ function getMccEquipmentReferenceList() {
     .map((item) => String(item.equipmentName || "").trim().toUpperCase())
     .filter(Boolean);
   return [...new Set(serviceItems)].sort((left, right) => left.localeCompare(right));
+}
+
+function getMsoMotorEquipmentReferenceList() {
+  const masterItems = getMasterEquipmentNames(["service-motor-mso", "mso-motor"])
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter(Boolean);
+  if (masterItems.length) {
+    return [...new Set(masterItems)].sort((left, right) => left.localeCompare(right));
+  }
+  const serviceItems = getServiceItemsFromDom()
+    .filter((item) => item.formType === "service-motor-mso" || ((item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO"))
+    .map((item) => String(item.equipmentName || "").trim().toUpperCase())
+    .filter(Boolean);
+  return [...new Set(serviceItems)].sort((left, right) => left.localeCompare(right));
+}
+
+function renderMsoMotorReferenceOptions() {
+  if (!motorMsoReferenceListElement) {
+    return;
+  }
+  const items = getMsoMotorEquipmentReferenceList();
+  motorMsoReferenceListElement.innerHTML = "";
+  items.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item;
+    motorMsoReferenceListElement.append(option);
+  });
+  if (motorMsoReferenceHint) {
+    motorMsoReferenceHint.textContent = items.length
+      ? `Referensi Motor MSO aktif: ${items.length} equipment dari histori import/service.`
+      : "Belum ada referensi Motor MSO tersimpan. Setelah import atau simpan inspeksi pertama, daftar akan muncul di sini.";
+  }
 }
 
 function getDcsEquipmentReferenceList() {
@@ -2006,6 +2048,19 @@ function resetPwaMccForm() {
   }
 }
 
+function resetPwaMsoForm() {
+  if (!pwaMsoForm) {
+    return;
+  }
+  pwaMsoForm.reset();
+  if (pwaMsoDate) {
+    pwaMsoDate.value = new Date().toISOString().slice(0, 10);
+  }
+  if (pwaMsoFormNote) {
+    pwaMsoFormNote.textContent = "Import CSV/JSON MSO tetap jalan. Form ini untuk input manual satuan saat diperlukan.";
+  }
+}
+
 function resetPwaElectricalRoomForm() {
   if (!pwaElectricalRoomForm) {
     return;
@@ -2455,6 +2510,9 @@ function resetCreatePanelState(sectionName) {
     selectedCarbonBrushEquipmentReference = "";
     if (serviceElectricalCarbonBrushForm?.inspectionDate) {
       serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
+    }
+    if (serviceMsoForm?.inspectionDate && !serviceMsoForm.inspectionDate.value) {
+      serviceMsoForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
     }
     updateCarbonBrushEquipmentMeta("");
     applyCarbonBrushMeasurementShadows("", { excludeId: "" });
@@ -2924,31 +2982,35 @@ function analyzeServiceItem(item) {
     return buildConciseAnalysis(notes, "Electrical room aman. Lanjutkan inspeksi rutin dan pastikan housekeeping tetap terjaga.");
   }
 
-  if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
+  if (item.formType === "service-motor-mso") {
     const notes = [];
-    if ((payload.source || "").toUpperCase() === "MSO") {
-      const temperatureDs = parseCarbonBrushNumericValue(payload.temperaturDs);
-      const temperatureNds = parseCarbonBrushNumericValue(payload.temperaturNds);
-      const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
-      if ((payload.condition || "").toUpperCase() === "BAD") {
-        notes.push("MSO status BAD. Cek parameter yang melewati limit dan prioritaskan tindak lanjut lapangan.");
-      }
-      if (temperatureDs !== null && temperatureDs >= 60) {
-        notes.push(`Temp DS tinggi: ${temperatureDs} C. Cek beban, cooling, dan bearing sisi drive.`);
-      }
-      if (temperatureNds !== null && temperatureNds >= 60) {
-        notes.push(`Temp NDS tinggi: ${temperatureNds} C. Cek ventilasi dan bearing sisi non-drive.`);
-      }
-      if (vibrationDiagnostics.freeMaintenanceAfter) {
-        notes.push("Vibrasi after 0 dibaca sebagai motor free maintenance/tidak ada nipple grease. Analisa vibrasi fokus ke nilai before.");
-      }
-      if (vibrationDiagnostics.beforeCriticalCount > 0) {
-        notes.push(`Ada ${vibrationDiagnostics.beforeCriticalCount} kanal vibrasi before kritis. Kanal tertinggi: ${vibrationDiagnostics.dominantBefore?.label || "-"} (${vibrationDiagnostics.dominantBefore?.value ?? "-"} mm/s).`);
-      } else if (vibrationDiagnostics.beforeWatchCount > 0) {
-        notes.push(`Ada ${vibrationDiagnostics.beforeWatchCount} kanal vibrasi before watchlist. Pantau trend kanal dominan ${vibrationDiagnostics.dominantBefore?.label || "-"}.`);
-      }
-      return buildConciseAnalysis(notes, "Motor MSO terbaru aman. Tidak ada parameter utama yang perlu tindakan cepat.");
+    const temperatureDs = parseCarbonBrushNumericValue(payload.temperaturDs);
+    const temperatureNds = parseCarbonBrushNumericValue(payload.temperaturNds);
+    const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
+    if ((payload.condition || "").toUpperCase() === "BAD") {
+      notes.push(String(payload.source || "").toUpperCase() === "MSO"
+        ? "MSO status BAD. Cek parameter yang melewati limit dan prioritaskan tindak lanjut lapangan."
+        : "Status inspeksi BAD. Prioritaskan verifikasi lapangan pada parameter yang melewati limit.");
     }
+    if (temperatureDs !== null && temperatureDs >= 60) {
+      notes.push(`Temp DS tinggi: ${temperatureDs} C. Cek beban, cooling, dan bearing sisi drive.`);
+    }
+    if (temperatureNds !== null && temperatureNds >= 60) {
+      notes.push(`Temp NDS tinggi: ${temperatureNds} C. Cek ventilasi dan bearing sisi non-drive.`);
+    }
+    if (vibrationDiagnostics.freeMaintenanceAfter) {
+      notes.push("Vibrasi after 0 dibaca sebagai motor free maintenance/tidak ada nipple grease. Analisa vibrasi fokus ke nilai before.");
+    }
+    if (vibrationDiagnostics.beforeCriticalCount > 0) {
+      notes.push(`Ada ${vibrationDiagnostics.beforeCriticalCount} kanal vibrasi before kritis. Kanal tertinggi: ${vibrationDiagnostics.dominantBefore?.label || "-"} (${vibrationDiagnostics.dominantBefore?.value ?? "-"} mm/s).`);
+    } else if (vibrationDiagnostics.beforeWatchCount > 0) {
+      notes.push(`Ada ${vibrationDiagnostics.beforeWatchCount} kanal vibrasi before watchlist. Pantau trend kanal dominan ${vibrationDiagnostics.dominantBefore?.label || "-"}.`);
+    }
+    return buildConciseAnalysis(notes, "Motor MSO terbaru aman. Tidak ada parameter utama yang perlu tindakan cepat.");
+  }
+
+  if (item.formType === "service-motor-mv") {
+    const notes = [];
     const vibrationDe = parseCarbonBrushNumericValue(payload.vibrationDe);
     const vibrationNde = parseCarbonBrushNumericValue(payload.vibrationNde);
     const windingTemperature = parseCarbonBrushNumericValue(payload.windingTemperature);
@@ -3425,6 +3487,111 @@ function getMsoMotorTemperatureValues(payload = {}) {
     parseMsoMotorNumeric(payload.temperaturDs),
     parseMsoMotorNumeric(payload.temperaturNds),
   ].filter((value) => value !== null);
+}
+
+function buildMsoMotorDetailSummary(payload = {}) {
+  const condition = String(payload.condition || "-").trim() || "-";
+  const maxTemperature = Math.max(...getMsoMotorTemperatureValues(payload), 0) || null;
+  const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
+  const maxVibrationBefore = vibrationDiagnostics.dominantBefore?.value ?? null;
+  const maxVibrationAfter = vibrationDiagnostics.freeMaintenanceAfter
+    ? "FM"
+    : (vibrationDiagnostics.dominantAfter?.value ?? "-");
+  return `Condition ${condition} | Temp max ${maxTemperature ?? "-"} | Vib before ${maxVibrationBefore ?? "-"} | Vib after ${maxVibrationAfter}`;
+}
+
+function buildMsoMotorPayloadFromFormData(formData, existingPayload = {}, options = {}) {
+  const source = String(options.source || existingPayload.source || "MANUAL").trim().toUpperCase() || "MANUAL";
+  const sourceType = String(options.sourceType || existingPayload.sourceType || "manual-entry").trim() || "manual-entry";
+  const inspectionDateValue = String(formData.get("inspectionDate") || "").trim();
+  const normalizeField = (fieldName) => String(formData.get(fieldName) || "").trim();
+  return {
+    ...existingPayload,
+    inspectionDate: inspectionDateValue ? new Date(`${inspectionDateValue}T00:00:00`).toISOString() : (existingPayload.inspectionDate || new Date().toISOString()),
+    source,
+    sourceType,
+    inspId: normalizeField("inspId"),
+    idAmtrans: normalizeField("idAmtrans"),
+    condition: normalizeField("condition") || "GOOD",
+    equipmentDesc: normalizeField("equipmentDesc"),
+    creator: normalizeField("creator"),
+    mplant: normalizeField("mplant"),
+    temperaturDs: normalizeField("temperaturDs"),
+    temperaturNds: normalizeField("temperaturNds"),
+    geDsVertBefore: normalizeField("geDsVertBefore"),
+    geDsHorBefore: normalizeField("geDsHorBefore"),
+    geDsAxialBefore: normalizeField("geDsAxialBefore"),
+    vibrasiDsVertBefore: normalizeField("vibrasiDsVertBefore"),
+    vibrasiDsHorBefore: normalizeField("vibrasiDsHorBefore"),
+    vibrasiDsAxialBefore: normalizeField("vibrasiDsAxialBefore"),
+    geNdsVertBefore: normalizeField("geNdsVertBefore"),
+    geNdsHorBefore: normalizeField("geNdsHorBefore"),
+    geNdsAxialBefore: normalizeField("geNdsAxialBefore"),
+    vibrasiNdsVertBefore: normalizeField("vibrasiNdsVertBefore"),
+    vibrasiNdsHorBefore: normalizeField("vibrasiNdsHorBefore"),
+    vibrasiNdsAxialBefore: normalizeField("vibrasiNdsAxialBefore"),
+    regreaseDe: normalizeField("regreaseDe"),
+    regreaseNde: normalizeField("regreaseNde"),
+    geDsVertAfter: normalizeField("geDsVertAfter"),
+    geDsHorAfter: normalizeField("geDsHorAfter"),
+    geDsAxialAfter: normalizeField("geDsAxialAfter"),
+    vibrasiDsVertAfter: normalizeField("vibrasiDsVertAfter"),
+    vibrasiDsHorAfter: normalizeField("vibrasiDsHorAfter"),
+    vibrasiDsAxialAfter: normalizeField("vibrasiDsAxialAfter"),
+    geNdsVertAfter: normalizeField("geNdsVertAfter"),
+    geNdsHorAfter: normalizeField("geNdsHorAfter"),
+    geNdsAxialAfter: normalizeField("geNdsAxialAfter"),
+    vibrasiNdsVertAfter: normalizeField("vibrasiNdsVertAfter"),
+    vibrasiNdsHorAfter: normalizeField("vibrasiNdsHorAfter"),
+    vibrasiNdsAxialAfter: normalizeField("vibrasiNdsAxialAfter"),
+    kelengkapanMotor: normalizeField("kelengkapanMotor"),
+    inspectionNote: normalizeField("inspectionNote"),
+  };
+}
+
+function buildMsoMotorPayloadLines(payload = {}, photoSummary = "-") {
+  const rows = [
+    ["Sumber", payload.source || "-", true],
+    ["InspID", payload.inspId || "-", false],
+    ["ID AMTRANS", payload.idAmtrans || "-", false],
+    ["Condition", payload.condition || "-", true],
+    ["Equipment Desc", payload.equipmentDesc || "-", false],
+    ["Creator", payload.creator || "-", false],
+    ["Mplant", payload.mplant || "-", false],
+    ["Temperatur DS", payload.temperaturDs || "-", true],
+    ["Temperatur NDS", payload.temperaturNds || "-", true],
+    ["gE DS Vert Before", payload.geDsVertBefore || "-", false],
+    ["gE DS Hor Before", payload.geDsHorBefore || "-", false],
+    ["gE DS Axial Before", payload.geDsAxialBefore || "-", false],
+    ["Vibrasi DS Vert Before", payload.vibrasiDsVertBefore || "-", false],
+    ["Vibrasi DS Hor Before", payload.vibrasiDsHorBefore || "-", false],
+    ["Vibrasi DS Axial Before", payload.vibrasiDsAxialBefore || "-", false],
+    ["gE NDS Vert Before", payload.geNdsVertBefore || "-", false],
+    ["gE NDS Hor Before", payload.geNdsHorBefore || "-", false],
+    ["gE NDS Axial Before", payload.geNdsAxialBefore || "-", false],
+    ["Vibrasi NDS Vert Before", payload.vibrasiNdsVertBefore || "-", false],
+    ["Vibrasi NDS Hor Before", payload.vibrasiNdsHorBefore || "-", false],
+    ["Vibrasi NDS Axial Before", payload.vibrasiNdsAxialBefore || "-", false],
+    ["Regrease DE", payload.regreaseDe || "-", false],
+    ["Regrease NDE", payload.regreaseNde || "-", false],
+    ["gE DS Vert After", payload.geDsVertAfter || "-", false],
+    ["gE DS Hor After", payload.geDsHorAfter || "-", false],
+    ["gE DS Axial After", payload.geDsAxialAfter || "-", false],
+    ["Vibrasi DS Vert After", payload.vibrasiDsVertAfter || "-", false],
+    ["Vibrasi DS Hor After", payload.vibrasiDsHorAfter || "-", false],
+    ["Vibrasi DS Axial After", payload.vibrasiDsAxialAfter || "-", false],
+    ["gE NDS Vert After", payload.geNdsVertAfter || "-", false],
+    ["gE NDS Hor After", payload.geNdsHorAfter || "-", false],
+    ["gE NDS Axial After", payload.geNdsAxialAfter || "-", false],
+    ["Vibrasi NDS Vert After", payload.vibrasiNdsVertAfter || "-", false],
+    ["Vibrasi NDS Hor After", payload.vibrasiNdsHorAfter || "-", false],
+    ["Vibrasi NDS Axial After", payload.vibrasiNdsAxialAfter || "-", false],
+    ["Kelengkapan Motor", payload.kelengkapanMotor || "-", false],
+    ["Keterangan MSO", payload.inspectionNote || "-", false],
+    ["Photo URL", payload.photoUrl || "-", false],
+    ["Foto temuan", photoSummary || "-", true],
+  ];
+  return rows.filter(([, value, always]) => always || (String(value || "").trim() && String(value || "").trim() !== "-"));
 }
 
 function getMsoMotorHistoryInspectionTime(entry) {
@@ -4453,49 +4620,11 @@ function formatServicePayloadLines(item) {
     ];
   }
 
-  if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
-    if ((payload.source || "").toUpperCase() === "MSO") {
-      return [
-        ["Sumber", payload.source || "-"],
-        ["InspID", payload.inspId || "-"],
-        ["ID AMTRANS", payload.idAmtrans || "-"],
-        ["Condition", payload.condition || "-"],
-        ["Equipment Desc", payload.equipmentDesc || "-"],
-        ["Creator", payload.creator || "-"],
-        ["Mplant", payload.mplant || "-"],
-        ["Temperatur DS", payload.temperaturDs || "-"],
-        ["Temperatur NDS", payload.temperaturNds || "-"],
-        ["gE DS Vert Before", payload.geDsVertBefore || "-"],
-        ["gE DS Hor Before", payload.geDsHorBefore || "-"],
-        ["gE DS Axial Before", payload.geDsAxialBefore || "-"],
-        ["Vibrasi DS Vert Before", payload.vibrasiDsVertBefore || "-"],
-        ["Vibrasi DS Hor Before", payload.vibrasiDsHorBefore || "-"],
-        ["Vibrasi DS Axial Before", payload.vibrasiDsAxialBefore || "-"],
-        ["gE NDS Vert Before", payload.geNdsVertBefore || "-"],
-        ["gE NDS Hor Before", payload.geNdsHorBefore || "-"],
-        ["gE NDS Axial Before", payload.geNdsAxialBefore || "-"],
-        ["Vibrasi NDS Vert Before", payload.vibrasiNdsVertBefore || "-"],
-        ["Vibrasi NDS Hor Before", payload.vibrasiNdsHorBefore || "-"],
-        ["Vibrasi NDS Axial Before", payload.vibrasiNdsAxialBefore || "-"],
-        ["Regrease DE", payload.regreaseDe || "-"],
-        ["Regrease NDE", payload.regreaseNde || "-"],
-        ["gE DS Vert After", payload.geDsVertAfter || "-"],
-        ["gE DS Hor After", payload.geDsHorAfter || "-"],
-        ["gE DS Axial After", payload.geDsAxialAfter || "-"],
-        ["Vibrasi DS Vert After", payload.vibrasiDsVertAfter || "-"],
-        ["Vibrasi DS Hor After", payload.vibrasiDsHorAfter || "-"],
-        ["Vibrasi DS Axial After", payload.vibrasiDsAxialAfter || "-"],
-        ["gE NDS Vert After", payload.geNdsVertAfter || "-"],
-        ["gE NDS Hor After", payload.geNdsHorAfter || "-"],
-        ["gE NDS Axial After", payload.geNdsAxialAfter || "-"],
-        ["Vibrasi NDS Vert After", payload.vibrasiNdsVertAfter || "-"],
-        ["Vibrasi NDS Hor After", payload.vibrasiNdsHorAfter || "-"],
-        ["Vibrasi NDS Axial After", payload.vibrasiNdsAxialAfter || "-"],
-        ["Kelengkapan Motor", payload.kelengkapanMotor || "-"],
-        ["Keterangan MSO", payload.inspectionNote || "-"],
-        ["Photo URL", payload.photoUrl || "-"],
-      ];
-    }
+  if (item.formType === "service-motor-mso") {
+    return buildMsoMotorPayloadLines(payload, photoSummary);
+  }
+
+  if (item.formType === "service-motor-mv") {
     return [
       ["Vibrasi DE", payload.vibrationDe || "-"],
       ["Vibrasi NDE", payload.vibrationNde || "-"],
@@ -6162,6 +6291,7 @@ async function loadMastersFromBackend(sourceGroup = "") {
     };
   }
   renderElectricalRoomReferenceOptions();
+  renderMsoMotorReferenceOptions();
   renderCemsReferenceOptions();
   renderOpacityReferenceOptions();
   renderMsoMotorSyncSettings();
@@ -6913,6 +7043,7 @@ async function initializeApplication() {
   renderPwaCarbonGrid();
   resetPwaCarbonForm();
   resetPwaMccForm();
+  resetPwaMsoForm();
   resetPwaElectricalRoomForm();
   resetPwaPlcForm();
   resetPwaInstrumentForm();
@@ -6921,7 +7052,11 @@ async function initializeApplication() {
   if (serviceElectricalCarbonBrushForm?.inspectionDate && !serviceElectricalCarbonBrushForm.inspectionDate.value) {
     serviceElectricalCarbonBrushForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
   }
+  if (serviceMsoForm?.inspectionDate && !serviceMsoForm.inspectionDate.value) {
+    serviceMsoForm.inspectionDate.value = new Date().toISOString().slice(0, 10);
+  }
   renderElectricalRoomReferenceOptions();
+  renderMsoMotorReferenceOptions();
   renderCemsReferenceOptions();
   renderOpacityReferenceOptions();
   openBomPane("general");
@@ -9999,7 +10134,30 @@ function hydrateServiceForm(item) {
     form.transformerSilicaGel.value = payload.transformerSilicaGel || "OK";
   }
 
-  if (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") {
+  if (item.formType === "service-motor-mso") {
+    if (form.inspectionDate) {
+      form.inspectionDate.value = String(payload.inspectionDate || "").slice(0, 10);
+    }
+    [
+      "condition", "inspId", "idAmtrans", "creator", "mplant", "equipmentDesc",
+      "temperaturDs", "temperaturNds", "kelengkapanMotor", "inspectionNote",
+      "geDsVertBefore", "geDsHorBefore", "geDsAxialBefore",
+      "vibrasiDsVertBefore", "vibrasiDsHorBefore", "vibrasiDsAxialBefore",
+      "geNdsVertBefore", "geNdsHorBefore", "geNdsAxialBefore",
+      "vibrasiNdsVertBefore", "vibrasiNdsHorBefore", "vibrasiNdsAxialBefore",
+      "regreaseDe", "regreaseNde",
+      "geDsVertAfter", "geDsHorAfter", "geDsAxialAfter",
+      "vibrasiDsVertAfter", "vibrasiDsHorAfter", "vibrasiDsAxialAfter",
+      "geNdsVertAfter", "geNdsHorAfter", "geNdsAxialAfter",
+      "vibrasiNdsVertAfter", "vibrasiNdsHorAfter", "vibrasiNdsAxialAfter",
+    ].forEach((fieldName) => {
+      if (form[fieldName]) {
+        form[fieldName].value = payload[fieldName] || "";
+      }
+    });
+  }
+
+  if (item.formType === "service-motor-mv") {
     form.vibrationDe.value = payload.vibrationDe || "";
     form.vibrationNde.value = payload.vibrationNde || "";
     form.windingTemperature.value = payload.windingTemperature || "";
@@ -10966,6 +11124,7 @@ adminEquipmentForm?.addEventListener("submit", async (event) => {
       loadCarbonBrushEquipmentReference(),
       loadDcsEquipmentReference({ force: true }),
     ]);
+    renderMsoMotorReferenceOptions();
     renderMccReferenceOptions();
     showToast("Master Equipment", "Equipment reference berhasil disimpan.");
   } catch (error) {
@@ -11577,9 +11736,47 @@ forms.forEach((form) => {
     }
 
     if (formType === "service-motor-mso") {
-      setSubmitNote(form, "Inspeksi Motor MSO hanya bisa masuk melalui sinkronisasi MSO.");
-      showToast("Motor MSO", "Gunakan sinkronisasi atau import MSO di Manajemen User.");
-      return;
+      const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
+      if (!equipmentName) {
+        setSubmitNote(form, "Equipment Motor MSO wajib diisi.");
+        showToast("Motor MSO", "Equipment wajib diisi.");
+        return;
+      }
+      const existingPayload = editingServiceId
+        ? getServiceItemsFromDom().find((item) => item.id === editingServiceId)?.payload || {}
+        : {};
+      const photoPayload = await getFindingPhotoPayload(formData, existingPayload);
+      const payload = {
+        ...buildMsoMotorPayloadFromFormData(formData, existingPayload, { source: "MANUAL", sourceType: "manual-web" }),
+        ...photoPayload,
+      };
+      const item = {
+        id: editingServiceId || createId("service"),
+        type: "Electrical",
+        subtype: "Motor MSO",
+        formType: "service-motor-mso",
+        equipmentName,
+        description: String(formData.get("description") || formData.get("inspectionNote") || "-").trim() || "-",
+        detail: buildMsoMotorDetailSummary(payload),
+        payload,
+      };
+      const savedItem = await saveItemToBackend("service", item, Boolean(editingServiceId));
+      if (editingServiceId) {
+        const existing = serviceCardList.querySelector(`[data-id="${editingServiceId}"]`);
+        if (existing) {
+          existing.replaceWith(renderServiceCard(savedItem));
+        }
+        setSubmitNote(form, "Motor MSO berhasil diperbarui.");
+        showToast("Motor MSO", "Data berhasil diperbarui.");
+        editingServiceId = null;
+      } else {
+        appendServiceCard(savedItem);
+        setSubmitNote(form, "Inspeksi Motor MSO berhasil ditambahkan.");
+        showToast("Motor MSO", "Item baru berhasil ditambahkan.");
+      }
+      persistServiceList();
+      updateDashboardStats();
+      applyServiceFilter();
     }
 
     if (formType === "service-motor-mv-carbon-brush") {
@@ -12661,6 +12858,13 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const msoOption = target.closest("[data-pwa-mso-equipment-option]");
+  if (msoOption instanceof HTMLElement && pwaMsoEquipment) {
+    pwaMsoEquipment.value = msoOption.dataset.pwaMsoEquipmentOption || "";
+    hidePwaTypeaheadDropdown(pwaMsoEquipmentDropdown);
+    return;
+  }
+
   const plcOption = target.closest("[data-pwa-plc-equipment-option]");
   if (plcOption instanceof HTMLElement && pwaPlcEquipment) {
     pwaPlcEquipment.value = plcOption.dataset.pwaPlcEquipmentOption || "";
@@ -12791,6 +12995,23 @@ async function editServiceFromPwa(itemId) {
     return;
   }
 
+  if (item.formType === "service-motor-mso") {
+    resetPwaMsoForm();
+    openPwaQuickForm("mso");
+    hydratePwaFormValues(pwaMsoForm, item, [
+      "condition", "creator", "mplant", "equipmentDesc", "temperaturDs", "temperaturNds", "kelengkapanMotor",
+      "vibrasiDsVertBefore", "vibrasiDsHorBefore", "vibrasiDsAxialBefore",
+      "vibrasiNdsVertBefore", "vibrasiNdsHorBefore", "vibrasiNdsAxialBefore",
+      "regreaseDe", "regreaseNde",
+      "vibrasiDsVertAfter", "vibrasiDsHorAfter", "vibrasiDsAxialAfter",
+      "vibrasiNdsVertAfter", "vibrasiNdsHorAfter", "vibrasiNdsAxialAfter",
+      "geDsVertBefore", "geNdsVertBefore", "geDsVertAfter", "geNdsVertAfter", "inspectionNote",
+    ]);
+    if (pwaMsoFormNote) pwaMsoFormNote.textContent = "Mode edit Motor MSO aktif. Simpan untuk memperbarui data ini.";
+    showToast("Motor MSO", "Mode edit PWA aktif.");
+    return;
+  }
+
   if (item.formType === "service-electrical-room") {
     resetPwaElectricalRoomForm();
     openPwaQuickForm("electrical-room");
@@ -12894,6 +13115,14 @@ pwaMccEquipment?.addEventListener("input", () => {
 
 pwaMccEquipment?.addEventListener("focus", () => {
   renderPwaTypeaheadDropdown(pwaMccEquipment, pwaMccEquipmentDropdown, getMccEquipmentReferenceList(), "pwa-mcc-equipment-option");
+});
+
+pwaMsoEquipment?.addEventListener("input", () => {
+  renderPwaTypeaheadDropdown(pwaMsoEquipment, pwaMsoEquipmentDropdown, getMsoMotorEquipmentReferenceList(), "pwa-mso-equipment-option");
+});
+
+pwaMsoEquipment?.addEventListener("focus", () => {
+  renderPwaTypeaheadDropdown(pwaMsoEquipment, pwaMsoEquipmentDropdown, getMsoMotorEquipmentReferenceList(), "pwa-mso-equipment-option");
 });
 
 pwaElectricalRoomName?.addEventListener("input", () => {
@@ -13297,6 +13526,51 @@ pwaMccForm?.addEventListener("submit", async (event) => {
     if (pwaMccSubmit) {
       pwaMccSubmit.disabled = false;
       pwaMccSubmit.textContent = "Simpan MCC";
+    }
+  }
+});
+
+pwaMsoForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(pwaMsoForm);
+  const editItem = getPwaEditItemFor("service-motor-mso");
+  const equipmentName = String(formData.get("equipmentName") || "").trim().toUpperCase();
+  if (!equipmentName) {
+    if (pwaMsoFormNote) pwaMsoFormNote.textContent = "Equipment Motor MSO wajib diisi.";
+    showToast("Motor MSO", "Equipment wajib diisi.");
+    return;
+  }
+  const photoPayload = await getFindingPhotoPayload(formData, editItem?.payload || {});
+  const payload = {
+    ...buildMsoMotorPayloadFromFormData(formData, editItem?.payload || {}, { source: "MANUAL", sourceType: "manual-pwa" }),
+    ...photoPayload,
+  };
+  const item = {
+    id: editItem?.id || createId("service"),
+    type: "Electrical",
+    subtype: "Motor MSO",
+    formType: "service-motor-mso",
+    equipmentName,
+    description: String(formData.get("description") || formData.get("inspectionNote") || "-").trim() || "-",
+    detail: buildMsoMotorDetailSummary(payload),
+    payload,
+  };
+  try {
+    if (pwaMsoSubmit) {
+      pwaMsoSubmit.disabled = true;
+      pwaMsoSubmit.textContent = "Menyimpan...";
+    }
+    const savedItem = await saveItemToBackend("service", item, Boolean(editItem));
+    finishPwaServiceSave(savedItem, item.formType, resetPwaMsoForm);
+    if (pwaMsoFormNote) pwaMsoFormNote.textContent = editItem ? "Data Motor MSO berhasil diperbarui." : "Data Motor MSO berhasil disimpan.";
+    showToast("Motor MSO", editItem ? "Data Motor MSO berhasil diperbarui." : "Data Motor MSO berhasil disimpan.");
+  } catch (error) {
+    if (pwaMsoFormNote) pwaMsoFormNote.textContent = error.message || "Gagal menyimpan data Motor MSO.";
+    showToast("Motor MSO", error.message || "Gagal menyimpan data.");
+  } finally {
+    if (pwaMsoSubmit) {
+      pwaMsoSubmit.disabled = false;
+      pwaMsoSubmit.textContent = "Simpan Motor MSO";
     }
   }
 });

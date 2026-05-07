@@ -120,5 +120,6 @@ function renderServiceBoard(items, options = {}) {
   }
   serviceCardList.append(column);
 
+  renderMsoMotorReferenceOptions();
   renderMccReferenceOptions();
 }
