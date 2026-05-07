@@ -12823,6 +12823,14 @@ pwaCompactShell?.addEventListener("click", async (event) => {
     return;
   }
 
+  const directServiceFormButton = target.closest("[data-pwa-open-service-form]");
+  if (directServiceFormButton instanceof HTMLElement) {
+    pwaEditingServiceItem = null;
+    openPwaTab("service");
+    openPwaQuickForm(directServiceFormButton.dataset.pwaOpenServiceForm || "");
+    return;
+  }
+
   const formChoice = target.closest("[data-pwa-form-choice]");
   if (formChoice instanceof HTMLElement) {
     pwaEditingServiceItem = null;
