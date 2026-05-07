@@ -3,6 +3,9 @@ const signupButton = document.getElementById("signup-button");
 const forgotPasswordButton = document.getElementById("forgot-password-button");
 const loginScreen = document.getElementById("login-screen");
 const workspace = document.getElementById("workspace");
+const globalLoadingOverlay = document.getElementById("global-loading-overlay");
+const globalLoadingTitle = document.getElementById("global-loading-title");
+const globalLoadingMessage = document.getElementById("global-loading-message");
 const currentUser = document.getElementById("current-user");
 const currentRole = document.getElementById("current-role");
 const accessSummary = document.getElementById("access-summary");
@@ -6928,33 +6931,39 @@ async function fetchBootstrapPayload(scope = "dashboard") {
 }
 
 async function hydrateFromBackendAfterLogin(scope = "dashboard") {
-  const bootstrap = await fetchBootstrapPayload(scope);
-  backendState.sessionActive = true;
-  backendState.skipSectionLoading = true;
-  clearBackendResourceCaches();
-  updateBackendResourceCounts(bootstrap.resourceCounts || {});
-  dashboardInspectionSchedule = {
-    calendarName: bootstrap.calendar?.calendarName || "PMS PLIRM34",
-    timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
-    today: Array.isArray(bootstrap.calendar?.today) ? bootstrap.calendar.today : [],
-    tomorrow: Array.isArray(bootstrap.calendar?.tomorrow) ? bootstrap.calendar.tomorrow : [],
-    history: Array.isArray(bootstrap.calendar?.history) ? bootstrap.calendar.history : [],
-  };
-  if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
-    cacheUsers(bootstrap.users);
+  showGlobalLoading("Memuat dashboard", "Mengambil data terbaru dari server PLIRM34...");
+  try {
+    const bootstrap = await fetchBootstrapPayload(scope);
+    backendState.sessionActive = true;
+    backendState.skipSectionLoading = true;
+    clearBackendResourceCaches();
+    updateBackendResourceCounts(bootstrap.resourceCounts || {});
+    dashboardInspectionSchedule = {
+      calendarName: bootstrap.calendar?.calendarName || "PMS PLIRM34",
+      timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
+      today: Array.isArray(bootstrap.calendar?.today) ? bootstrap.calendar.today : [],
+      tomorrow: Array.isArray(bootstrap.calendar?.tomorrow) ? bootstrap.calendar.tomorrow : [],
+      history: Array.isArray(bootstrap.calendar?.history) ? bootstrap.calendar.history : [],
+    };
+    if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
+      cacheUsers(bootstrap.users);
+    }
+    if (bootstrap.user) {
+      loginWithUser(bootstrap.user);
+    }
+    hydrateBootstrapData(bootstrap.data || {});
+    if (Array.isArray(bootstrap.loadedResources)) {
+      markBackendResourcesLoaded(bootstrap.loadedResources);
+    }
+    backendState.skipSectionLoading = false;
+    runPostLoginBackgroundTasks(bootstrap.user?.role || "");
+  } finally {
+    hideGlobalLoading();
   }
-  if (bootstrap.user) {
-    loginWithUser(bootstrap.user);
-  }
-  hydrateBootstrapData(bootstrap.data || {});
-  if (Array.isArray(bootstrap.loadedResources)) {
-    markBackendResourcesLoaded(bootstrap.loadedResources);
-  }
-  backendState.skipSectionLoading = false;
-  runPostLoginBackgroundTasks(bootstrap.user?.role || "");
 }
 
 async function restoreBackendSession() {
+  showGlobalLoading("Memeriksa sesi", "Menyiapkan dashboard terakhir...");
   try {
     const bootstrap = await fetchBootstrapPayload("dashboard");
     if (!bootstrap?.user) {
@@ -6989,6 +6998,8 @@ async function restoreBackendSession() {
     backendState.sessionActive = false;
     backendState.skipSectionLoading = false;
     return false;
+  } finally {
+    hideGlobalLoading();
   }
 }
 
@@ -7955,6 +7966,51 @@ function setUiBusyState(target, isBusy) {
     return;
   }
   target.classList.toggle("is-panel-loading", Boolean(isBusy));
+}
+
+let globalLoadingDepth = 0;
+let globalLoadingHideTimer = null;
+
+function showGlobalLoading(title = "Memuat data", message = "Mengambil data terbaru dari server PLIRM34...") {
+  if (!globalLoadingOverlay) {
+    return;
+  }
+  globalLoadingDepth += 1;
+  if (globalLoadingHideTimer) {
+    window.clearTimeout(globalLoadingHideTimer);
+    globalLoadingHideTimer = null;
+  }
+  if (globalLoadingTitle) {
+    globalLoadingTitle.textContent = title;
+  }
+  if (globalLoadingMessage) {
+    globalLoadingMessage.textContent = message;
+  }
+  globalLoadingOverlay.classList.remove("hidden");
+  document.body.classList.add("is-global-loading");
+  workspace?.setAttribute("aria-busy", "true");
+}
+
+function hideGlobalLoading() {
+  if (!globalLoadingOverlay) {
+    return;
+  }
+  globalLoadingDepth = Math.max(0, globalLoadingDepth - 1);
+  if (globalLoadingDepth > 0) {
+    return;
+  }
+  if (globalLoadingHideTimer) {
+    window.clearTimeout(globalLoadingHideTimer);
+  }
+  globalLoadingHideTimer = window.setTimeout(() => {
+    if (globalLoadingDepth > 0) {
+      return;
+    }
+    globalLoadingOverlay.classList.add("hidden");
+    document.body.classList.remove("is-global-loading");
+    workspace?.removeAttribute("aria-busy");
+    globalLoadingHideTimer = null;
+  }, 160);
 }
 
 function renderActiveSectionVisuals(sectionName) {
@@ -10489,6 +10545,7 @@ if (loginForm) {
     const password = String(formData.get("password") || "");
 
     if (backendState.available) {
+      showGlobalLoading("Memproses login", "Memvalidasi akun dan menyiapkan data dashboard...");
       try {
         const result = await apiRequest("/auth/login", {
           method: "POST",
@@ -10500,6 +10557,7 @@ if (loginForm) {
       } catch (error) {
         showToast("Login Gagal", error.message || "Username atau password tidak cocok.");
       } finally {
+        hideGlobalLoading();
         if (submitButton) {
           submitButton.disabled = false;
           submitButton.textContent = originalSubmitText;
@@ -14369,7 +14427,12 @@ if (refreshButton) {
         await hydrateFromBackendAfterLogin();
         openSection(activeSection);
       } else {
-        loadStoredData();
+        showGlobalLoading("Memuat data lokal", "Menyegarkan tampilan dari penyimpanan browser...");
+        try {
+          loadStoredData();
+        } finally {
+          hideGlobalLoading();
+        }
       }
       resetIdleLogoutTimer();
       showToast("Refresh Tampilan", "Data berhasil disegarkan tanpa logout.");

@@ -74,6 +74,142 @@ select {
   display: block;
 }
 
+.global-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 48% 42%, rgba(255, 106, 0, 0.18), transparent 28%),
+    rgba(6, 6, 6, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.global-loading-panel {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: min(420px, 100%);
+  padding: 20px 22px;
+  border: 1px solid rgba(255, 122, 24, 0.28);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(32, 32, 32, 0.94), rgba(16, 16, 16, 0.94)),
+    radial-gradient(circle at 0 0, rgba(255, 106, 0, 0.18), transparent 34%);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), var(--orange-glow);
+}
+
+.global-loading-panel strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+}
+
+.global-loading-panel small {
+  display: block;
+  color: rgba(245, 242, 237, 0.72);
+  line-height: 1.45;
+}
+
+.gear-loader {
+  position: relative;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+}
+
+.gear-loader-main,
+.gear-loader-small {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, var(--accent) 0deg 14deg, transparent 14deg 24deg),
+    radial-gradient(circle, transparent 0 28%, rgba(255, 143, 63, 0.95) 29% 56%, transparent 57%);
+  filter: drop-shadow(0 0 16px rgba(255, 106, 0, 0.28));
+  animation: gearSpin 1.05s linear infinite;
+}
+
+.gear-loader-main {
+  left: 2px;
+  top: 6px;
+  width: 46px;
+  height: 46px;
+}
+
+.gear-loader-small {
+  right: 1px;
+  bottom: 7px;
+  width: 30px;
+  height: 30px;
+  background:
+    repeating-conic-gradient(from 0deg, rgba(245, 242, 237, 0.92) 0deg 18deg, transparent 18deg 30deg),
+    radial-gradient(circle, transparent 0 30%, rgba(255, 143, 63, 0.88) 31% 58%, transparent 59%);
+  animation: gearSpinReverse 0.86s linear infinite;
+}
+
+.gear-loader-main::after,
+.gear-loader-small::after {
+  content: "";
+  position: absolute;
+  inset: 36%;
+  border-radius: 50%;
+  background: #111;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+@keyframes gearSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gearSpinReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .global-loading-overlay {
+    align-items: end;
+    padding: 18px;
+  }
+
+  .global-loading-panel {
+    gap: 14px;
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .gear-loader {
+    flex-basis: 56px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .gear-loader-main {
+    width: 40px;
+    height: 40px;
+  }
+
+  .gear-loader-small {
+    width: 27px;
+    height: 27px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gear-loader-main,
+  .gear-loader-small {
+    animation-duration: 2.2s;
+  }
+}
+
 .detail-modal {
   position: fixed;
   inset: 0;

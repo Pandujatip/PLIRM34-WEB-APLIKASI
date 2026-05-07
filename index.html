@@ -25,10 +25,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260503-08">
+  <link rel="stylesheet" href="styles.css?v=20260507-03">
 </head>
 <body>
   <div class="app-shell">
+    <div class="global-loading-overlay hidden" id="global-loading-overlay" role="status" aria-live="polite" aria-atomic="true">
+      <div class="global-loading-panel">
+        <div class="gear-loader" aria-hidden="true">
+          <span class="gear-loader-main"></span>
+          <span class="gear-loader-small"></span>
+        </div>
+        <div>
+          <strong id="global-loading-title">Memuat data</strong>
+          <small id="global-loading-message">Sinkronisasi dashboard sedang berjalan.</small>
+        </div>
+      </div>
+    </div>
+
     <section class="auth-screen" id="login-screen">
       <div class="auth-hero">
         <p class="eyebrow">PLIRM34</p>
@@ -4000,12 +4013,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260507-02"></script>
+  <script src="app.js?v=20260507-03"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260507-02").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260507-03").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };
