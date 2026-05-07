@@ -6930,8 +6930,11 @@ async function fetchBootstrapPayload(scope = "dashboard") {
   return apiRequest(`/bootstrap?scope=${encodeURIComponent(scope)}`);
 }
 
-async function hydrateFromBackendAfterLogin(scope = "dashboard") {
-  showGlobalLoading("Memuat dashboard", "Mengambil data terbaru dari server PLIRM34...");
+async function hydrateFromBackendAfterLogin(scope = "dashboard", options = {}) {
+  const shouldShowLoader = options.showLoader !== false;
+  if (shouldShowLoader) {
+    showGlobalLoading("Memuat dashboard", "Mengambil data terbaru dari server PLIRM34...");
+  }
   try {
     const bootstrap = await fetchBootstrapPayload(scope);
     backendState.sessionActive = true;
@@ -6948,7 +6951,7 @@ async function hydrateFromBackendAfterLogin(scope = "dashboard") {
     if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
       cacheUsers(bootstrap.users);
     }
-    if (bootstrap.user) {
+    if (bootstrap.user && options.applyUser !== false) {
       loginWithUser(bootstrap.user);
     }
     hydrateBootstrapData(bootstrap.data || {});
@@ -6956,43 +6959,59 @@ async function hydrateFromBackendAfterLogin(scope = "dashboard") {
       markBackendResourcesLoaded(bootstrap.loadedResources);
     }
     backendState.skipSectionLoading = false;
-    runPostLoginBackgroundTasks(bootstrap.user?.role || "");
+    if (options.runPostLoginTasks !== false) {
+      runPostLoginBackgroundTasks(bootstrap.user?.role || "");
+    }
   } finally {
-    hideGlobalLoading();
+    if (shouldShowLoader) {
+      hideGlobalLoading();
+    }
   }
+}
+
+function syncDashboardFromBackendInBackground(options = {}) {
+  if (!backendState.available || !backendState.sessionActive) {
+    return;
+  }
+  window.setTimeout(() => {
+    void hydrateFromBackendAfterLogin("dashboard", { showLoader: false, applyUser: false, runPostLoginTasks: false })
+      .then(() => {
+        const activeSection = getActiveSectionName();
+        if (activeSection === "dashboard") {
+          updateDashboardStats({ renderDashboardVisuals: true, renderNegatifVisuals: true });
+        } else if (activeSection === "service") {
+          applyServiceFilter();
+        } else if (activeSection === "negatif-list") {
+          applyNegatifListFilter();
+        }
+        if (options.toast) {
+          showToast("Sinkronisasi", "Data terbaru dari server sudah dimuat.");
+        }
+      })
+      .catch((error) => {
+        console.error("Background dashboard sync gagal:", error);
+        if (options.toastOnError) {
+          showToast("Sinkronisasi", error.message || "Gagal memuat data terbaru.");
+        }
+      });
+  }, options.delayMs ?? 80);
 }
 
 async function restoreBackendSession() {
   showGlobalLoading("Memeriksa sesi", "Menyiapkan dashboard terakhir...");
   try {
-    const bootstrap = await fetchBootstrapPayload("dashboard");
-    if (!bootstrap?.user) {
+    const result = await apiRequest("/auth/me");
+    if (!result?.user) {
       return false;
     }
 
     backendState.sessionActive = true;
-    backendState.skipSectionLoading = true;
-    clearBackendResourceCaches();
-    updateBackendResourceCounts(bootstrap.resourceCounts || {});
-    dashboardInspectionSchedule = {
-      calendarName: bootstrap.calendar?.calendarName || "PMS PLIRM34",
-      timezone: bootstrap.calendar?.timezone || "Asia/Jakarta",
-      today: Array.isArray(bootstrap.calendar?.today) ? bootstrap.calendar.today : [],
-      tomorrow: Array.isArray(bootstrap.calendar?.tomorrow) ? bootstrap.calendar.tomorrow : [],
-      history: Array.isArray(bootstrap.calendar?.history) ? bootstrap.calendar.history : [],
-    };
-    if (Array.isArray(bootstrap.users) && bootstrap.users.length) {
-      cacheUsers(bootstrap.users);
-    }
-    loginWithUser(bootstrap.user);
-    hydrateBootstrapData(bootstrap.data || {});
-    if (Array.isArray(bootstrap.loadedResources)) {
-      markBackendResourcesLoaded(bootstrap.loadedResources);
-    }
-    backendState.skipSectionLoading = false;
-    runPostLoginBackgroundTasks(bootstrap.user?.role || "");
+    loginWithUser(result.user);
+    loadStoredData({ resources: ["negatif-list", "service", "spb"] });
+    runPostLoginBackgroundTasks(result.user?.role || "");
     const lastSection = window.localStorage.getItem(storageKeys.lastSection) || "dashboard";
     openSection(lastSection);
+    syncDashboardFromBackendInBackground({ delayMs: 120 });
     return true;
   } catch {
     backendState.sessionActive = false;
@@ -7030,14 +7049,8 @@ async function restorePwaBackendSession() {
     backendState.sessionActive = true;
     loginWithUser(result.user);
     openPwaTab("home");
-    window.setTimeout(() => {
-      void hydrateFromBackendAfterLogin("dashboard")
-        .then(() => openPwaTab("home"))
-        .catch((error) => {
-          backendState.sessionActive = false;
-          showToast("PWA", error.message || "Gagal memuat data sesi.");
-        });
-    }, 80);
+    loadStoredData({ resources: ["negatif-list", "service", "spb"] });
+    syncDashboardFromBackendInBackground({ delayMs: 120, toastOnError: true });
     return true;
   } catch {
     backendState.sessionActive = false;
@@ -10549,9 +10562,12 @@ if (loginForm) {
           method: "POST",
           body: { username, password },
         });
+        backendState.sessionActive = true;
         loginWithUser(result.user);
-        await hydrateFromBackendAfterLogin();
-        showToast("Login Berhasil", `Masuk sebagai ${result.user.username} (${roleLabels[result.user.role]}).`);
+        loadStoredData({ resources: ["negatif-list", "service", "spb"] });
+        runPostLoginBackgroundTasks(result.user?.role || "");
+        syncDashboardFromBackendInBackground({ delayMs: 120, toastOnError: true });
+        showToast("Login Berhasil", `Masuk sebagai ${result.user.username} (${roleLabels[result.user.role]}). Data terbaru dimuat di background.`);
       } catch (error) {
         showToast("Login Gagal", error.message || "Username atau password tidak cocok.");
       } finally {
