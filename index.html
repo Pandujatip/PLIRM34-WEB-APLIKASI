@@ -559,6 +559,59 @@
                     </div>
                   </details>
                   <details class="pwa-form-accordion">
+                    <summary>gE bearing envelope before/after</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>gE DS Vert Before</span>
+                        <input name="geDsVertBefore" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE DS Hor Before</span>
+                        <input name="geDsHorBefore" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE DS Axial Before</span>
+                        <input name="geDsAxialBefore" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Vert Before</span>
+                        <input name="geNdsVertBefore" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Hor Before</span>
+                        <input name="geNdsHorBefore" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Axial Before</span>
+                        <input name="geNdsAxialBefore" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE DS Vert After</span>
+                        <input name="geDsVertAfter" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE DS Hor After</span>
+                        <input name="geDsHorAfter" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE DS Axial After</span>
+                        <input name="geDsAxialAfter" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Vert After</span>
+                        <input name="geNdsVertAfter" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Hor After</span>
+                        <input name="geNdsHorAfter" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>gE NDS Axial After</span>
+                        <input name="geNdsAxialAfter" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
                     <summary>Detail tambahan</summary>
                     <div class="pwa-form-grid-2">
                       <label class="pwa-form-field">
@@ -568,22 +621,6 @@
                       <label class="pwa-form-field">
                         <span>Kelengkapan motor</span>
                         <input name="kelengkapanMotor" type="text" placeholder="Opsional">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>gE DS Vert Before</span>
-                        <input name="geDsVertBefore" type="text" inputmode="decimal" placeholder="Opsional">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>gE NDS Vert Before</span>
-                        <input name="geNdsVertBefore" type="text" inputmode="decimal" placeholder="Opsional">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>gE DS Vert After</span>
-                        <input name="geDsVertAfter" type="text" inputmode="decimal" placeholder="Opsional">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>gE NDS Vert After</span>
-                        <input name="geNdsVertAfter" type="text" inputmode="decimal" placeholder="Opsional">
                       </label>
                       <label class="pwa-form-field full-span">
                         <span>Foto temuan</span>
@@ -4013,12 +4050,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260507-03"></script>
+  <script src="app.js?v=20260507-04"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260507-03").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260507-04").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

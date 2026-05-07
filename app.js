@@ -13071,7 +13071,11 @@ async function editServiceFromPwa(itemId) {
       "regreaseDe", "regreaseNde",
       "vibrasiDsVertAfter", "vibrasiDsHorAfter", "vibrasiDsAxialAfter",
       "vibrasiNdsVertAfter", "vibrasiNdsHorAfter", "vibrasiNdsAxialAfter",
-      "geDsVertBefore", "geNdsVertBefore", "geDsVertAfter", "geNdsVertAfter", "inspectionNote",
+      "geDsVertBefore", "geDsHorBefore", "geDsAxialBefore",
+      "geNdsVertBefore", "geNdsHorBefore", "geNdsAxialBefore",
+      "geDsVertAfter", "geDsHorAfter", "geDsAxialAfter",
+      "geNdsVertAfter", "geNdsHorAfter", "geNdsAxialAfter",
+      "inspectionNote",
     ]);
     if (pwaMsoFormNote) pwaMsoFormNote.textContent = "Mode edit Motor MSO aktif. Simpan untuk memperbarui data ini.";
     showToast("Motor MSO", "Mode edit PWA aktif.");
