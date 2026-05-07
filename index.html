@@ -519,71 +519,42 @@
                         <span>NDS Axial</span>
                         <input name="vibrasiNdsAxialBefore" type="text" inputmode="decimal" placeholder="mm/s">
                       </label>
-                    </div>
-                  </details>
-                  <details class="pwa-form-accordion">
-                    <summary>Regrease dan vibrasi after</summary>
-                    <div class="pwa-form-grid-2">
                       <label class="pwa-form-field">
-                        <span>Regrease DE</span>
-                        <input name="regreaseDe" type="text" inputmode="decimal" placeholder="Contoh: 10">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>Regrease NDE</span>
-                        <input name="regreaseNde" type="text" inputmode="decimal" placeholder="Contoh: 10">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>DS Vert After</span>
-                        <input name="vibrasiDsVertAfter" type="text" inputmode="decimal" placeholder="mm/s">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>DS Hor After</span>
-                        <input name="vibrasiDsHorAfter" type="text" inputmode="decimal" placeholder="mm/s">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>DS Axial After</span>
-                        <input name="vibrasiDsAxialAfter" type="text" inputmode="decimal" placeholder="mm/s">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>NDS Vert After</span>
-                        <input name="vibrasiNdsVertAfter" type="text" inputmode="decimal" placeholder="mm/s">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>NDS Hor After</span>
-                        <input name="vibrasiNdsHorAfter" type="text" inputmode="decimal" placeholder="mm/s">
-                      </label>
-                      <label class="pwa-form-field">
-                        <span>NDS Axial After</span>
-                        <input name="vibrasiNdsAxialAfter" type="text" inputmode="decimal" placeholder="mm/s">
-                      </label>
-                    </div>
-                  </details>
-                  <details class="pwa-form-accordion">
-                    <summary>gE bearing envelope before/after</summary>
-                    <div class="pwa-form-grid-2">
-                      <label class="pwa-form-field">
-                        <span>gE DS Vert Before</span>
+                        <span>gE DS Vert</span>
                         <input name="geDsVertBefore" type="text" inputmode="decimal" placeholder="gE">
                       </label>
                       <label class="pwa-form-field">
-                        <span>gE DS Hor Before</span>
+                        <span>gE DS Hor</span>
                         <input name="geDsHorBefore" type="text" inputmode="decimal" placeholder="gE">
                       </label>
                       <label class="pwa-form-field">
-                        <span>gE DS Axial Before</span>
+                        <span>gE DS Axial</span>
                         <input name="geDsAxialBefore" type="text" inputmode="decimal" placeholder="gE">
                       </label>
                       <label class="pwa-form-field">
-                        <span>gE NDS Vert Before</span>
+                        <span>gE NDS Vert</span>
                         <input name="geNdsVertBefore" type="text" inputmode="decimal" placeholder="gE">
                       </label>
                       <label class="pwa-form-field">
-                        <span>gE NDS Hor Before</span>
+                        <span>gE NDS Hor</span>
                         <input name="geNdsHorBefore" type="text" inputmode="decimal" placeholder="gE">
                       </label>
                       <label class="pwa-form-field">
-                        <span>gE NDS Axial Before</span>
+                        <span>gE NDS Axial</span>
                         <input name="geNdsAxialBefore" type="text" inputmode="decimal" placeholder="gE">
+                      </label>
+                    </div>
+                  </details>
+                  <details class="pwa-form-accordion">
+                    <summary>Regrease dan gE after</summary>
+                    <div class="pwa-form-grid-2">
+                      <label class="pwa-form-field">
+                        <span>Regrease DE</span>
+                        <input name="regreaseDe" type="text" inputmode="decimal" placeholder="Jumlah spet">
+                      </label>
+                      <label class="pwa-form-field">
+                        <span>Regrease NDE</span>
+                        <input name="regreaseNde" type="text" inputmode="decimal" placeholder="Jumlah spet">
                       </label>
                       <label class="pwa-form-field">
                         <span>gE DS Vert After</span>
@@ -2201,17 +2172,17 @@
 
                 <div class="inspection-section">
                   <div class="inspection-section-head">
-                    <strong>Regrease dan vibrasi after</strong>
-                    <span>Jika motor free maintenance, after bisa dibiarkan 0 atau kosong.</span>
+                    <strong>Regrease dan gE after</strong>
+                    <span>Isi jumlah spet regrease dan nilai gE setelah regrease.</span>
                   </div>
                   <div class="form-grid form-grid-3">
                     <label>
                       Regrease DE
-                      <input type="text" name="regreaseDe" inputmode="decimal" placeholder="Contoh: 10">
+                      <input type="text" name="regreaseDe" inputmode="decimal" placeholder="Jumlah spet">
                     </label>
                     <label>
                       Regrease NDE
-                      <input type="text" name="regreaseNde" inputmode="decimal" placeholder="Contoh: 10">
+                      <input type="text" name="regreaseNde" inputmode="decimal" placeholder="Jumlah spet">
                     </label>
                     <div></div>
                     <label>
@@ -2227,18 +2198,6 @@
                       <input type="text" name="geDsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
                     </label>
                     <label>
-                      Vibrasi DS Vert After
-                      <input type="text" name="vibrasiDsVertAfter" inputmode="decimal" placeholder="Contoh: 0.0">
-                    </label>
-                    <label>
-                      Vibrasi DS Hor After
-                      <input type="text" name="vibrasiDsHorAfter" inputmode="decimal" placeholder="Contoh: 0.0">
-                    </label>
-                    <label>
-                      Vibrasi DS Axial After
-                      <input type="text" name="vibrasiDsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
-                    </label>
-                    <label>
                       gE NDS Vert After
                       <input type="text" name="geNdsVertAfter" inputmode="decimal" placeholder="Contoh: 1.9">
                     </label>
@@ -2249,18 +2208,6 @@
                     <label>
                       gE NDS Axial After
                       <input type="text" name="geNdsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
-                    </label>
-                    <label>
-                      Vibrasi NDS Vert After
-                      <input type="text" name="vibrasiNdsVertAfter" inputmode="decimal" placeholder="Contoh: 0.0">
-                    </label>
-                    <label>
-                      Vibrasi NDS Hor After
-                      <input type="text" name="vibrasiNdsHorAfter" inputmode="decimal" placeholder="Contoh: 0.0">
-                    </label>
-                    <label>
-                      Vibrasi NDS Axial After
-                      <input type="text" name="vibrasiNdsAxialAfter" inputmode="decimal" placeholder="Contoh: 0.0">
                     </label>
                     <label class="full-span">
                       Foto temuan
@@ -4050,12 +3997,12 @@
   <script src="app.mso.js?v=20260426-15"></script>
   <script src="app.dashboard.js?v=20260502-02"></script>
   <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260507-04"></script>
+  <script src="app.js?v=20260507-05"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260507-04").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260507-05").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

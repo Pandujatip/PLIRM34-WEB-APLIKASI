@@ -10203,9 +10203,7 @@ function hydrateServiceForm(item) {
       "vibrasiNdsVertBefore", "vibrasiNdsHorBefore", "vibrasiNdsAxialBefore",
       "regreaseDe", "regreaseNde",
       "geDsVertAfter", "geDsHorAfter", "geDsAxialAfter",
-      "vibrasiDsVertAfter", "vibrasiDsHorAfter", "vibrasiDsAxialAfter",
       "geNdsVertAfter", "geNdsHorAfter", "geNdsAxialAfter",
-      "vibrasiNdsVertAfter", "vibrasiNdsHorAfter", "vibrasiNdsAxialAfter",
     ].forEach((fieldName) => {
       if (form[fieldName]) {
         form[fieldName].value = payload[fieldName] || "";
@@ -13069,8 +13067,6 @@ async function editServiceFromPwa(itemId) {
       "vibrasiDsVertBefore", "vibrasiDsHorBefore", "vibrasiDsAxialBefore",
       "vibrasiNdsVertBefore", "vibrasiNdsHorBefore", "vibrasiNdsAxialBefore",
       "regreaseDe", "regreaseNde",
-      "vibrasiDsVertAfter", "vibrasiDsHorAfter", "vibrasiDsAxialAfter",
-      "vibrasiNdsVertAfter", "vibrasiNdsHorAfter", "vibrasiNdsAxialAfter",
       "geDsVertBefore", "geDsHorBefore", "geDsAxialBefore",
       "geNdsVertBefore", "geNdsHorBefore", "geNdsAxialBefore",
       "geDsVertAfter", "geDsHorAfter", "geDsAxialAfter",
