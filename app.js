@@ -2990,6 +2990,7 @@ function analyzeServiceItem(item) {
     const temperatureDs = parseCarbonBrushNumericValue(payload.temperaturDs);
     const temperatureNds = parseCarbonBrushNumericValue(payload.temperaturNds);
     const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
+    const geDiagnostics = getMsoMotorGeDiagnostics(payload);
     if ((payload.condition || "").toUpperCase() === "BAD") {
       notes.push(String(payload.source || "").toUpperCase() === "MSO"
         ? "MSO status BAD. Cek parameter yang melewati limit dan prioritaskan tindak lanjut lapangan."
@@ -3001,13 +3002,22 @@ function analyzeServiceItem(item) {
     if (temperatureNds !== null && temperatureNds >= 60) {
       notes.push(`Temp NDS tinggi: ${temperatureNds} C. Cek ventilasi dan bearing sisi non-drive.`);
     }
-    if (vibrationDiagnostics.freeMaintenanceAfter) {
-      notes.push("Vibrasi after 0 dibaca sebagai motor free maintenance/tidak ada nipple grease. Analisa vibrasi fokus ke nilai before.");
-    }
     if (vibrationDiagnostics.beforeCriticalCount > 0) {
       notes.push(`Ada ${vibrationDiagnostics.beforeCriticalCount} kanal vibrasi before kritis. Kanal tertinggi: ${vibrationDiagnostics.dominantBefore?.label || "-"} (${vibrationDiagnostics.dominantBefore?.value ?? "-"} mm/s).`);
     } else if (vibrationDiagnostics.beforeWatchCount > 0) {
       notes.push(`Ada ${vibrationDiagnostics.beforeWatchCount} kanal vibrasi before watchlist. Pantau trend kanal dominan ${vibrationDiagnostics.dominantBefore?.label || "-"}.`);
+    }
+    if (geDiagnostics.afterCriticalCount > 0) {
+      notes.push(`gE after masih kritis pada ${geDiagnostics.afterCriticalCount} kanal. Cek kualitas regrease dan kondisi bearing.`);
+    } else if (geDiagnostics.afterWatchCount > 0) {
+      notes.push(`gE after masih watchlist pada ${geDiagnostics.afterWatchCount} kanal. Pantau ulang titik yang sama pada inspeksi berikutnya.`);
+    }
+    if (geDiagnostics.dominantBefore?.value !== undefined && geDiagnostics.dominantAfter?.value !== undefined) {
+      if (geDiagnostics.dominantAfter.value < geDiagnostics.dominantBefore.value) {
+        notes.push(`gE membaik setelah regrease (${geDiagnostics.dominantBefore.value} -> ${geDiagnostics.dominantAfter.value}).`);
+      } else {
+        notes.push(`gE after belum turun dari before (${geDiagnostics.dominantBefore.value} -> ${geDiagnostics.dominantAfter.value}). Evaluasi regrease dan bearing.`);
+      }
     }
     return buildConciseAnalysis(notes, "Motor MSO terbaru aman. Tidak ada parameter utama yang perlu tindakan cepat.");
   }
@@ -3388,6 +3398,15 @@ const msoMotorVibrationChannelDefinitions = [
   { key: "vibrasiNdsAxial", label: "NDS Axial", side: "NDS", axis: "Axial" },
 ];
 
+const msoMotorGeChannelDefinitions = [
+  { key: "geDsVert", label: "gE DS Vert", side: "DS", axis: "Vert" },
+  { key: "geDsHor", label: "gE DS Hor", side: "DS", axis: "Hor" },
+  { key: "geDsAxial", label: "gE DS Axial", side: "DS", axis: "Axial" },
+  { key: "geNdsVert", label: "gE NDS Vert", side: "NDS", axis: "Vert" },
+  { key: "geNdsHor", label: "gE NDS Hor", side: "NDS", axis: "Hor" },
+  { key: "geNdsAxial", label: "gE NDS Axial", side: "NDS", axis: "Axial" },
+];
+
 function classifyMsoMotorVibrationValue(value) {
   if (value === null || value === undefined) {
     return "";
@@ -3396,6 +3415,19 @@ function classifyMsoMotorVibrationValue(value) {
     return "critical";
   }
   if (value >= 2.8) {
+    return "watch";
+  }
+  return "normal";
+}
+
+function classifyMsoMotorGeValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (value > 4) {
+    return "critical";
+  }
+  if (value >= 2.1) {
     return "watch";
   }
   return "normal";
@@ -3424,12 +3456,36 @@ function getMsoMotorVibrationChannelEntries(payload = {}, phase = "before", opti
     });
 }
 
+function getMsoMotorGeChannelEntries(payload = {}, phase = "before") {
+  const suffix = phase === "after" ? "After" : "Before";
+  return msoMotorGeChannelDefinitions
+    .map((channel) => {
+      const value = parseMsoMotorNumeric(payload[`${channel.key}${suffix}`]);
+      return {
+        ...channel,
+        phase,
+        value,
+        bucket: classifyMsoMotorGeValue(value),
+      };
+    })
+    .filter((entry) => entry.value !== null);
+}
+
 function getMsoMotorVibrationValues(payload = {}, phase = "before") {
   return getMsoMotorVibrationChannelEntries(payload, phase).map((entry) => entry.value);
 }
 
+function getMsoMotorGeValues(payload = {}, phase = "before") {
+  return getMsoMotorGeChannelEntries(payload, phase).map((entry) => entry.value);
+}
+
 function getMsoMotorMaxVibration(payload = {}, phase = "before") {
   const values = getMsoMotorVibrationValues(payload, phase);
+  return values.length ? Math.max(...values) : null;
+}
+
+function getMsoMotorMaxGe(payload = {}, phase = "before") {
+  const values = getMsoMotorGeValues(payload, phase);
   return values.length ? Math.max(...values) : null;
 }
 
@@ -3444,6 +3500,40 @@ function getMsoMotorDominantVibrationChannel(payload = {}, phase = "before") {
 function isMsoMotorFreeMaintenancePayload(payload = {}) {
   const rawAfterEntries = getMsoMotorVibrationChannelEntries(payload, "after", { includeZeroAfter: true });
   return rawAfterEntries.length > 0 && rawAfterEntries.every((entry) => entry.value === 0);
+}
+
+function getMsoMotorGeDiagnostics(payload = {}) {
+  const beforeEntries = getMsoMotorGeChannelEntries(payload, "before");
+  const afterEntries = getMsoMotorGeChannelEntries(payload, "after");
+  const dominantBefore = beforeEntries.length ? [...beforeEntries].sort((left, right) => right.value - left.value)[0] : null;
+  const dominantAfter = afterEntries.length ? [...afterEntries].sort((left, right) => right.value - left.value)[0] : null;
+  const beforeCriticalCount = beforeEntries.filter((entry) => entry.bucket === "critical").length;
+  const beforeWatchCount = beforeEntries.filter((entry) => entry.bucket === "watch").length;
+  const afterCriticalCount = afterEntries.filter((entry) => entry.bucket === "critical").length;
+  const afterWatchCount = afterEntries.filter((entry) => entry.bucket === "watch").length;
+  const channelComparisons = msoMotorGeChannelDefinitions.map((channel) => {
+    const before = beforeEntries.find((entry) => entry.key === channel.key) || null;
+    const after = afterEntries.find((entry) => entry.key === channel.key) || null;
+    return {
+      ...channel,
+      beforeValue: before?.value ?? null,
+      afterValue: after?.value ?? null,
+      beforeBucket: before?.bucket || "",
+      afterBucket: after?.bucket || "",
+      improved: before?.value !== undefined && after?.value !== undefined && after.value < before.value,
+    };
+  });
+  return {
+    beforeEntries,
+    afterEntries,
+    dominantBefore,
+    dominantAfter,
+    beforeCriticalCount,
+    beforeWatchCount,
+    afterCriticalCount,
+    afterWatchCount,
+    channelComparisons,
+  };
 }
 
 function getMsoMotorVibrationDiagnostics(payload = {}) {
@@ -3496,11 +3586,10 @@ function buildMsoMotorDetailSummary(payload = {}) {
   const condition = String(payload.condition || "-").trim() || "-";
   const maxTemperature = Math.max(...getMsoMotorTemperatureValues(payload), 0) || null;
   const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
+  const geDiagnostics = getMsoMotorGeDiagnostics(payload);
   const maxVibrationBefore = vibrationDiagnostics.dominantBefore?.value ?? null;
-  const maxVibrationAfter = vibrationDiagnostics.freeMaintenanceAfter
-    ? "FM"
-    : (vibrationDiagnostics.dominantAfter?.value ?? "-");
-  return `Condition ${condition} | Temp max ${maxTemperature ?? "-"} | Vib before ${maxVibrationBefore ?? "-"} | Vib after ${maxVibrationAfter}`;
+  const maxGeAfter = geDiagnostics.dominantAfter?.value ?? null;
+  return `Condition ${condition} | Temp max ${maxTemperature ?? "-"} | Vib before ${maxVibrationBefore ?? "-"} | gE after ${maxGeAfter ?? "-"}`;
 }
 
 function buildMsoMotorPayloadFromFormData(formData, existingPayload = {}, options = {}) {
@@ -3580,15 +3669,9 @@ function buildMsoMotorPayloadLines(payload = {}, photoSummary = "-") {
     ["gE DS Vert After", payload.geDsVertAfter || "-", false],
     ["gE DS Hor After", payload.geDsHorAfter || "-", false],
     ["gE DS Axial After", payload.geDsAxialAfter || "-", false],
-    ["Vibrasi DS Vert After", payload.vibrasiDsVertAfter || "-", false],
-    ["Vibrasi DS Hor After", payload.vibrasiDsHorAfter || "-", false],
-    ["Vibrasi DS Axial After", payload.vibrasiDsAxialAfter || "-", false],
     ["gE NDS Vert After", payload.geNdsVertAfter || "-", false],
     ["gE NDS Hor After", payload.geNdsHorAfter || "-", false],
     ["gE NDS Axial After", payload.geNdsAxialAfter || "-", false],
-    ["Vibrasi NDS Vert After", payload.vibrasiNdsVertAfter || "-", false],
-    ["Vibrasi NDS Hor After", payload.vibrasiNdsHorAfter || "-", false],
-    ["Vibrasi NDS Axial After", payload.vibrasiNdsAxialAfter || "-", false],
     ["Kelengkapan Motor", payload.kelengkapanMotor || "-", false],
     ["Keterangan MSO", payload.inspectionNote || "-", false],
     ["Photo URL", payload.photoUrl || "-", false],
@@ -3636,13 +3719,13 @@ function analyzeMsoMotorInspectionCadence(history) {
     const currentPayload = currentEntry.payload || {};
     const previousProblematic = isProblematicMsoMotorPayload(previousPayload);
     const currentProblematic = isProblematicMsoMotorPayload(currentPayload);
-    const previousBefore = getMsoMotorMaxVibration(previousPayload, "before");
-    const previousAfter = getMsoMotorMaxVibration(previousPayload, "after");
+    const previousBefore = getMsoMotorMaxGe(previousPayload, "before");
+    const previousAfter = getMsoMotorMaxGe(previousPayload, "after");
     const currentBefore = getMsoMotorMaxVibration(currentPayload, "before");
     const previousRecoveredByRegrease = previousBefore !== null
       && previousAfter !== null
-      && previousBefore >= 2.8
-      && previousAfter < 2.8;
+      && previousBefore >= 2.1
+      && previousAfter < 2.1;
     if (gapDays <= MSO_MOTOR_INSPECTION_STANDARD_DAYS && previousProblematic && currentProblematic) {
       repeatedProblemWithinStandardCount += 1;
     }
@@ -3685,22 +3768,20 @@ function analyzeMsoMotorInspectionCadence(history) {
 function analyzeMsoMotorRegreaseEffectiveness(history) {
   const inspectionPairs = history.map((entry) => {
     const payload = entry.payload || {};
-    const before = getMsoMotorMaxVibration(payload, "before");
-    const after = getMsoMotorMaxVibration(payload, "after");
-    const freeMaintenance = isMsoMotorFreeMaintenancePayload(payload);
+    const before = getMsoMotorMaxGe(payload, "before");
+    const after = getMsoMotorMaxGe(payload, "after");
     return {
       inspectionDate: payload.inspectionDate || "",
       label: formatInspectionDate(payload.inspectionDate),
       before,
       after,
-      freeMaintenance,
       improved: before !== null && after !== null && after < before,
-      stronglyImproved: before !== null && after !== null && before >= 2.8 && after < 2.8,
+      stronglyImproved: before !== null && after !== null && before >= 2.1 && after < 2.1,
       unresolved: before !== null && after !== null && after >= before,
-      highBefore: before !== null && before >= 2.8,
-      lowAfter: after !== null && after < 2.8,
+      highBefore: before !== null && before >= 2.1,
+      lowAfter: after !== null && after < 2.1,
     };
-  }).filter((entry) => entry.before !== null || entry.after !== null || entry.freeMaintenance);
+  }).filter((entry) => entry.before !== null || entry.after !== null);
 
   const withCompletePair = inspectionPairs.filter((entry) => entry.before !== null && entry.after !== null);
   const improvedCount = withCompletePair.filter((entry) => entry.improved).length;
@@ -3708,7 +3789,6 @@ function analyzeMsoMotorRegreaseEffectiveness(history) {
   const unresolvedCount = withCompletePair.filter((entry) => entry.unresolved).length;
   const repeatHighBeforeLowAfterCount = withCompletePair.filter((entry) => entry.highBefore && entry.lowAfter).length;
   const consistentRecovery = withCompletePair.length >= 2 && repeatHighBeforeLowAfterCount >= Math.ceil(withCompletePair.length * 0.6);
-  const freeMaintenanceCount = inspectionPairs.filter((entry) => entry.freeMaintenance).length;
 
   return {
     inspections: inspectionPairs,
@@ -3718,7 +3798,6 @@ function analyzeMsoMotorRegreaseEffectiveness(history) {
     unresolvedCount,
     repeatHighBeforeLowAfterCount,
     consistentRecovery,
-    freeMaintenanceCount,
   };
 }
 
@@ -3731,9 +3810,10 @@ function getMsoMotorHealthSnapshot(item) {
   const temperatureNds = parseMsoMotorNumeric(payload.temperaturNds);
   const maxTemperature = Math.max(...getMsoMotorTemperatureValues(payload), 0);
   const vibrationDiagnostics = getMsoMotorVibrationDiagnostics(payload);
+  const geDiagnostics = getMsoMotorGeDiagnostics(payload);
   const maxVibrationBefore = vibrationDiagnostics.dominantBefore?.value ?? null;
-  const maxVibrationAfter = vibrationDiagnostics.dominantAfter?.value ?? null;
-  const isFreeMaintenanceMotor = vibrationDiagnostics.freeMaintenanceAfter;
+  const maxGeBefore = geDiagnostics.dominantBefore?.value ?? null;
+  const maxGeAfter = geDiagnostics.dominantAfter?.value ?? null;
   const recentHistory = history.slice(-3);
   const recentConditions = recentHistory.map((entry) => String(entry.payload?.condition || "").toUpperCase());
   const badEntries = history.filter((entry) => String(entry.payload?.condition || "").toUpperCase() === "BAD");
@@ -3779,12 +3859,19 @@ function getMsoMotorHealthSnapshot(item) {
   if (!vibrationDiagnostics.beforeCriticalCount && !vibrationDiagnostics.beforeWatchCount && maxVibrationBefore !== null) {
     notes.push(`Kanal vibrasi tertinggi saat ini ada di ${vibrationDiagnostics.dominantBefore?.label || "-"} sebesar ${maxVibrationBefore} mm/s.`);
   }
-  if (isFreeMaintenanceMotor) {
-    notes.push("Vibrasi after tercatat 0 pada semua kanal. Ini dibaca sebagai motor free maintenance/tidak ada nipple grease, sehingga analisa vibrasi memakai nilai before saja.");
+  if (geDiagnostics.afterCriticalCount > 0) {
+    score -= 12 + ((geDiagnostics.afterCriticalCount - 1) * 4);
+    notes.push(`gE after masih kritis pada ${geDiagnostics.afterCriticalCount} kanal. Dominan di ${geDiagnostics.dominantAfter?.label || "-"}.`);
+  } else if (geDiagnostics.afterWatchCount > 0) {
+    score -= Math.min(10, geDiagnostics.afterWatchCount * 3);
+    notes.push(`gE after masih watchlist pada ${geDiagnostics.afterWatchCount} kanal.`);
   }
-  if (maxVibrationAfter !== null && maxVibrationBefore !== null && maxVibrationAfter >= maxVibrationBefore) {
+  if (maxGeAfter !== null && maxGeBefore !== null && maxGeAfter >= maxGeBefore) {
     score -= 10;
-    notes.push(`Nilai after belum membaik dari before. Kanal dominan after ada di ${vibrationDiagnostics.dominantAfter?.label || "-"} (${maxVibrationAfter} mm/s).`);
+    notes.push(`gE after belum membaik dari before. Kanal dominan after ada di ${geDiagnostics.dominantAfter?.label || "-"} (${maxGeAfter}).`);
+  } else if (maxGeAfter !== null && maxGeBefore !== null) {
+    score += Math.min(6, Math.round((maxGeBefore - maxGeAfter) * 2));
+    notes.push(`gE membaik setelah regrease (${maxGeBefore} -> ${maxGeAfter}).`);
   }
   if (recentBadCount >= 2) {
     score -= 12;
@@ -3814,13 +3901,13 @@ function getMsoMotorHealthSnapshot(item) {
   }
   if (regreaseEffect.consistentRecovery) {
     score += 6;
-    notes.push(`Pola histori menunjukkan regrease cukup efektif: pada ${regreaseEffect.repeatHighBeforeLowAfterCount} inspeksi, vibrasi before tinggi lalu turun rendah setelah regrease.`);
-    notes.push("Artinya tindakan regrease memberi perbaikan nyata, tetapi equipment tetap perlu diawasi karena indikasi kenaikan vibrasi sebelum regrease muncul berulang.");
+    notes.push(`Pola histori menunjukkan regrease cukup efektif: pada ${regreaseEffect.repeatHighBeforeLowAfterCount} inspeksi, gE before tinggi lalu turun rendah setelah regrease.`);
+    notes.push("Artinya tindakan regrease memberi perbaikan nyata pada indikasi bearing, tetapi equipment tetap perlu diawasi dari trend vibrasi before.");
   } else if (regreaseEffect.unresolvedCount >= 2) {
     score -= 6;
-    notes.push(`Pada ${regreaseEffect.unresolvedCount} inspeksi, vibrasi after tidak turun dari before. Efektivitas regrease perlu dievaluasi ulang.`);
-  } else if (regreaseEffect.freeMaintenanceCount > 0 && regreaseEffect.pairCount === 0) {
-    notes.push("Histori after didominasi nilai 0, jadi tidak ada pair before/after yang valid untuk menilai efektivitas regrease.");
+    notes.push(`Pada ${regreaseEffect.unresolvedCount} inspeksi, gE after tidak turun dari before. Efektivitas regrease perlu dievaluasi ulang.`);
+  } else if (regreaseEffect.pairCount === 0) {
+    notes.push("Belum ada pair gE before/after yang cukup untuk menilai efektivitas regrease.");
   }
   if (cadence.overdueDays > 0) {
     const cadencePenalty = Math.min(12, 4 + Math.ceil(cadence.overdueDays / 7));
@@ -3838,7 +3925,7 @@ function getMsoMotorHealthSnapshot(item) {
   }
   if (cadence.reappearedAfterEffectiveRegreaseCount > 0) {
     score -= Math.min(8, cadence.reappearedAfterEffectiveRegreaseCount * 4);
-    notes.push(`Pada ${cadence.reappearedAfterEffectiveRegreaseCount} siklus, vibrasi sempat turun setelah regrease tetapi sudah naik lagi sebelum siklus inspeksi ${cadence.standardDays} hari berikutnya. Ini tanda interval kunjungan bisa terlalu longgar untuk equipment ini.`);
+    notes.push(`Pada ${cadence.reappearedAfterEffectiveRegreaseCount} siklus, gE sempat membaik setelah regrease tetapi vibrasi before sudah naik lagi sebelum siklus inspeksi ${cadence.standardDays} hari berikutnya. Ini tanda interval kunjungan bisa terlalu longgar untuk equipment ini.`);
   }
 
   score = Math.max(0, Math.min(100, score));
@@ -3861,16 +3948,19 @@ function getMsoMotorHealthSnapshot(item) {
     temperatureNds,
     maxTemperature,
     maxVibrationBefore,
-    maxVibrationAfter,
-    isFreeMaintenanceMotor,
+    maxGeBefore,
+    maxGeAfter,
     dominantVibrationBefore: vibrationDiagnostics.dominantBefore,
-    dominantVibrationAfter: vibrationDiagnostics.dominantAfter,
+    dominantGeBefore: geDiagnostics.dominantBefore,
+    dominantGeAfter: geDiagnostics.dominantAfter,
     vibrationBeforeCriticalCount: vibrationDiagnostics.beforeCriticalCount,
     vibrationBeforeWatchCount: vibrationDiagnostics.beforeWatchCount,
-    vibrationAfterCriticalCount: vibrationDiagnostics.afterCriticalCount,
-    vibrationAfterWatchCount: vibrationDiagnostics.afterWatchCount,
-    vibrationAfterZeroCount: vibrationDiagnostics.afterZeroCount,
+    geBeforeCriticalCount: geDiagnostics.beforeCriticalCount,
+    geBeforeWatchCount: geDiagnostics.beforeWatchCount,
+    geAfterCriticalCount: geDiagnostics.afterCriticalCount,
+    geAfterWatchCount: geDiagnostics.afterWatchCount,
     vibrationChannels: vibrationDiagnostics.channelComparisons,
+    geChannels: geDiagnostics.channelComparisons,
     regreaseEffect,
     cadence,
     historyCount: history.length,
@@ -3971,12 +4061,21 @@ function buildMsoMotorAnalyticsHtml(item) {
   });
   const vibrationTrendHtml = buildMsoMotorTrendSvg(trendHistory, [
     { label: "Vib Before Max", getValue: (entry) => getMsoMotorMaxVibration(entry.payload, "before"), color: "rgba(255,107,120,0.96)" },
-    { label: "Vib After Max", getValue: (entry) => getMsoMotorMaxVibration(entry.payload, "after"), color: "rgba(115,224,169,0.96)" },
   ], {
     ariaLabel: "Grafik tren vibrasi motor MSO",
     thresholds: [
       { value: 2.8, label: "Watch 2.8 mm/s", color: "rgba(255,210,79,0.75)" },
       { value: 4.5, label: "Critical 4.5 mm/s", color: "rgba(255,107,120,0.75)" },
+    ],
+  });
+  const geTrendHtml = buildMsoMotorTrendSvg(trendHistory, [
+    { label: "gE Before Max", getValue: (entry) => getMsoMotorMaxGe(entry.payload, "before"), color: "rgba(255,166,66,0.96)" },
+    { label: "gE After Max", getValue: (entry) => getMsoMotorMaxGe(entry.payload, "after"), color: "rgba(115,224,169,0.96)" },
+  ], {
+    ariaLabel: "Grafik tren gE motor MSO",
+    thresholds: [
+      { value: 2.1, label: "Watch 2.1 gE", color: "rgba(255,210,79,0.75)" },
+      { value: 4, label: "Critical 4 gE", color: "rgba(255,107,120,0.75)" },
     ],
   });
 
@@ -4009,15 +4108,15 @@ function buildMsoMotorAnalyticsHtml(item) {
   } else if (latestSnapshot.maxTemperature >= 60) {
     recommendations.push("Monitor kenaikan temperatur pada inspeksi berikutnya dan cek kebersihan jalur pendinginan.");
   }
-  if (latestSnapshot.isFreeMaintenanceMotor) {
-    recommendations.push("After vibrasi 0 menunjukkan motor free maintenance/tidak ada nipple grease. Jangan nilai efektivitas regrease dari after; gunakan trend vibrasi before sebagai dasar keputusan.");
+  if (latestSnapshot.geAfterCriticalCount > 0 || latestSnapshot.geAfterWatchCount > 0) {
+    recommendations.push("gE after masih belum normal. Cek jumlah/teknik regrease, kondisi grease, dan indikasi awal bearing.");
   }
-  if (latestSnapshot.maxVibrationAfter !== null && latestSnapshot.maxVibrationBefore !== null && latestSnapshot.maxVibrationAfter >= latestSnapshot.maxVibrationBefore) {
-    recommendations.push("Tindakan after belum efektif. Tinjau ulang metode regrease atau kebutuhan investigasi mekanik lebih lanjut.");
+  if (latestSnapshot.maxGeAfter !== null && latestSnapshot.maxGeBefore !== null && latestSnapshot.maxGeAfter >= latestSnapshot.maxGeBefore) {
+    recommendations.push("gE after belum turun dari before. Tinjau ulang metode regrease atau kebutuhan investigasi bearing lebih lanjut.");
   }
   if (latestSnapshot.regreaseEffect.consistentRecovery) {
-    recommendations.push(`Pola histori menunjukkan setelah regrease, vibrasi sering turun dari before tinggi menjadi after rendah (${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount} inspeksi).`);
-    recommendations.push("Artinya regrease masih efektif sebagai tindakan korektif cepat, tetapi equipment punya kecenderungan vibrasi naik lagi sebelum jadwal berikutnya sehingga akar masalah mekanik tetap perlu dicari.");
+    recommendations.push(`Pola histori menunjukkan setelah regrease, gE sering turun dari before tinggi menjadi after rendah (${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount} inspeksi).`);
+    recommendations.push("Artinya regrease masih efektif sebagai tindakan korektif cepat, tetapi trend vibrasi before tetap dipakai untuk membaca kondisi mekanik utama.");
   }
   if ((latestSnapshot.cadence?.overdueDays || 0) > 0) {
     recommendations.push(`Jadwal inspeksi sudah lewat ${latestSnapshot.cadence.overdueDays} hari dari standar ${latestSnapshot.cadence.standardDays} hari. Segera lakukan inspeksi ulang agar tren kerusakan tidak terlambat terbaca.`);
@@ -4037,7 +4136,7 @@ function buildMsoMotorAnalyticsHtml(item) {
       <div class="mso-health-head">
         <div>
           <h4>Health Snapshot</h4>
-          <p>Penilaian cepat berdasarkan kondisi terbaru, temperatur tertinggi, vibrasi maksimum, dan efektivitas after service.</p>
+          <p>Penilaian cepat berdasarkan kondisi terbaru, temperatur, vibrasi before, serta perubahan gE before/after.</p>
         </div>
         <div class="mso-health-badge ${latestSnapshot.gradeClass}">
           <strong>${latestSnapshot.score}</strong>
@@ -4051,14 +4150,17 @@ function buildMsoMotorAnalyticsHtml(item) {
           ["Temperatur NDS", latestSnapshot.temperatureNds ?? "-"],
           ["Temperatur maksimum", latestSnapshot.maxTemperature || "-"],
           ["Vibrasi before max", latestSnapshot.maxVibrationBefore ?? "-"],
-          ["Vibrasi after max", latestSnapshot.isFreeMaintenanceMotor ? "Free maintenance (after 0)" : (latestSnapshot.maxVibrationAfter ?? "-")],
           ["Kanal before dominan", latestSnapshot.dominantVibrationBefore?.label || "-"],
-          ["Kanal after dominan", latestSnapshot.isFreeMaintenanceMotor ? "-" : (latestSnapshot.dominantVibrationAfter?.label || "-")],
-          ["Status grease", latestSnapshot.isFreeMaintenanceMotor ? "Free maintenance / tanpa nipple grease" : "After valid untuk evaluasi regrease"],
+          ["gE before max", latestSnapshot.maxGeBefore ?? "-"],
+          ["gE after max", latestSnapshot.maxGeAfter ?? "-"],
+          ["Kanal gE after dominan", latestSnapshot.dominantGeAfter?.label || "-"],
+          ["Status regrease", latestSnapshot.maxGeAfter === null ? "Belum ada data gE after" : "Evaluasi dari gE before/after"],
           ["Kanal before kritis", `${latestSnapshot.vibrationBeforeCriticalCount || 0} kanal`],
           ["Kanal before watch", `${latestSnapshot.vibrationBeforeWatchCount || 0} kanal`],
-          ["Pair before/after", `${latestSnapshot.regreaseEffect.pairCount || 0} inspeksi`],
-          ["Before tinggi -> after rendah", `${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount || 0} inspeksi`],
+          ["gE after kritis", `${latestSnapshot.geAfterCriticalCount || 0} kanal`],
+          ["gE after watch", `${latestSnapshot.geAfterWatchCount || 0} kanal`],
+          ["Pair gE before/after", `${latestSnapshot.regreaseEffect.pairCount || 0} inspeksi`],
+          ["gE before tinggi -> after rendah", `${latestSnapshot.regreaseEffect.repeatHighBeforeLowAfterCount || 0} inspeksi`],
           ["Standar interval", `${latestSnapshot.cadence?.standardDays || MSO_MOTOR_INSPECTION_STANDARD_DAYS} hari`],
           ["Jarak 2 inspeksi terakhir", latestSnapshot.cadence?.latestGapDays === null ? "-" : `${latestSnapshot.cadence.latestGapDays} hari`],
           ["Rata-rata jarak inspeksi", latestSnapshot.cadence?.averageGapDays === null ? "-" : `${latestSnapshot.cadence.averageGapDays} hari`],
@@ -4090,16 +4192,35 @@ function buildMsoMotorAnalyticsHtml(item) {
       <div class="detail-modal-head compact-trend-head">
         <div>
           <h4>Trend Vibrasi</h4>
-          <p>${latestSnapshot.isFreeMaintenanceMotor ? "After 0 dibaca sebagai motor free maintenance/tidak ada nipple grease. Analisa utama memakai trend vibrasi before." : "Grafik membandingkan vibrasi maksimum before dan after untuk membaca efektivitas tindakan service."}</p>
+          <p>Vibrasi Motor MSO hanya dinilai dari nilai before. Grafik ini dipakai untuk membaca kenaikan getaran mekanik dari histori inspeksi.</p>
         </div>
       </div>
       ${vibrationTrendHtml}
+    </section>
+    <section class="detail-card carbon-brush-trend-card">
+      <div class="detail-modal-head compact-trend-head">
+        <div>
+          <h4>Trend gE</h4>
+          <p>gE memiliki nilai before dan after. Perbandingan ini dipakai untuk membaca efektivitas regrease pada indikasi bearing.</p>
+        </div>
+      </div>
+      ${geTrendHtml}
     </section>
     <section class="detail-card">
       <h4>Ringkasan Kanal Vibrasi</h4>
       <div class="detail-grid">
         ${buildDetailGridRows(
           latestSnapshot.vibrationChannels.flatMap((channel) => ([
+            [`${channel.label} Before`, channel.beforeValue ?? "-"],
+          ])),
+        )}
+      </div>
+    </section>
+    <section class="detail-card">
+      <h4>Ringkasan Kanal gE</h4>
+      <div class="detail-grid">
+        ${buildDetailGridRows(
+          latestSnapshot.geChannels.flatMap((channel) => ([
             [`${channel.label} Before`, channel.beforeValue ?? "-"],
             [`${channel.label} After`, channel.afterValue ?? "-"],
           ])),
