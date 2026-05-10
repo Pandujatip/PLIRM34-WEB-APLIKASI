@@ -4118,7 +4118,7 @@ function buildMsoMotorAnalyticsHtml(item) {
 function buildMsoMotorWatchlistSummary(serviceItems) {
   const latestByEquipment = new Map();
   serviceItems
-    .filter((item) => item.formType === "service-motor-mso" && String(item.payload?.source || "").toUpperCase() === "MSO")
+    .filter((item) => item.formType === "service-motor-mso")
     .filter((item) => shouldDisplayMsoMotorEquipment(item.equipmentName))
     .forEach((item) => {
       const key = String(item.equipmentName || "").trim().toUpperCase();
@@ -4211,7 +4211,7 @@ function openServiceDetail(item, options = {}) {
       ${buildCarbonBrushMatrixHtml(payload.measurements || {}, item.equipmentName || "", payload.plant || "", carbonBrushReplacementDraft)}
     `;
   }
-  const msoAnalyticsHtml = item.formType === "service-motor-mso" && String(payload.source || "").toUpperCase() === "MSO"
+  const msoAnalyticsHtml = item.formType === "service-motor-mso"
     ? buildMsoMotorAnalyticsHtml(item)
     : "";
 
@@ -7862,8 +7862,8 @@ function shouldDisplayServiceItem(item) {
   if (!item) {
     return false;
   }
-  const isMsoMotorItem = (item.formType === "service-motor-mv" || item.formType === "service-motor-mso")
-    && String(item.payload?.source || "").toUpperCase() === "MSO";
+  const isMsoMotorItem = item.formType === "service-motor-mso"
+    || (item.formType === "service-motor-mv" && String(item.payload?.source || "").toUpperCase() === "MSO");
   if (!isMsoMotorItem) {
     return true;
   }
