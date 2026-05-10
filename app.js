@@ -3392,19 +3392,15 @@ function getMsoMotorHistory(item) {
 const msoMotorVibrationChannelDefinitions = [
   { key: "vibrasiDsVert", label: "DS Vert", side: "DS", axis: "Vert" },
   { key: "vibrasiDsHor", label: "DS Hor", side: "DS", axis: "Hor" },
-  { key: "vibrasiDsAxial", label: "DS Axial", side: "DS", axis: "Axial" },
   { key: "vibrasiNdsVert", label: "NDS Vert", side: "NDS", axis: "Vert" },
   { key: "vibrasiNdsHor", label: "NDS Hor", side: "NDS", axis: "Hor" },
-  { key: "vibrasiNdsAxial", label: "NDS Axial", side: "NDS", axis: "Axial" },
 ];
 
 const msoMotorGeChannelDefinitions = [
   { key: "geDsVert", label: "gE DS Vert", side: "DS", axis: "Vert" },
   { key: "geDsHor", label: "gE DS Hor", side: "DS", axis: "Hor" },
-  { key: "geDsAxial", label: "gE DS Axial", side: "DS", axis: "Axial" },
   { key: "geNdsVert", label: "gE NDS Vert", side: "NDS", axis: "Vert" },
   { key: "geNdsHor", label: "gE NDS Hor", side: "NDS", axis: "Hor" },
-  { key: "geNdsAxial", label: "gE NDS Axial", side: "NDS", axis: "Axial" },
 ];
 
 function classifyMsoMotorVibrationValue(value) {
@@ -3654,24 +3650,18 @@ function buildMsoMotorPayloadLines(payload = {}, photoSummary = "-") {
     ["Temperatur NDS", payload.temperaturNds || "-", true],
     ["gE DS Vert Before", payload.geDsVertBefore || "-", false],
     ["gE DS Hor Before", payload.geDsHorBefore || "-", false],
-    ["gE DS Axial Before", payload.geDsAxialBefore || "-", false],
     ["Vibrasi DS Vert Before", payload.vibrasiDsVertBefore || "-", false],
     ["Vibrasi DS Hor Before", payload.vibrasiDsHorBefore || "-", false],
-    ["Vibrasi DS Axial Before", payload.vibrasiDsAxialBefore || "-", false],
     ["gE NDS Vert Before", payload.geNdsVertBefore || "-", false],
     ["gE NDS Hor Before", payload.geNdsHorBefore || "-", false],
-    ["gE NDS Axial Before", payload.geNdsAxialBefore || "-", false],
     ["Vibrasi NDS Vert Before", payload.vibrasiNdsVertBefore || "-", false],
     ["Vibrasi NDS Hor Before", payload.vibrasiNdsHorBefore || "-", false],
-    ["Vibrasi NDS Axial Before", payload.vibrasiNdsAxialBefore || "-", false],
     ["Regrease DE", payload.regreaseDe || "-", false],
     ["Regrease NDE", payload.regreaseNde || "-", false],
     ["gE DS Vert After", payload.geDsVertAfter || "-", false],
     ["gE DS Hor After", payload.geDsHorAfter || "-", false],
-    ["gE DS Axial After", payload.geDsAxialAfter || "-", false],
     ["gE NDS Vert After", payload.geNdsVertAfter || "-", false],
     ["gE NDS Hor After", payload.geNdsHorAfter || "-", false],
-    ["gE NDS Axial After", payload.geNdsAxialAfter || "-", false],
     ["Kelengkapan Motor", payload.kelengkapanMotor || "-", false],
     ["Keterangan MSO", payload.inspectionNote || "-", false],
     ["Photo URL", payload.photoUrl || "-", false],
@@ -4085,9 +4075,7 @@ function buildMsoMotorAnalyticsHtml(item) {
   }
   if (latestSnapshot.vibrationBeforeCriticalCount > 0 || latestSnapshot.vibrationBeforeWatchCount > 0) {
     const dominantChannel = latestSnapshot.dominantVibrationBefore;
-    if (dominantChannel?.axis === "Axial") {
-      recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Fokus cek kelurusan shaft dan kopling, kondisi thrust/beban dorong, serta kemungkinan poros tidak center.`);
-    } else if (dominantChannel?.axis === "Hor") {
+    if (dominantChannel?.axis === "Hor") {
       recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Cek apakah ada bagian yang longgar, kaki motor tidak menapak rata, baut dudukan kendor, dan posisi motor bergeser ke samping.`);
     } else if (dominantChannel?.axis === "Vert") {
       recommendations.push(`Dominan vibrasi ada di ${dominantChannel.label}. Cek fondasi, plat dudukan motor, baut anchor, dan kondisi bearing pada sisi tersebut.`);
