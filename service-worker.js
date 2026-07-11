@@ -1,4 +1,4 @@
-const CACHE_NAME = "plirm34-pwa-v20260711-02";
+const CACHE_NAME = "plirm34-pwa-v20260711-03";
 const APP_SHELL = [
   "/",
   "/index.html",
