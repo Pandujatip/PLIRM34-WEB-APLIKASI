@@ -566,6 +566,18 @@ def resolve_public_static_path(request_path: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def public_static_cache_control(request_path: str) -> str:
+    parsed = urlparse(request_path or "/")
+    path = parsed.path or "/"
+    if path in {"/", "/index.html", "/service-worker.js", "/manifest.webmanifest"}:
+        return "no-cache, no-store, must-revalidate"
+    if parsed.query and path.endswith((".js", ".css")):
+        return "public, max-age=31536000, immutable"
+    if path.endswith((".js", ".css")):
+        return "no-cache, must-revalidate"
+    return "public, max-age=86400"
+
+
 def resolve_authenticated_media_path(request_path: str) -> Path | None:
     relative = normalize_static_request_path(request_path)
     if not relative:
@@ -5349,6 +5361,12 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT_DIR), **kwargs)
 
+    def end_headers(self):
+        cache_control = getattr(self, "_public_static_cache_control", "")
+        if cache_control:
+            self.send_header("Cache-Control", cache_control)
+        super().end_headers()
+
     def do_OPTIONS(self):
         self.send_response(HTTPStatus.NO_CONTENT)
         self._send_json_headers()
@@ -5448,6 +5466,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
 
         if resolve_public_static_path(parsed.path):
+            self._public_static_cache_control = public_static_cache_control(self.path)
             return super().do_GET()
 
         self.send_error(HTTPStatus.NOT_FOUND, "File tidak ditemukan")
@@ -5461,6 +5480,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 self._send_file(media_path, cache_control="private, max-age=300", head_only=True)
             return
         if resolve_public_static_path(parsed.path):
+            self._public_static_cache_control = public_static_cache_control(self.path)
             return super().do_HEAD()
         self.send_error(HTTPStatus.NOT_FOUND, "File tidak ditemukan")
 

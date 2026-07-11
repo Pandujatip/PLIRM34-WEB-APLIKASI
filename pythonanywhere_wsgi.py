@@ -39,6 +39,7 @@ from server import (
     list_master_records,
     list_users,
     log_activity,
+    public_static_cache_control,
     restore_backup_payload,
     resolve_authenticated_media_path,
     resolve_public_static_path,
@@ -151,7 +152,14 @@ def serve_static(environ: dict, start_response: Callable, path: str):
 
     public_file = resolve_public_static_path(path)
     if public_file:
-        return serve_file(start_response, public_file, cache_control="no-cache", head_only=method == "HEAD")
+        query = str(environ.get("QUERY_STRING", "") or "")
+        request_target = f"{path}?{query}" if query else path
+        return serve_file(
+            start_response,
+            public_file,
+            cache_control=public_static_cache_control(request_target),
+            head_only=method == "HEAD",
+        )
 
     media_file = resolve_authenticated_media_path(path)
     if media_file:

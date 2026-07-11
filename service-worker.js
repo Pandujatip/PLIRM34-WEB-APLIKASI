@@ -69,7 +69,7 @@ self.addEventListener("fetch", (event) => {
 
   if (shouldPreferNetwork) {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: "no-store" })
         .then((response) => {
           if (response && response.ok) {
             const responseClone = response.clone();

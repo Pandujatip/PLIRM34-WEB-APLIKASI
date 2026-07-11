@@ -41,6 +41,12 @@ class StaticBoundaryTests(unittest.TestCase):
             error.read()
             return error.code
 
+    def request_headers(self, path: str, method: str = "GET"):
+        request = Request(f"{self.base_url}{path}", method=method)
+        with urlopen(request, timeout=5) as response:
+            response.read()
+            return response.headers
+
     def test_public_shell_assets_are_available(self):
         self.assertEqual(self.request_status("/"), 200)
         self.assertEqual(self.request_status("/index.html"), 200)
@@ -66,6 +72,14 @@ class StaticBoundaryTests(unittest.TestCase):
         self.assertEqual(self.request_status("/styles.css", method="HEAD"), 200)
         self.assertEqual(self.request_status("/plirm34.db", method="HEAD"), 404)
         self.assertEqual(self.request_status("/whatsapp-bot-runtime.json", method="HEAD"), 404)
+
+    def test_shell_revalidates_while_versioned_assets_are_immutable(self):
+        shell_headers = self.request_headers("/")
+        worker_headers = self.request_headers("/service-worker.js")
+        versioned_headers = self.request_headers("/app.bootstrap.js?v=20260711-02")
+        self.assertEqual(shell_headers.get("Cache-Control"), "no-cache, no-store, must-revalidate")
+        self.assertEqual(worker_headers.get("Cache-Control"), "no-cache, no-store, must-revalidate")
+        self.assertEqual(versioned_headers.get("Cache-Control"), "public, max-age=31536000, immutable")
 
     def test_private_data_directory_is_outside_application_root(self):
         with self.assertRaises(ValueError):
