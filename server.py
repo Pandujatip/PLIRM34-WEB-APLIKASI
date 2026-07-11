@@ -91,6 +91,17 @@ MAX_ADMIN_IMPORT_BODY_BYTES = 6 * 1024 * 1024
 MAX_BACKUP_BODY_BYTES = 12 * 1024 * 1024
 MAX_MSO_UPLOAD_BODY_BYTES = 24 * 1024 * 1024
 MAX_MSO_SCRAPE_BODY_BYTES = 3 * 1024 * 1024
+MAX_WHATSAPP_BOT_BODY_BYTES = 16 * 1024
+WHATSAPP_BOT_FIELD_LIMITS = {
+    "sourceMessageId": 96,
+    "equipment": 80,
+    "description": 600,
+    "followUpPlan": 600,
+    "pendingMark": 120,
+    "category": 120,
+    "area": 120,
+    "note": 240,
+}
 STATE_KEYS = {
     "negatif-list": "negatif_list",
     "sparepart": "sparepart",
@@ -1275,6 +1286,14 @@ def init_db() -> None:
                 FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE SET NULL
             );
 
+            CREATE TABLE IF NOT EXISTS whatsapp_bot_message_receipts (
+                message_id TEXT PRIMARY KEY,
+                action TEXT NOT NULL,
+                resource_id TEXT NOT NULL DEFAULT '',
+                response_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS service_mcc_details (
                 service_id TEXT PRIMARY KEY,
                 test_function TEXT NOT NULL DEFAULT '',
@@ -1711,25 +1730,106 @@ def list_open_negatif_items_for_bot(limit: int = 20) -> list[dict]:
     ]
 
 
-def create_negatif_item_from_bot(payload: dict) -> dict:
-    equipment = str(payload.get("equipment", "") or "").strip().upper()
-    description = str(payload.get("description", payload.get("damageDescription", "")) or "").strip()
-    if not equipment or not description:
-        raise ValueError("Equipment dan deskripsi wajib diisi")
-    digest = hashlib.sha1(f"{equipment}|{description}|{utc_now().isoformat()}".encode("utf-8")).hexdigest()[:10]
+def validate_whatsapp_bot_field(payload: dict, key: str, *, default: str = "", required: bool = False) -> str:
+    if not isinstance(payload, dict):
+        raise ValueError("Payload WhatsApp Bot harus berupa object")
+    value = str(payload.get(key, default) or default).strip()
+    if required and not value:
+        raise ValueError(f"{key} wajib diisi")
+    max_length = WHATSAPP_BOT_FIELD_LIMITS[key]
+    if len(value) > max_length:
+        raise ValueError(f"{key} maksimal {max_length} karakter")
+    return value
+
+
+def validate_whatsapp_source_message_id(payload: dict) -> str:
+    message_id = validate_whatsapp_bot_field(payload, "sourceMessageId", required=True)
+    if not re.fullmatch(r"[A-Za-z0-9:_-]+", message_id):
+        raise ValueError("sourceMessageId tidak valid")
+    return message_id
+
+
+def get_whatsapp_message_receipt(connection: sqlite3.Connection, message_id: str, action: str) -> dict | None:
+    row = connection.execute(
+        "SELECT action, response_json FROM whatsapp_bot_message_receipts WHERE message_id = ?",
+        (message_id,),
+    ).fetchone()
+    if not row:
+        return None
+    if str(row["action"]) != action:
+        raise ValueError("sourceMessageId sudah digunakan untuk aksi lain")
+    try:
+        payload = json.loads(row["response_json"])
+    except json.JSONDecodeError as error:
+        raise ValueError("Receipt WhatsApp tidak valid") from error
+    return payload if isinstance(payload, dict) else None
+
+
+def save_whatsapp_message_receipt(
+    connection: sqlite3.Connection,
+    *,
+    message_id: str,
+    action: str,
+    resource_id: str,
+    response: dict,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO whatsapp_bot_message_receipts (
+            message_id, action, resource_id, response_json, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (message_id, action, resource_id, json.dumps(response, ensure_ascii=False), utc_now().isoformat()),
+    )
+
+
+def create_negatif_item_from_bot(payload: dict) -> tuple[dict, bool]:
+    source_message_id = validate_whatsapp_source_message_id(payload)
+    equipment = validate_whatsapp_bot_field(payload, "equipment", required=True).upper()
+    if len(equipment) < 3 or not re.fullmatch(r"[A-Z0-9 ._/&()-]+", equipment):
+        raise ValueError("Format equipment tidak valid")
+    description_payload = {**payload, "description": payload.get("description", payload.get("damageDescription", ""))}
+    description = validate_whatsapp_bot_field(description_payload, "description", required=True)
+    follow_up_plan = validate_whatsapp_bot_field(
+        payload,
+        "followUpPlan",
+        default="Tindak lanjut dari input WhatsApp",
+    )
+    pending_mark = validate_whatsapp_bot_field(payload, "pendingMark", default="Input WhatsApp")
+    category = validate_whatsapp_bot_field(payload, "category", default="WhatsApp")
+    area = validate_whatsapp_bot_field(payload, "area", default="-")
+    found_date = str(payload.get("foundDate", "") or jakarta_now().date().isoformat()).strip()
+    try:
+        datetime.strptime(found_date, "%Y-%m-%d")
+    except ValueError as error:
+        raise ValueError("foundDate wajib berformat YYYY-MM-DD") from error
+
+    digest = hashlib.sha256(source_message_id.encode("utf-8")).hexdigest()[:16]
     item = {
-        "id": f"wa-negatif-{utc_now().strftime('%Y%m%d%H%M%S')}-{digest}",
+        "id": f"wa-negatif-{found_date.replace('-', '')}-{digest}",
         "equipment": equipment,
-        "damageDescription": description[:600],
-        "followUpPlan": str(payload.get("followUpPlan", "") or "Tindak lanjut dari input WhatsApp").strip()[:600],
-        "foundDate": str(payload.get("foundDate", "") or jakarta_now().date().isoformat()).strip(),
-        "pendingMark": str(payload.get("pendingMark", "") or "Input WhatsApp").strip()[:120],
+        "damageDescription": description,
+        "followUpPlan": follow_up_plan,
+        "foundDate": found_date,
+        "pendingMark": pending_mark,
         "workStatus": "Open",
-        "category": str(payload.get("category", "") or "WhatsApp").strip()[:120],
-        "area": str(payload.get("area", "") or "-").strip()[:120],
+        "category": category,
+        "area": area,
     }
     user_id = get_whatsapp_bot_actor_user_id()
-    saved_item = create_or_update_item("negatif-list", item, user_id)
+    with get_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        existing_response = get_whatsapp_message_receipt(connection, source_message_id, "create-negatif")
+        if existing_response:
+            return existing_response, True
+        saved_item = create_or_update_item_in_connection(connection, "negatif-list", item, user_id)
+        save_whatsapp_message_receipt(
+            connection,
+            message_id=source_message_id,
+            action="create-negatif",
+            resource_id=str(saved_item.get("id", "")),
+            response=saved_item,
+        )
     log_activity(
         actor_user_id=user_id,
         actor_username="whatsapp-bot",
@@ -1738,38 +1838,51 @@ def create_negatif_item_from_bot(payload: dict) -> dict:
         resource="negatif-list",
         target_id=str(saved_item.get("id", "")),
         target_label=str(saved_item.get("equipment", "")),
-        detail={"source": "whatsapp", "description": description[:140]},
+        detail={"source": "whatsapp", "sourceMessageId": source_message_id, "description": description[:140]},
     )
-    return saved_item
+    return saved_item, False
 
 
-def close_negatif_item_from_bot(payload: dict) -> dict:
-    equipment_query = str(payload.get("equipment", "") or "").strip().upper()
-    note = str(payload.get("note", "") or "Closed dari WhatsApp").strip()[:240]
-    if not equipment_query:
-        raise ValueError("Equipment wajib diisi")
-
-    open_items = [
-        item for item in list_items("negatif-list")
-        if str(item.get("workStatus", "") or "").strip().lower() == "open"
-    ]
-    exact_matches = [
-        item for item in open_items
-        if str(item.get("equipment", "") or "").strip().upper() == equipment_query
-    ]
-    partial_matches = [
-        item for item in open_items
-        if equipment_query in str(item.get("equipment", "") or "").strip().upper()
-    ]
-    candidates = exact_matches or partial_matches
-    if not candidates:
-        raise ValueError(f"Tidak ada Negatif List Open untuk equipment {equipment_query}")
-    candidates.sort(key=lambda item: str(item.get("foundDate", "") or ""), reverse=True)
-    item = dict(candidates[0])
-    item["workStatus"] = "Close"
-    item["pendingMark"] = note or item.get("pendingMark", "")
+def close_negatif_item_from_bot(payload: dict) -> tuple[dict, bool]:
+    source_message_id = validate_whatsapp_source_message_id(payload)
+    equipment_query = validate_whatsapp_bot_field(payload, "equipment", required=True).upper()
+    if len(equipment_query) < 3 or not re.fullmatch(r"[A-Z0-9 ._/&()-]+", equipment_query):
+        raise ValueError("Format equipment tidak valid")
+    note = validate_whatsapp_bot_field(payload, "note", default="Closed dari WhatsApp")
     user_id = get_whatsapp_bot_actor_user_id()
-    saved_item = create_or_update_item("negatif-list", item, user_id)
+    with get_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        existing_response = get_whatsapp_message_receipt(connection, source_message_id, "close-negatif")
+        if existing_response:
+            return existing_response, True
+        rows = connection.execute(
+            "SELECT * FROM negatif_list_items WHERE lower(work_status) = 'open' ORDER BY found_date DESC, rowid DESC"
+        ).fetchall()
+        open_items = [deserialize_resource_item("negatif-list", row, include_media=False) for row in rows]
+        exact_matches = [
+            item for item in open_items
+            if str(item.get("equipment", "") or "").strip().upper() == equipment_query
+        ]
+        partial_matches = [
+            item for item in open_items
+            if equipment_query in str(item.get("equipment", "") or "").strip().upper()
+        ]
+        candidates = exact_matches or partial_matches
+        if not candidates:
+            raise ValueError(f"Tidak ada Negatif List Open untuk equipment {equipment_query}")
+        if not exact_matches and len(partial_matches) > 1:
+            raise ValueError(f"Equipment {equipment_query} ambigu; gunakan nama atau kode lengkap")
+        item = dict(candidates[0])
+        item["workStatus"] = "Close"
+        item["pendingMark"] = note
+        saved_item = create_or_update_item_in_connection(connection, "negatif-list", item, user_id)
+        save_whatsapp_message_receipt(
+            connection,
+            message_id=source_message_id,
+            action="close-negatif",
+            resource_id=str(saved_item.get("id", "")),
+            response=saved_item,
+        )
     log_activity(
         actor_user_id=user_id,
         actor_username="whatsapp-bot",
@@ -1778,9 +1891,9 @@ def close_negatif_item_from_bot(payload: dict) -> dict:
         resource="negatif-list",
         target_id=str(saved_item.get("id", "")),
         target_label=str(saved_item.get("equipment", "")),
-        detail={"source": "whatsapp", "note": note},
+        detail={"source": "whatsapp", "sourceMessageId": source_message_id, "note": note},
     )
-    return saved_item
+    return saved_item, False
 
 
 def get_today_inspection_schedule_for_bot() -> list[dict]:
@@ -5931,27 +6044,30 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         if not self._require_bot_token():
             return
         try:
-            payload = self._parse_json_body()
-            item = create_negatif_item_from_bot(payload)
+            payload = self._parse_json_body(max_bytes=MAX_WHATSAPP_BOT_BODY_BYTES, label="Payload WhatsApp Bot")
+            item, duplicate = create_negatif_item_from_bot(payload)
         except (json.JSONDecodeError, RequestBodyTooLarge):
             return
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             return
-        self._send_json({"ok": True, "item": item}, status=HTTPStatus.CREATED)
+        self._send_json(
+            {"ok": True, "item": item, "duplicate": duplicate},
+            status=HTTPStatus.OK if duplicate else HTTPStatus.CREATED,
+        )
 
     def _handle_bot_negatif_list_close_post(self):
         if not self._require_bot_token():
             return
         try:
-            payload = self._parse_json_body()
-            item = close_negatif_item_from_bot(payload)
+            payload = self._parse_json_body(max_bytes=MAX_WHATSAPP_BOT_BODY_BYTES, label="Payload WhatsApp Bot")
+            item, duplicate = close_negatif_item_from_bot(payload)
         except (json.JSONDecodeError, RequestBodyTooLarge):
             return
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             return
-        self._send_json({"ok": True, "item": item})
+        self._send_json({"ok": True, "item": item, "duplicate": duplicate})
 
     def _handle_restore_post(self):
         user = self._require_user()

@@ -4,13 +4,26 @@ const fs = require("node:fs");
 const path = require("node:path");
 const QRCode = require("qrcode");
 const { Client, LocalAuth } = require("whatsapp-web.js");
-const { isTargetGroup } = require("./whatsapp-bot-utils");
+const {
+  BOT_LIMITS,
+  BotInputError,
+  assertMessageLength,
+  buildIdempotencyKey,
+  hasNegatifWriteIntent,
+  isTargetGroup,
+  normalizeText,
+  shouldIgnoreMessage,
+  validateCloseBatch,
+  validateNegatifInput,
+} = require("./whatsapp-bot-utils");
 
 const ROOT_DIR = __dirname;
 const DATA_DIR = process.env.PLIRM34_DATA_DIR
   ? path.resolve(ROOT_DIR, process.env.PLIRM34_DATA_DIR)
   : path.resolve(ROOT_DIR, "..", ".plirm34-data");
 const CONFIG_PATH = process.env.PLIRM34_WHATSAPP_CONFIG || path.join(DATA_DIR, "whatsapp-bot-runtime.json");
+const API_TIMEOUT_MS = 10000;
+const API_GET_ATTEMPTS = 2;
 const NEGATIF_FIELD_ALIASES = [
   "equipment",
   "equip",
@@ -109,29 +122,61 @@ function readStatus() {
   }
 }
 
+function hydrateDeliveryState() {
+  const status = readStatus();
+  lastScheduleSentDate = String(status.lastScheduleSentDate || "").trim();
+  lastCarbonBrushAlertSentDate = String(status.lastCarbonBrushAlertSentDate || "").trim();
+}
+
 async function apiFetch(pathname, options = {}) {
   if (!runtimeConfig.botToken) {
     throw new Error("Bot token is empty. Open Admin > WhatsApp Bot once to generate runtime config.");
   }
-  const response = await fetch(`${runtimeConfig.apiBaseUrl}${pathname}`, {
-    method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-PLIRM34-Bot-Token": runtimeConfig.botToken,
-      ...(options.headers || {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  let payload = {};
-  try {
-    payload = await response.json();
-  } catch {
-    payload = {};
+  const method = String(options.method || "GET").toUpperCase();
+  const attempts = method === "GET" ? API_GET_ATTEMPTS : 1;
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${runtimeConfig.apiBaseUrl}${pathname}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "X-PLIRM34-Bot-Token": runtimeConfig.botToken,
+          ...(options.headers || {}),
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: controller.signal,
+      });
+      const declaredLength = Number(response.headers.get("content-length") || 0);
+      if (declaredLength > BOT_LIMITS.apiResponseBytes) {
+        throw new Error("Respons API terlalu besar.");
+      }
+      const responseText = await response.text();
+      if (Buffer.byteLength(responseText, "utf8") > BOT_LIMITS.apiResponseBytes) {
+        throw new Error("Respons API terlalu besar.");
+      }
+      let payload = {};
+      try {
+        payload = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        payload = {};
+      }
+      if (!response.ok) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+      }
+      return payload;
+    } catch (error) {
+      lastError = error?.name === "AbortError" ? new Error("API timeout.") : error;
+      if (attempt + 1 < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
-  if (!response.ok) {
-    throw new Error(payload.error || `HTTP ${response.status}`);
-  }
-  return payload;
+  throw lastError || new Error("Request API gagal.");
 }
 
 function getJakartaParts() {
@@ -171,10 +216,6 @@ function rememberProcessedMessage(messageId) {
   if (processedMessageIds.length > 400) {
     processedMessageIds.splice(0, processedMessageIds.length - 400);
   }
-}
-
-function normalizeText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 function isLikelyEquipmentCode(value) {
@@ -264,11 +305,11 @@ function parseField(text, names) {
 function parseNegatifInput(text) {
   const raw = String(text || "").trim();
   const prefix = runtimeConfig.commandPrefix || "!";
-  const normalizedRaw = raw.startsWith(prefix) ? raw.slice(prefix.length).trim() : raw;
-  const lower = normalizedRaw.toLowerCase();
-  if (!(lower.startsWith("negatif") || lower.startsWith("input negatif") || lower.startsWith("open negatif") || lower.includes("equipment:"))) {
+  if (!hasNegatifWriteIntent(raw, prefix)) {
     return null;
   }
+  assertMessageLength(raw);
+  const normalizedRaw = raw.startsWith(prefix) ? raw.slice(prefix.length).trim() : raw;
 
   const equipment = parseField(normalizedRaw, ["equipment", "equip", "eq"]);
   const description = parseField(normalizedRaw, ["deskripsi", "description", "desc", "kerusakan", "problem", "temuan"]);
@@ -278,50 +319,56 @@ function parseNegatifInput(text) {
 
   if (equipment && description) {
     const split = splitDescriptionAndPendingMark(description, pendingMark);
-    return { equipment, description: split.description, followUpPlan, area, pendingMark: split.pendingMark };
+    return validateNegatifInput({ equipment, description: split.description, followUpPlan, area, pendingMark: split.pendingMark });
   }
 
   const openShorthand = normalizedRaw.match(/^open\s+negatif(?:\s+list)?\s+([A-Za-z0-9._/-]+)\s+(.+)$/i);
   if (openShorthand && isLikelyEquipmentCode(openShorthand[1])) {
     const split = splitDescriptionAndPendingMark(openShorthand[2], pendingMark);
-    return {
+    return validateNegatifInput({
       equipment: normalizeText(openShorthand[1]),
       description: split.description,
       followUpPlan,
       area,
       pendingMark: split.pendingMark,
-    };
+    });
   }
 
   const compact = normalizedRaw.match(/^(?:input\s+)?negatif\s+(.+?)\s*[|;-]\s*(.+)$/i);
   if (compact && isLikelyEquipmentName(compact[1])) {
     const split = splitDescriptionAndPendingMark(compact[2], pendingMark);
-    return {
+    return validateNegatifInput({
       equipment: normalizeText(compact[1]),
       description: split.description,
       followUpPlan,
       area,
       pendingMark: split.pendingMark,
-    };
+    });
   }
 
   const shorthand = normalizedRaw.match(/^(?:input\s+)?negatif\s+([A-Za-z0-9._/-]+)\s+(.+)$/i);
   if (shorthand && isLikelyEquipmentCode(shorthand[1])) {
     const split = splitDescriptionAndPendingMark(shorthand[2], pendingMark);
-    return {
+    return validateNegatifInput({
       equipment: normalizeText(shorthand[1]),
       description: split.description,
       followUpPlan,
       area,
       pendingMark: split.pendingMark,
-    };
+    });
   }
   return null;
 }
 
 function parseCloseNegatifCommand(text) {
-  const raw = normalizeText(text);
+  const rawText = String(text || "").trim();
   const prefix = runtimeConfig.commandPrefix || "!";
+  const rawPreview = rawText.startsWith(prefix) ? rawText.slice(prefix.length).trim() : rawText;
+  if (!/^(?:close|closed|tutup|selesai)\s+negatif(?:\s+list)?\b/i.test(rawPreview)) {
+    return null;
+  }
+  assertMessageLength(rawText);
+  const raw = normalizeText(rawText);
   const withoutPrefix = raw.startsWith(prefix) ? raw.slice(prefix.length).trim() : raw;
   const match = withoutPrefix.match(/^(?:close|closed|tutup|selesai)\s+negatif(?:\s+list)?\s+(.+)$/i);
   if (!match) {
@@ -356,10 +403,11 @@ function parseCloseNegatifCommand(text) {
   if (!equipments.length || equipments.some((equipment) => !isValidEquipment(equipment))) {
     return null;
   }
+  const validated = validateCloseBatch(equipments, note);
   return {
-    equipment: equipments[0],
-    equipments,
-    note,
+    equipment: validated.equipments[0],
+    equipments: validated.equipments,
+    note: validated.note,
   };
 }
 
@@ -451,55 +499,17 @@ function formatCarbonBrushAlerts(items, thresholdDays = 7) {
   return `CARBON BRUSH EARLY WARNING\nAktual critical atau estimasi penggantian <= ${thresholdDays} hari\n\n${rows.join("\n\n")}`;
 }
 
-function isBotGeneratedReply(body) {
-  const normalized = normalizeText(body).toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-  return [
-    "negatif list dibuat:",
-    "negatif list ditutup:",
-    "negatif list masih open",
-    "negatif list open kosong",
-    "gagal membaca negatif list:",
-    "gagal close negatif list:",
-    "gagal input negatif list:",
-    "berhasil close negatif list",
-    "format close negatif list",
-    "jadwal inspeksi hari ini:",
-    "jadwal inspeksi hari ini kosong",
-    "carbon brush early warning",
-  ].some((prefix) => normalized.startsWith(prefix));
-}
-
-function shouldProcessBody(body) {
-  if (!body) {
-    return false;
-  }
-  return Boolean(
-    isOpenNegatifCommand(body)
-    || parseCloseNegatifCommand(body)
-    || isCloseNegatifCommandPrefix(body)
-    || parseNegatifInput(body)
-  );
-}
-
 async function processMessageEvent(message) {
   const messageId = getMessageId(message);
   if (wasMessageProcessed(messageId)) {
     return;
   }
-  const body = String(message?.body || "").trim();
-  if (message?.fromMe && isBotGeneratedReply(body)) {
-    rememberProcessedMessage(messageId);
-    return;
-  }
-  if (message?.fromMe && !shouldProcessBody(body)) {
+  if (shouldIgnoreMessage(message)) {
     rememberProcessedMessage(messageId);
     return;
   }
   rememberProcessedMessage(messageId);
-  await handleMessage(message);
+  await handleMessage(message, messageId);
 }
 async function refreshGroups() {
   if (!clientReady || !client) {
@@ -527,7 +537,7 @@ async function refreshGroups() {
   }
 }
 
-async function handleMessage(message) {
+async function handleMessage(message, sourceMessageId = "") {
   if (!runtimeConfig.enabled || !isTargetGroup(message, runtimeConfig.groupId)) {
     return;
   }
@@ -546,16 +556,29 @@ async function handleMessage(message) {
     return;
   }
 
-  const closeInput = parseCloseNegatifCommand(body);
+  let closeInput = null;
+  try {
+    closeInput = parseCloseNegatifCommand(body);
+  } catch (error) {
+    if (error instanceof BotInputError) {
+      await message.reply(`Input ditolak: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
   if (closeInput) {
     const equipments = closeInput.equipments || [closeInput.equipment];
     const closed = [];
     const failed = [];
-    for (const equipment of equipments) {
+    for (const [index, equipment] of equipments.entries()) {
       try {
         const result = await apiFetch("/bot/whatsapp/negatif-list/close", {
           method: "POST",
-          body: { equipment, note: closeInput.note },
+          body: {
+            equipment,
+            note: closeInput.note,
+            sourceMessageId: buildIdempotencyKey(sourceMessageId, "close-negatif", index),
+          },
         });
         const item = result.item || {};
         closed.push(item.equipment || equipment);
@@ -586,12 +609,24 @@ async function handleMessage(message) {
     return;
   }
 
-  const negatifInput = parseNegatifInput(body);
+  let negatifInput = null;
+  try {
+    negatifInput = parseNegatifInput(body);
+  } catch (error) {
+    if (error instanceof BotInputError) {
+      await message.reply(`Input ditolak: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
   if (negatifInput && runtimeConfig.autoWriteEnabled) {
     try {
       const result = await apiFetch("/bot/whatsapp/negatif-list", {
         method: "POST",
-        body: negatifInput,
+        body: {
+          ...negatifInput,
+          sourceMessageId: buildIdempotencyKey(sourceMessageId, "create-negatif"),
+        },
       });
       const item = result.item || {};
       const mark = negatifInput.pendingMark || "";
@@ -613,9 +648,15 @@ async function maybeSendCarbonBrushAlerts(date) {
     const message = formatCarbonBrushAlerts(items, thresholdDays);
     if (message) {
       await client.sendMessage(runtimeConfig.groupId, message);
-      writeStatus({ lastCarbonBrushAlertSentAt: nowIso(), message: `Carbon Brush Early Warning ${date} terkirim ke group.` });
     }
     lastCarbonBrushAlertSentDate = date;
+    writeStatus({
+      lastCarbonBrushAlertSentDate: date,
+      ...(message ? {
+        lastCarbonBrushAlertSentAt: nowIso(),
+        message: `Carbon Brush Early Warning ${date} terkirim ke group.`,
+      } : {}),
+    });
   } catch (error) {
     writeStatus({ state: "ready", ready: true, message: `Gagal kirim Carbon Brush Early Warning: ${error.message}` });
   }
@@ -637,7 +678,11 @@ async function maybeSendDailySchedule() {
     const message = formatSchedule(Array.isArray(result.items) ? result.items : []);
     await client.sendMessage(runtimeConfig.groupId, message);
     lastScheduleSentDate = date;
-    writeStatus({ lastScheduleSentAt: nowIso(), message: `Jadwal inspeksi ${date} terkirim ke group.` });
+    writeStatus({
+      lastScheduleSentDate: date,
+      lastScheduleSentAt: nowIso(),
+      message: `Jadwal inspeksi ${date} terkirim ke group.`,
+    });
     await maybeSendCarbonBrushAlerts(date);
   } catch (error) {
     writeStatus({ state: "ready", ready: true, message: `Gagal kirim jadwal inspeksi: ${error.message}` });
@@ -677,8 +722,6 @@ async function startClient() {
     puppeteer: {
       headless: true,
       args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
       ],
@@ -735,6 +778,7 @@ async function startClient() {
 }
 
 function runBot() {
+  hydrateDeliveryState();
   setInterval(reloadRuntimeConfig, 5000);
   setInterval(refreshGroups, 60000);
   setInterval(maybeSendDailySchedule, 30000);
@@ -761,6 +805,12 @@ function runBot() {
     process.exit(1);
   });
 }
+
+module.exports = {
+  parseCloseNegatifCommand,
+  parseNegatifInput,
+  processMessageEvent,
+};
 
 if (require.main === module) {
   runBot();

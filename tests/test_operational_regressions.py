@@ -67,6 +67,63 @@ saved_setting = server.save_whatsapp_bot_setting({
 assert saved_setting["enabled"] is True
 assert saved_setting["groupId"] == "120363123456789@g.us"
 
+source_message_id = "create-negatif:" + ("a" * 64)
+bot_payload = {
+    "sourceMessageId": source_message_id,
+    "equipment": "343RM1",
+    "description": "Bearing perlu diperiksa",
+    "followUpPlan": "Jadwalkan inspeksi",
+    "area": "Raw Mill",
+}
+bot_item, bot_duplicate = server.create_negatif_item_from_bot(bot_payload)
+assert bot_duplicate is False
+duplicate_item, duplicate_flag = server.create_negatif_item_from_bot(bot_payload)
+assert duplicate_flag is True
+assert duplicate_item["id"] == bot_item["id"]
+with server.get_connection() as connection:
+    assert connection.execute(
+        "SELECT COUNT(*) FROM negatif_list_items WHERE id = ?",
+        (bot_item["id"],),
+    ).fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT COUNT(*) FROM whatsapp_bot_message_receipts WHERE message_id = ?",
+        (source_message_id,),
+    ).fetchone()[0] == 1
+
+try:
+    server.create_negatif_item_from_bot({
+        **bot_payload,
+        "sourceMessageId": "create-negatif:" + ("b" * 64),
+        "equipment": "X" * 81,
+    })
+except ValueError:
+    pass
+else:
+    raise AssertionError("Equipment WhatsApp yang terlalu panjang seharusnya ditolak")
+
+try:
+    server.create_negatif_item_from_bot([])
+except ValueError:
+    pass
+else:
+    raise AssertionError("Payload WhatsApp non-object seharusnya ditolak")
+
+close_message_id = "close-negatif:" + ("c" * 64)
+closed_item, close_duplicate = server.close_negatif_item_from_bot({
+    "sourceMessageId": close_message_id,
+    "equipment": "343RM1",
+    "note": "Selesai diperiksa",
+})
+assert close_duplicate is False
+assert closed_item["workStatus"] == "Close"
+closed_again, close_duplicate_again = server.close_negatif_item_from_bot({
+    "sourceMessageId": close_message_id,
+    "equipment": "343RM1",
+    "note": "Selesai diperiksa",
+})
+assert close_duplicate_again is True
+assert closed_again["id"] == closed_item["id"]
+
 admin_row = server.get_user_by_username("admin.plirm34")
 user = {"id": int(admin_row["id"]), "username": admin_row["username"], "role": admin_row["role"]}
 reference = server.get_carbon_brush_type_reference_groups()[0]
