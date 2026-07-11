@@ -192,6 +192,14 @@ function getCarbonBrushAlertPriority(analysis) {
 
 function getCarbonBrushDisplayStatus(analysis) {
   const priority = getCarbonBrushAlertPriority(analysis);
+  if (priority.predictionSeverity > priority.actualSeverity) {
+    return {
+      ...(analysis.predictionStatus || {}),
+      label: `Prediksi ${analysis.predictionStatus?.label || "Monitor"}`,
+      source: "prediction",
+      sourceLabel: "Prediksi",
+    };
+  }
   if (priority.actualSeverity > 0) {
     return {
       ...(analysis.actualStatus || {}),
@@ -467,6 +475,19 @@ function classifyCarbonBrushCountdownStatus(countdownDays, qualityKey = "insuffi
   };
 }
 
+function getCarbonBrushAlertMeasurementKeys(item) {
+  if (typeof carbonBrushMeasurementKeys !== "undefined" && Array.isArray(carbonBrushMeasurementKeys) && carbonBrushMeasurementKeys.length) {
+    return carbonBrushMeasurementKeys;
+  }
+  const measurements = item?.payload?.measurements;
+  if (!measurements || typeof measurements !== "object") {
+    return [];
+  }
+  return Object.keys(measurements)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, "id", { numeric: true }));
+}
+
 function buildCarbonBrushAlertSummary(serviceItems) {
   const latestByEquipment = new Map();
   serviceItems
@@ -489,21 +510,22 @@ function buildCarbonBrushAlertSummary(serviceItems) {
       const leftTime = new Date(left?.payload?.inspectionDate || 0).getTime() || 0;
       const rightTime = new Date(right?.payload?.inspectionDate || 0).getTime() || 0;
       return rightTime - leftTime;
-    })
-    .slice(0, 5);
+    });
 
   return latestEquipmentItems
     .map((item) => {
       const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
-      const pointAnalyses = carbonBrushMeasurementKeys
+      const pointAnalyses = getCarbonBrushAlertMeasurementKeys(item)
         .map((pointKey) => analyzeCarbonBrushPointWear(item, pointKey))
         .filter((analysis) => analysis.currentValue !== null);
       if (!pointAnalyses.length) {
         return null;
       }
       const activePointAnalyses = pointAnalyses.filter((analysis) => !analysis.latestReplacedConfirmed);
-      const rankedPointSource = activePointAnalyses.length ? activePointAnalyses : pointAnalyses;
-      const sortedPoints = [...rankedPointSource].sort(compareCarbonBrushActualThinness);
+      if (!activePointAnalyses.length) {
+        return null;
+      }
+      const sortedPoints = [...activePointAnalyses].sort(compareCarbonBrushActualThinness);
       const worstPoint = sortedPoints[0];
       const planningPoints = getCarbonBrushPlanningPoints(sortedPoints, worstPoint).slice(0, 5);
       const secondaryAlertPoints = planningPoints.slice(0, 5);
@@ -528,6 +550,7 @@ function buildCarbonBrushAlertSummary(serviceItems) {
       const rightTime = new Date(right?.item?.payload?.inspectionDate || 0).getTime() || 0;
       return rightTime - leftTime;
     })
+    .slice(0, 5)
     .map((entry, index) => ({
       ...entry,
       rank: index + 1,

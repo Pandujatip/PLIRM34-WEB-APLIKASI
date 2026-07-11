@@ -11,7 +11,6 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from server import (
     RESOURCE_TABLES,
-    ROOT_DIR,
     SESSION_COOKIE_NAME,
     SESSION_DURATION_DAYS,
     STATE_KEYS,
@@ -20,12 +19,13 @@ from server import (
     can_edit_resource,
     count_admin_users,
     create_or_update_item,
+    create_or_update_service_item_atomic,
     create_session,
     create_user,
     delete_item,
     delete_master_record,
     delete_session,
-    export_resource_csv,
+    export_resource_excel,
     get_item_by_id,
     get_state_snapshot,
     get_user_by_username,
@@ -40,6 +40,8 @@ from server import (
     list_users,
     log_activity,
     restore_backup_payload,
+    resolve_authenticated_media_path,
+    resolve_public_static_path,
     save_master_record,
     save_state,
     update_user_role,
@@ -127,25 +129,38 @@ def require_edit_access(start_response: Callable, user: dict, resource_key: str)
     return False
 
 
-def serve_static(environ: dict, start_response: Callable, path: str):
-    relative = "index.html" if path in {"", "/"} else path.lstrip("/")
-    candidate = (ROOT_DIR / relative).resolve()
-    try:
-        candidate.relative_to(ROOT_DIR.resolve())
-    except ValueError:
-        return json_response(start_response, {"error": "File tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
-    if not candidate.exists() or not candidate.is_file():
-        return json_response(start_response, {"error": "File tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
+def serve_file(start_response: Callable, candidate: Path, *, cache_control: str, head_only: bool = False):
     content_type, _ = mimetypes.guess_type(str(candidate))
-    body = candidate.read_bytes()
+    body = b"" if head_only else candidate.read_bytes()
     start_response(
         f"{HTTPStatus.OK.value} {HTTPStatus.OK.phrase}",
         [
             ("Content-Type", content_type or "application/octet-stream"),
-            ("Content-Length", str(len(body))),
+            ("Content-Length", str(candidate.stat().st_size)),
+            ("Cache-Control", cache_control),
+            ("X-Content-Type-Options", "nosniff"),
         ],
     )
     return [body]
+
+
+def serve_static(environ: dict, start_response: Callable, path: str):
+    method = str(environ.get("REQUEST_METHOD", "GET") or "GET").upper()
+    if method not in {"GET", "HEAD"}:
+        return json_response(start_response, {"error": "Method tidak diizinkan"}, status=HTTPStatus.METHOD_NOT_ALLOWED)
+
+    public_file = resolve_public_static_path(path)
+    if public_file:
+        return serve_file(start_response, public_file, cache_control="no-cache", head_only=method == "HEAD")
+
+    media_file = resolve_authenticated_media_path(path)
+    if media_file:
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        return serve_file(start_response, media_file, cache_control="private, max-age=300", head_only=method == "HEAD")
+
+    return json_response(start_response, {"error": "File tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
 
 
 def app(environ: dict, start_response: Callable):
@@ -208,9 +223,9 @@ def app(environ: dict, start_response: Callable):
             return json_response(start_response, {"error": "Resource export tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
         return text_response(
             start_response,
-            export_resource_csv(resource_key),
-            content_type="text/csv; charset=utf-8",
-            headers=[("Content-Disposition", f'attachment; filename="{resource_key}.csv"')],
+            export_resource_excel(resource_key),
+            content_type="application/vnd.ms-excel; charset=utf-8",
+            headers=[("Content-Disposition", f'attachment; filename="{resource_key}.xls"')],
         )
 
     if path == "/api/reports/service-summary" and method == "GET":
@@ -472,13 +487,20 @@ def app(environ: dict, start_response: Callable):
             if not isinstance(item, dict):
                 return json_response(start_response, {"error": "Payload item harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
             existing_item = get_item_by_id(resource_key, str(item.get("id", ""))) if item.get("id") else None
+            carbon_brush_stock_result = None
             try:
-                saved_item = create_or_update_item(resource_key, item, user["id"])
+                if resource_key == "service":
+                    existing_item, saved_item, carbon_brush_stock_result = create_or_update_service_item_atomic(item, user)
+                else:
+                    saved_item = create_or_update_item(resource_key, item, user["id"])
             except ValueError as error:
                 return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             label = saved_item.get("equipment") or saved_item.get("equipmentName") or saved_item.get("name") or saved_item.get("materialDescription") or saved_item.get("code") or saved_item.get("id")
             log_activity(actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]), action="update" if existing_item else "create", resource=resource_key, target_id=str(saved_item.get("id", "")), target_label=str(label or ""))
-            return json_response(start_response, {"ok": True, "item": saved_item}, status=HTTPStatus.CREATED)
+            response = {"ok": True, "item": saved_item}
+            if carbon_brush_stock_result:
+                response["carbonBrushStock"] = carbon_brush_stock_result
+            return json_response(start_response, response, status=HTTPStatus.CREATED)
         if method == "PUT":
             if not item_id:
                 return json_response(start_response, {"error": "Endpoint update item tidak valid"}, status=HTTPStatus.NOT_FOUND)
@@ -492,13 +514,20 @@ def app(environ: dict, start_response: Callable):
                 return json_response(start_response, {"error": "Payload item harus berupa object"}, status=HTTPStatus.BAD_REQUEST)
             existing_item = get_item_by_id(resource_key, item_id)
             item["id"] = item_id
+            carbon_brush_stock_result = None
             try:
-                saved_item = create_or_update_item(resource_key, item, user["id"])
+                if resource_key == "service":
+                    existing_item, saved_item, carbon_brush_stock_result = create_or_update_service_item_atomic(item, user)
+                else:
+                    saved_item = create_or_update_item(resource_key, item, user["id"])
             except ValueError as error:
                 return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             label = saved_item.get("equipment") or saved_item.get("equipmentName") or saved_item.get("name") or saved_item.get("materialDescription") or saved_item.get("code") or saved_item.get("id")
             log_activity(actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]), action="update" if existing_item else "create", resource=resource_key, target_id=str(saved_item.get("id", "")), target_label=str(label or ""))
-            return json_response(start_response, {"ok": True, "item": saved_item})
+            response = {"ok": True, "item": saved_item}
+            if carbon_brush_stock_result:
+                response["carbonBrushStock"] = carbon_brush_stock_result
+            return json_response(start_response, response)
         if method == "DELETE":
             if not item_id:
                 return json_response(start_response, {"error": "Endpoint hapus item tidak valid"}, status=HTTPStatus.NOT_FOUND)

@@ -254,6 +254,54 @@ select {
   color: var(--muted);
 }
 
+.inspection-realization-panel {
+  width: min(680px, calc(100% - 28px));
+}
+
+.inspection-realization-form {
+  display: grid;
+  gap: 14px;
+}
+
+.inspection-realization-summary {
+  padding: 14px;
+  border: 1px solid rgba(115, 224, 169, 0.18);
+  border-radius: 18px;
+  background: rgba(115, 224, 169, 0.06);
+}
+
+.inspection-realization-summary span,
+.inspection-realization-summary small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.inspection-realization-summary strong {
+  display: block;
+  margin: 6px 0;
+  color: #fff5ec;
+  font-family: "Sora", sans-serif;
+}
+
+.inspection-realization-form label {
+  display: grid;
+  gap: 8px;
+  color: #f7e9df;
+  font-weight: 800;
+}
+
+.inspection-realization-form input,
+.inspection-realization-form textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 140, 66, 0.18);
+  border-radius: 14px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 11px 12px;
+  font: inherit;
+}
+
 .pwa-compact body {
   background:
     radial-gradient(circle at 12% 0%, rgba(115, 224, 169, 0.18), transparent 28%),
@@ -1011,6 +1059,40 @@ select {
   color: rgba(245, 242, 237, 0.62);
   font-size: 1.1rem;
   line-height: 1.45;
+}
+
+.pwa-stock-log {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.pwa-stock-log-head {
+  color: rgba(245, 242, 237, 0.68);
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pwa-stock-log-item {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(7, 17, 31, 0.58);
+}
+
+.pwa-stock-log-item strong {
+  color: var(--text);
+  font-size: 1.14rem;
+}
+
+.pwa-stock-log-item span,
+.pwa-stock-log-item small {
+  color: rgba(245, 242, 237, 0.66);
+  line-height: 1.35;
 }
 
 .pwa-form-accordion {
@@ -3869,6 +3951,69 @@ select:focus {
   font-size: 1rem;
 }
 
+.create-panel-head small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.service-carbon-stock-panel {
+  margin-top: 14px;
+}
+
+.carbon-stock-board {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.carbon-stock-board-head,
+.carbon-stock-board-row {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.7fr) minmax(150px, 1fr) minmax(210px, 1.45fr) minmax(110px, 0.7fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.carbon-stock-board-head {
+  padding: 0 12px;
+  color: rgba(245, 242, 237, 0.58);
+  font-size: 0.84rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.carbon-stock-board-row {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(7, 17, 31, 0.5);
+}
+
+.carbon-stock-cell {
+  min-width: 0;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.carbon-stock-sap,
+.carbon-stock-use {
+  color: rgba(245, 242, 237, 0.72);
+}
+
+.carbon-stock-type strong,
+.carbon-stock-qty strong {
+  display: block;
+  color: var(--text);
+}
+
+.carbon-stock-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .module-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4563,6 +4708,117 @@ select:focus {
   gap: 10px;
 }
 
+.whatsapp-bot-card {
+  border-color: rgba(37, 211, 102, 0.22);
+  background:
+    linear-gradient(180deg, rgba(37, 211, 102, 0.07), rgba(255, 255, 255, 0.014)),
+    rgba(255, 255, 255, 0.012);
+}
+
+.whatsapp-bot-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.75fr) minmax(0, 1.25fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.whatsapp-bot-status-panel,
+.whatsapp-group-list {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 211, 102, 0.18);
+  background: rgba(37, 211, 102, 0.04);
+}
+
+.whatsapp-bot-status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.whatsapp-bot-status-head span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #cdfbdd;
+  background: rgba(37, 211, 102, 0.12);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.whatsapp-qr-frame {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  border-radius: 16px;
+  border: 1px dashed rgba(37, 211, 102, 0.28);
+  background: rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+.whatsapp-qr-frame img {
+  width: min(220px, 100%);
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #ffffff;
+}
+
+.whatsapp-qr-frame span {
+  max-width: 24ch;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.45;
+}
+
+.whatsapp-bot-form {
+  margin-top: 0;
+}
+
+.whatsapp-group-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.whatsapp-group-list article,
+.whatsapp-group-option {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.whatsapp-group-option {
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.whatsapp-group-option:hover,
+.whatsapp-group-option:focus-visible {
+  border-color: rgba(37, 211, 102, 0.28);
+  outline: none;
+}
+
+.whatsapp-group-list strong,
+.whatsapp-group-list span {
+  display: block;
+}
+
+.whatsapp-group-list span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
 .mso-browser-sync-grid .compact-inline {
   margin: 0;
   align-self: end;
@@ -5020,6 +5276,59 @@ th.sort-desc::after {
   background:
     linear-gradient(180deg, rgba(58, 134, 255, 0.08), rgba(255, 122, 24, 0.04)),
     rgba(255, 255, 255, 0.02);
+}
+
+.inspection-schedule-item[role="button"] {
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.inspection-schedule-item[role="button"]:hover,
+.inspection-schedule-item[role="button"]:focus-visible {
+  border-color: rgba(255, 122, 24, 0.42);
+  background: rgba(255, 122, 24, 0.08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.inspection-schedule-item.is-realized {
+  border-color: rgba(115, 224, 169, 0.28);
+  background: rgba(115, 224, 169, 0.06);
+}
+
+.inspection-schedule-headline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inspection-schedule-headline strong {
+  min-width: 0;
+}
+
+.inspection-schedule-headline em {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 177, 74, 0.28);
+  color: #ffe3bd;
+  background: rgba(255, 177, 74, 0.12);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inspection-schedule-item.is-realized .inspection-schedule-headline em {
+  border-color: rgba(115, 224, 169, 0.3);
+  color: #c8f7d9;
+  background: rgba(115, 224, 169, 0.12);
+}
+
+.inspection-realization-note {
+  color: #bcefd0;
 }
 
 .schedule-history-list {
@@ -6311,6 +6620,40 @@ th.sort-desc::after {
     border-radius: 16px;
   }
 
+  .carbon-stock-board-head {
+    display: none;
+  }
+
+  .carbon-stock-board-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sap actions"
+      "type type"
+      "use use"
+      "qty qty";
+  }
+
+  .carbon-stock-sap {
+    grid-area: sap;
+    font-size: 0.88rem;
+  }
+
+  .carbon-stock-type {
+    grid-area: type;
+  }
+
+  .carbon-stock-use {
+    grid-area: use;
+  }
+
+  .carbon-stock-qty {
+    grid-area: qty;
+  }
+
+  .carbon-stock-actions {
+    grid-area: actions;
+  }
+
   .banner-stats,
   .metric-grid,
   .inspection-grid,
@@ -6363,6 +6706,10 @@ th.sort-desc::after {
   }
 
   .admin-tools-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .whatsapp-bot-grid {
     grid-template-columns: 1fr;
   }
 
@@ -6964,6 +7311,41 @@ h3,
   background:
     linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(12, 12, 12, 0.96)),
     linear-gradient(135deg, rgba(58, 134, 255, 0.06), transparent 42%);
+}
+
+.dashboard-inspection-export-card {
+  grid-column: 1 / -1;
+}
+
+.inspection-export-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 260px)) minmax(220px, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.inspection-export-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.inspection-export-controls input {
+  min-height: 42px;
+  border: 1px solid rgba(255, 140, 66, 0.18);
+  border-radius: 14px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0 12px;
+  font: inherit;
+}
+
+.inspection-export-controls small {
+  color: #ffd9be;
+  line-height: 1.45;
 }
 
 .dashboard-history-card {
@@ -7753,6 +8135,15 @@ h3,
     grid-template-columns: 1fr;
   }
 
+  .inspection-export-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .inspection-schedule-headline {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-area-visual-grid,
   .dashboard-area-drill-content {
     grid-template-columns: 1fr;
@@ -7887,4 +8278,52 @@ h3,
 [data-panel="negatif-list"] thead th:nth-child(4),
 [data-panel="negatif-list"] tbody td:nth-child(4) {
   display: none;
+}
+/* Performance: keep the complete dataset in memory while limiting expensive DOM work. */
+.data-render-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 20px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.42);
+  color: var(--muted, #94a3b8);
+  font-size: 0.82rem;
+}
+
+.data-render-control .data-render-more {
+  min-height: 40px;
+  flex: 0 0 auto;
+}
+
+.bom-card,
+.service-list-item,
+.pwa-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}
+
+.dashboard-slideshow-frame {
+  aspect-ratio: 16 / 9;
+}
+
+.dashboard-slideshow-image,
+#dashboard-slideshow-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 640px) {
+  .data-render-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .data-render-control .data-render-more {
+    width: 100%;
+  }
 }

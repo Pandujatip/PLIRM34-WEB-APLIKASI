@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260507-03">
+  <link rel="stylesheet" href="styles.css?v=20260711-02">
 </head>
 <body>
   <div class="app-shell">
@@ -92,6 +92,7 @@
       </div>
     </section>
 
+    <template id="workspace-template">
     <section class="workspace hidden" id="workspace">
       <aside class="sidebar">
         <div class="brand-block">
@@ -295,6 +296,12 @@
                     <strong>Carbon</strong>
                     <small>Brush MV</small>
                   </button>
+                  <button type="button" data-pwa-form-choice="carbon-stock">
+                    <span class="pwa-menu-badge">Stock</span>
+                    <span class="pwa-menu-icon">ST</span>
+                    <strong>Stock CB</strong>
+                    <small>Carbon Brush</small>
+                  </button>
                   <button type="button" data-pwa-form-choice="mcc">
                     <span class="pwa-menu-icon">MC</span>
                     <strong>MCC</strong>
@@ -355,6 +362,10 @@
                   <div class="pwa-carbon-type-info" id="pwa-carbon-type-info">
                     Pilih equipment untuk menampilkan jenis carbon brush.
                   </div>
+                  <label class="pwa-form-field">
+                    <span>Type stock</span>
+                    <select id="pwa-carbon-stock-key" name="carbonBrushStockKey"></select>
+                  </label>
                   <div class="pwa-form-grid-2">
                     <label class="pwa-form-field">
                       <span>Tanggal</span>
@@ -392,6 +403,49 @@
                   <p class="pwa-form-note" id="pwa-carbon-form-note">Nilai titik hanya angka, contoh 43.8. Tanda koma otomatis dibaca sebagai desimal.</p>
                 </form>
               </section>
+
+              <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="carbon-stock">
+                <div class="pwa-block-head">
+                  <div>
+                    <span>Quick Input</span>
+                    <h3>Stock Carbon Brush</h3>
+                  </div>
+                  <div class="pwa-form-head-actions">
+                    <button class="pwa-text-button" type="button" data-pwa-hide-form>Tutup</button>
+                  </div>
+                </div>
+                <div class="carbon-stock-board" id="pwa-carbon-stock-board"></div>
+                <form class="pwa-carbon-form" id="pwa-carbon-stock-form" autocomplete="off">
+                  <label class="pwa-form-field">
+                    <span>Type Carbon Brush</span>
+                    <select id="pwa-carbon-stock-type" name="stockKey" required></select>
+                  </label>
+                  <div class="pwa-carbon-type-info is-active" id="pwa-carbon-stock-current">
+                    Stock sekarang: -
+                  </div>
+                  <div class="pwa-form-grid-2">
+                    <label class="pwa-form-field">
+                      <span>Mode</span>
+                      <select id="pwa-carbon-stock-movement" name="movementType" required>
+                        <option value="in">Tambah stock</option>
+                        <option value="adjust">Koreksi saldo</option>
+                      </select>
+                    </label>
+                    <label class="pwa-form-field">
+                      <span>Qty</span>
+                      <input id="pwa-carbon-stock-quantity" name="quantity" type="number" inputmode="numeric" min="0" step="1" placeholder="Contoh: 20" required>
+                    </label>
+                  </div>
+                  <label class="pwa-form-field">
+                    <span>Catatan</span>
+                    <textarea id="pwa-carbon-stock-note-input" name="note" rows="2" placeholder="Contoh: barang datang PO Juni"></textarea>
+                  </label>
+                  <button class="pwa-submit-button" id="pwa-carbon-stock-submit" type="submit">Simpan Stock Carbon Brush</button>
+                  <p class="pwa-form-note" id="pwa-carbon-stock-note">Tambah stock untuk barang datang. Koreksi saldo untuk set saldo akhir.</p>
+                </form>
+                <div class="pwa-stock-log" id="pwa-carbon-stock-log"></div>
+              </section>
+
               <section class="pwa-block pwa-block-flush pwa-quick-form-block hidden" data-pwa-quick-form="mcc">
                 <div class="pwa-block-head">
                   <div>
@@ -1256,7 +1310,7 @@
           <div class="hero-banner dashboard-hero">
             <div class="dashboard-slideshow" id="dashboard-slideshow">
               <div class="dashboard-slideshow-frame">
-                <img id="dashboard-slideshow-image" alt="Slideshow dashboard PLIRM34" loading="eager">
+                <img id="dashboard-slideshow-image" alt="Slideshow dashboard PLIRM34" loading="lazy" decoding="async" fetchpriority="low" width="1600" height="900">
                 <div class="dashboard-slideshow-overlay">
                   <div>
                     <span class="dashboard-slideshow-kicker">PLIRM34 Visual Feed</span>
@@ -1286,6 +1340,27 @@
           </div>
 
           <div class="dashboard-grid dashboard-schedule-grid">
+            <section class="content-card dashboard-schedule-card dashboard-inspection-export-card">
+              <div class="card-head inline">
+                <div>
+                  <p class="eyebrow">Export Kalender</p>
+                  <h3>INSPEKSI PLIRM34</h3>
+                </div>
+                <button class="btn btn-secondary" id="dashboard-inspection-export-button" type="button">Export Excel</button>
+              </div>
+              <div class="inspection-export-controls">
+                <label>
+                  <span>Tanggal awal</span>
+                  <input id="dashboard-inspection-export-start" type="date">
+                </label>
+                <label>
+                  <span>Tanggal akhir</span>
+                  <input id="dashboard-inspection-export-end" type="date">
+                </label>
+                <small id="dashboard-inspection-export-status">Range default mengikuti bulan berjalan.</small>
+              </div>
+            </section>
+
             <section class="content-card dashboard-schedule-card">
               <div class="card-head inline">
                 <div>
@@ -1798,6 +1873,42 @@
             </label>
             <button class="btn btn-secondary export-button" data-export="service" type="button">Export Excel</button>
           </div>
+              <div class="create-panel service-carbon-stock-panel">
+            <div class="create-panel-head">
+              <div>
+                <p class="eyebrow">Stock Carbon Brush</p>
+                <h4>Manajemen stock carbon brush</h4>
+              </div>
+              <small id="service-carbon-stock-note">Tambah stock barang datang atau koreksi saldo akhir.</small>
+            </div>
+            <div class="carbon-stock-board" id="service-carbon-stock-board"></div>
+            <form class="input-form compact-form" id="service-carbon-stock-form" autocomplete="off">
+              <div class="form-grid form-grid-2">
+                <label>
+                  Type Carbon Brush
+                  <select id="service-carbon-stock-type" name="stockKey" required></select>
+                </label>
+                <label>
+                  Mode
+                  <select id="service-carbon-stock-movement" name="movementType" required>
+                    <option value="in">Tambah stock</option>
+                    <option value="adjust">Koreksi saldo</option>
+                  </select>
+                </label>
+                <label>
+                  Qty
+                  <input id="service-carbon-stock-quantity" name="quantity" type="number" inputmode="numeric" min="0" step="1" placeholder="Contoh: 20" required>
+                </label>
+                <label>
+                  Catatan
+                  <textarea id="service-carbon-stock-note-input" name="note" rows="2" placeholder="Contoh: barang datang PO Juni"></textarea>
+                </label>
+              </div>
+              <button class="btn btn-primary" id="service-carbon-stock-submit" type="submit">Simpan Stock Carbon Brush</button>
+            </form>
+            <div class="pwa-carbon-type-info is-active" id="service-carbon-stock-current">Stock sekarang: -</div>
+            <div class="pwa-stock-log" id="service-carbon-stock-log"></div>
+          </div>
           <div class="service-board" id="service-card-list"></div>
           <div class="create-panel hidden" data-create-panel="service">
             <div class="create-panel-head">
@@ -1819,6 +1930,7 @@
               <div class="service-subtab-bar">
                 <button class="chip-button service-subtab active" data-electrical-tab="electrical-room" type="button">Electrical Room</button>
                 <button class="chip-button service-subtab" data-electrical-tab="motor-mso" type="button">Motor MSO</button>
+                <button class="chip-button service-subtab" data-electrical-tab="motor-mv" type="button">Motor MV</button>
                 <button class="chip-button service-subtab" data-electrical-tab="motor-mv-carbon-brush" type="button">Motor MV (Carbon Brush)</button>
                 <button class="chip-button service-subtab" data-electrical-tab="mcc" type="button">MCC</button>
                 <button class="chip-button service-subtab" data-electrical-tab="ehca" type="button">EH/CA</button>
@@ -1835,6 +1947,10 @@
                     <span>Isi lokasi room atau panel yang diperiksa.</span>
                   </div>
                   <div class="form-grid">
+                    <label>
+                      Tanggal inspeksi
+                      <input type="date" name="inspectionDate" required>
+                    </label>
                     <label>
                       Nama room / panel
                       <input type="text" name="equipmentName" id="electrical-room-name-input" list="electrical-room-reference-list" placeholder="Pilih referensi room / panel" autocomplete="off" required>
@@ -2170,6 +2286,69 @@
                 <button class="btn btn-primary" type="submit">Simpan Motor MSO</button>
               </form>
 
+              <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mv" data-form-type="service-motor-mv">
+                <div class="card-head compact-head">
+                  <p class="eyebrow">Motor MV</p>
+                  <h3>Inspeksi motor MV</h3>
+                </div>
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Identitas inspeksi</strong>
+                    <span>Gunakan form ini untuk inspeksi Motor MV umum di luar MSO dan Carbon Brush.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Equipment
+                      <input id="motor-mv-equipment-input" type="text" name="equipmentName" list="motor-mv-reference-list" placeholder="Contoh: 343RM1M01" autocomplete="off" required>
+                    </label>
+                    <label>
+                      Tanggal inspeksi
+                      <input type="date" name="inspectionDate" required>
+                    </label>
+                    <label>
+                      Arus motor
+                      <input type="text" name="motorCurrent" inputmode="decimal" placeholder="Contoh: 128 A">
+                    </label>
+                  </div>
+                  <datalist id="motor-mv-reference-list"></datalist>
+                  <p class="form-hint" id="motor-mv-reference-hint">Referensi equipment Motor MV dimuat dari master equipment dan histori service.</p>
+                </div>
+
+                <div class="inspection-section">
+                  <div class="inspection-section-head">
+                    <strong>Parameter teknis</strong>
+                    <span>Isi parameter utama yang sama dengan form APK native agar payload tetap konsisten.</span>
+                  </div>
+                  <div class="form-grid form-grid-3">
+                    <label>
+                      Vibrasi DE
+                      <input type="text" name="vibrationDe" inputmode="decimal" placeholder="Contoh: 2.4 mm/s">
+                    </label>
+                    <label>
+                      Vibrasi NDE
+                      <input type="text" name="vibrationNde" inputmode="decimal" placeholder="Contoh: 2.1 mm/s">
+                    </label>
+                    <label>
+                      Temperature winding
+                      <input type="text" name="windingTemperature" inputmode="decimal" placeholder="Contoh: 72 C">
+                    </label>
+                    <label class="full-span">
+                      Kondisi bearing
+                      <input type="text" name="bearingCondition" placeholder="Contoh: normal / noisy / panas">
+                    </label>
+                    <label class="full-span">
+                      Keterangan
+                      <textarea name="description" rows="3" placeholder="Catatan inspeksi Motor MV"></textarea>
+                    </label>
+                    <label class="full-span">
+                      Foto temuan
+                      <input type="file" name="findingPhoto" accept="image/*" multiple>
+                    </label>
+                  </div>
+                </div>
+                <button class="btn btn-primary" type="submit">Simpan Motor MV</button>
+              </form>
+
               <form class="input-form electrical-pane" data-editable-for="admin,organik,team" data-electrical-pane="motor-mv-carbon-brush" data-form-type="service-motor-mv-carbon-brush">
                 <div class="card-head compact-head">
                   <p class="eyebrow">Motor MV Carbon Brush</p>
@@ -2197,6 +2376,12 @@
                   </div>
                   <div class="carbon-brush-type-help" id="carbon-brush-type-help">
                     Pilih equipment untuk menampilkan jenis/type carbon brush.
+                  </div>
+                  <div class="form-grid">
+                    <label class="full-span">
+                      Type stock carbon brush
+                      <select id="carbon-brush-stock-key" name="carbonBrushStockKey"></select>
+                    </label>
                   </div>
                 </div>
 
@@ -2338,6 +2523,10 @@
                 </div>
                 <div class="form-grid form-grid-3">
                   <label>
+                    Tanggal inspeksi
+                    <input type="date" name="inspectionDate" required>
+                  </label>
+                  <label>
                     Nama equipment EH/CA
                     <input type="text" name="equipmentName" placeholder="Contoh: Hydraulic Unit EH-01" required>
                   </label>
@@ -2389,8 +2578,12 @@
                 </div>
                 <div class="form-grid">
                   <label>
+                    Tanggal inspeksi
+                    <input type="date" name="inspectionDate" required>
+                  </label>
+                  <label>
                     Nama equipment
-                    <input type="text" name="equipmentName" placeholder="Contoh: Pressure Transmitter 3051" required>
+                    <input type="text" name="equipmentName" list="instrument-equipment-reference-list" placeholder="Pilih equipment instrument" autocomplete="off" required>
                   </label>
                   <label>
                     Kondisi sensor
@@ -2405,6 +2598,8 @@
                     <input type="file" name="findingPhoto" accept="image/*" multiple>
                   </label>
                 </div>
+                <datalist id="instrument-equipment-reference-list"></datalist>
+                <p class="form-hint" id="instrument-reference-hint">Referensi equipment Instrument dimuat dari Master Equipment source group service-instrument.</p>
                 <button class="btn btn-primary" type="submit">Simpan Service Instrument</button>
               </form>
 
@@ -3533,6 +3728,80 @@
                   </div>
                   <p class="form-hint" id="admin-mso-motor-status">Belum ada sinkronisasi MSO motor.</p>
                 </section>
+
+                <section class="admin-tool-block whatsapp-bot-card">
+                  <div class="admin-tool-head">
+                    <strong>Setup WhatsApp Bot</strong>
+                    <small>Scan QR WhatsApp Web, pilih group target, lalu bot dapat baca/tulis Negatif List dan kirim jadwal inspeksi harian.</small>
+                  </div>
+                  <div class="whatsapp-bot-grid">
+                    <div class="whatsapp-bot-status-panel">
+                      <div class="whatsapp-bot-status-head">
+                        <span id="whatsapp-bot-state">Belum aktif</span>
+                        <button class="table-action" id="whatsapp-bot-refresh-button" type="button">Refresh</button>
+                      </div>
+                      <div class="whatsapp-qr-frame">
+                        <img class="hidden" id="whatsapp-bot-qr" alt="QR WhatsApp Bot">
+                        <span id="whatsapp-bot-qr-empty">QR akan muncul saat service WhatsApp siap pairing.</span>
+                      </div>
+                      <p class="form-hint" id="whatsapp-bot-status-text">Service bot belum mengirim status.</p>
+                    </div>
+                    <form class="input-form compact-form whatsapp-bot-form" id="whatsapp-bot-form">
+                      <div class="form-grid form-grid-4">
+                        <label>
+                          Aktifkan bot
+                          <select name="enabled">
+                            <option value="false">Nonaktif</option>
+                            <option value="true">Aktif</option>
+                          </select>
+                        </label>
+                        <label>
+                          Group ID target
+                          <input name="groupId" type="text" placeholder="120xxxx@g.us">
+                        </label>
+                        <label>
+                          Nama group
+                          <input name="groupName" type="text" placeholder="Nama group WhatsApp">
+                        </label>
+                        <label>
+                          Prefix command
+                          <input name="commandPrefix" type="text" value="!" maxlength="4">
+                        </label>
+                        <label>
+                          Auto input Negatif List
+                          <select name="autoWriteEnabled">
+                            <option value="true">Aktif</option>
+                            <option value="false">Nonaktif</option>
+                          </select>
+                        </label>
+                        <label>
+                          Kirim jadwal harian
+                          <select name="dailyScheduleEnabled">
+                            <option value="true">Aktif</option>
+                            <option value="false">Nonaktif</option>
+                          </select>
+                        </label>
+                        <label>
+                          Jam kirim
+                          <input name="dailyScheduleTime" type="time" value="08:00">
+                        </label>
+                      </div>
+                      <div class="form-actions">
+                        <button class="btn btn-primary" type="submit">Simpan Setup WhatsApp</button>
+                        <button class="btn btn-secondary" id="whatsapp-bot-reset-token-button" type="button">Reset Token Bot</button>
+                      </div>
+                    </form>
+                  </div>
+                  <div class="whatsapp-group-list" id="whatsapp-bot-groups">
+                    <article>
+                      <strong>Belum ada group terdeteksi</strong>
+                      <span>Setelah QR tersambung, daftar group WhatsApp akan muncul di sini.</span>
+                    </article>
+                  </div>
+                  <p class="form-hint">
+                    Command: <code>negatif open</code>. Input cepat: <code>negatif 343RF1M01 motor kasar</code>. Close: <code>close negatif 343RF1M01</code> atau <code>close negatif list 343RF1M01</code>.
+                  </p>
+                </section>
               </div>
               <p class="form-hint">Header CSV disarankan memakai nama field aplikasi. Contoh `negatif-list`: `equipment`, `damageDescription`, `followUpPlan`, `foundDate`, `pendingMark`, `workStatus`, `category`, `area`.</p>
             </section>
@@ -3711,6 +3980,7 @@
                       <option value="electrical-room">electrical-room</option>
                       <option value="carbon-brush">carbon-brush</option>
                       <option value="cems-service">cems-service</option>
+                      <option value="plc-service">plc-service</option>
                       <option value="dcs-service">dcs-service</option>
                       <option value="opacity-service">opacity-service</option>
                       <option value="service-mcc">service-mcc</option>
@@ -3921,6 +4191,7 @@
         </section>
       </main>
     </section>
+    </template>
   </div>
 
   <div class="detail-modal hidden" id="service-detail-modal" aria-hidden="true">
@@ -3941,20 +4212,53 @@
     </div>
   </div>
 
+  <div class="detail-modal hidden" id="inspection-realization-modal" aria-hidden="true">
+    <div class="detail-modal-backdrop" data-close-inspection-realization="true"></div>
+    <div class="detail-modal-panel inspection-realization-panel" role="dialog" aria-modal="true" aria-labelledby="inspection-realization-title">
+      <div class="detail-modal-head">
+        <div>
+          <p class="eyebrow">Realisasi Jadwal</p>
+          <h3 id="inspection-realization-title">Konfirmasi realisasi inspeksi</h3>
+          <p id="inspection-realization-subtitle">Catat tanggal realisasi dari jadwal kalender inspeksi.</p>
+        </div>
+        <div class="detail-modal-actions">
+          <button class="table-action" id="inspection-realization-close" type="button">Tutup</button>
+        </div>
+      </div>
+      <form class="input-form inspection-realization-form" id="inspection-realization-form">
+        <input name="scheduleKey" type="hidden">
+        <input name="plannedDate" type="hidden">
+        <input name="plannedTitle" type="hidden">
+        <input name="plannedTimeLabel" type="hidden">
+        <div class="inspection-realization-summary">
+          <span>Equipment / jadwal</span>
+          <strong id="inspection-realization-equipment">-</strong>
+          <small id="inspection-realization-plan">-</small>
+        </div>
+        <label>
+          Tanggal realisasi
+          <input id="inspection-realization-date" name="realizedDate" type="date" required>
+        </label>
+        <label>
+          Catatan
+          <textarea name="note" rows="3" placeholder="Catatan realisasi inspeksi"></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="btn btn-secondary" id="inspection-realization-cancel" type="button">Batal</button>
+          <button class="btn btn-primary" type="submit">Simpan Realisasi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.auth.js?v=20260426-15"></script>
-  <script src="app.carbon-brush.js?v=20260502-05"></script>
-  <script src="app.service.js?v=20260507-02"></script>
-  <script src="app.mso.js?v=20260426-15"></script>
-  <script src="app.dashboard.js?v=20260502-02"></script>
-  <script src="app.admin.js?v=20260503-03"></script>
-  <script src="app.js?v=20260510-03"></script>
+  <script src="app.bootstrap.js?v=20260711-02"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-          navigator.serviceWorker.register("/service-worker.js?v=20260510-03").catch((error) => {
+          navigator.serviceWorker.register("/service-worker.js?v=20260711-02").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

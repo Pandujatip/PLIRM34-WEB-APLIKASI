@@ -12,6 +12,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
@@ -23,13 +24,68 @@ from urllib.request import urlopen
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-DB_PATH = ROOT_DIR / "plirm34.db"
+
+
+def resolve_private_data_dir() -> Path:
+    configured_path = str(os.environ.get("PLIRM34_DATA_DIR", "") or "").strip()
+    candidate = Path(configured_path).expanduser() if configured_path else ROOT_DIR.parent / ".plirm34-data"
+    if not candidate.is_absolute():
+        candidate = ROOT_DIR / candidate
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(ROOT_DIR)
+    except ValueError:
+        return resolved
+    raise RuntimeError("PLIRM34_DATA_DIR wajib berada di luar direktori aplikasi")
+
+
+DATA_DIR = resolve_private_data_dir()
+DB_PATH = DATA_DIR / "plirm34.db"
 SESSION_COOKIE_NAME = "plirm34_session"
 SESSION_DURATION_DAYS = 7
 JAKARTA_TIMEZONE = timezone(timedelta(hours=7))
 CALENDAR_FEED_URL = "https://calendar.google.com/calendar/ical/adenairdrop%40gmail.com/public/basic.ics"
 CALENDAR_CACHE_TTL_SECONDS = 600
 CALENDAR_FETCH_TIMEOUT_SECONDS = 2.5
+CALENDAR_EXPORT_MAX_DAYS = 370
+WHATSAPP_BOT_CONFIG_PATH = DATA_DIR / "whatsapp-bot-runtime.json"
+WHATSAPP_BOT_STATUS_PATH = DATA_DIR / "whatsapp-bot-status.json"
+WHATSAPP_BOT_SESSION_PATH = DATA_DIR / ".wwebjs_auth"
+LEGACY_RUNTIME_PATHS = {
+    ROOT_DIR / "plirm34.db": DB_PATH,
+    ROOT_DIR / "plirm34.db-wal": DATA_DIR / "plirm34.db-wal",
+    ROOT_DIR / "plirm34.db-shm": DATA_DIR / "plirm34.db-shm",
+    ROOT_DIR / "whatsapp-bot-runtime.json": WHATSAPP_BOT_CONFIG_PATH,
+    ROOT_DIR / "whatsapp-bot-status.json": WHATSAPP_BOT_STATUS_PATH,
+    ROOT_DIR / ".wwebjs_auth": WHATSAPP_BOT_SESSION_PATH,
+}
+PUBLIC_STATIC_FILES = frozenset({
+    "index.html",
+    "styles.css",
+    "app.bootstrap.js",
+    "app.auth.js",
+    "app.carbon-brush.js",
+    "app.service.js",
+    "app.mso.js",
+    "app.dashboard.js",
+    "app.admin.js",
+    "app.js",
+    "service-worker.js",
+    "manifest.webmanifest",
+    "pwa-icons/icon-192.png",
+    "pwa-icons/icon-512.png",
+    "pwa-icons/icon-maskable-512.png",
+    "pwa-icons/plirm34tuban.png",
+    "pwa-icons/plirm34tuban.jpg",
+})
+AUTHENTICATED_MEDIA_DIRECTORIES = frozenset({
+    "bom-images",
+    "bom-motor-images",
+    "service-mcc-images",
+    "slideshow-images",
+})
+AUTHENTICATED_MEDIA_EXTENSIONS = frozenset({".gif", ".jpeg", ".jpg", ".png", ".webp"})
+PRIVATE_DATA_READY = False
 MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
 MAX_ADMIN_IMPORT_BODY_BYTES = 6 * 1024 * 1024
 MAX_BACKUP_BODY_BYTES = 12 * 1024 * 1024
@@ -46,6 +102,7 @@ STATE_KEYS = {
 BOOTSTRAP_SCOPES = {
     "full": list(STATE_KEYS.keys()),
     "dashboard": ["negatif-list", "service", "spb"],
+    "meta": [],
 }
 
 RESOURCE_TABLES = {
@@ -342,6 +399,15 @@ CARBON_BRUSH_MEASUREMENT_COLUMNS = [str(index) for index in range(1, 10)]
 CARBON_BRUSH_MEASUREMENT_KEYS = [
     f"{row}{column}" for row in CARBON_BRUSH_MEASUREMENT_ROWS for column in CARBON_BRUSH_MEASUREMENT_COLUMNS
 ]
+CARBON_BRUSH_TYPE_REFERENCES = [
+    {"sapNo": "SI00028389", "name": "RC53 50X32X25", "use": "344RM01M01 - ABB"},
+    {"sapNo": "SI00028389", "name": "RC53 50X32X25", "use": "344FN03M01 - ABB"},
+    {"sapNo": "SI00005550", "name": "RC73/MR7 50X32X25", "use": "343RM1M01 - SIEMENS"},
+    {"sapNo": "SI00005550", "name": "RC73/MR7 50X32X25", "use": "343FN4M01 - SIEMENS"},
+    {"sapNo": "SI00005550", "name": "RC73/MR7 50X32X25", "use": "343FN5M01 - SIEMENS"},
+    {"sapNo": "SI00028394", "name": "RC67 50X32X25", "use": "344RM01M01"},
+    {"sapNo": "SI00005549", "name": "RC73 50X32X20", "use": "343RM1M01 - ABB"},
+]
 
 DEFAULT_AREAS = [
     ("tuban-3", "Tuban 3", "Tuban 3", 1),
@@ -407,6 +473,16 @@ DEFAULT_APP_SETTINGS = {
         "lastImportedAt": "",
         "lastImportedCount": 0,
     },
+    "whatsapp_bot": {
+        "enabled": False,
+        "groupId": "",
+        "groupName": "",
+        "autoWriteEnabled": True,
+        "dailyScheduleEnabled": True,
+        "dailyScheduleTime": "08:00",
+        "commandPrefix": "!",
+        "botToken": "",
+    },
 }
 
 FALLBACK_EQUIPMENT_REFERENCES = {
@@ -428,6 +504,10 @@ FALLBACK_EQUIPMENT_REFERENCES = {
         "ER24",
     ],
     "dcs-service": [
+        "Operator Station CCR-03",
+        "Server Historian HS-01",
+    ],
+    "plc-service": [
         "Operator Station CCR-03",
         "Server Historian HS-01",
     ],
@@ -461,6 +541,47 @@ def format_byte_size(value: int) -> str:
             return f"{value_float:.1f} {unit}"
         value_float /= 1024
     return f"{value_float:.1f} GB"
+
+
+def normalize_static_request_path(request_path: str) -> str | None:
+    decoded_path = unquote(str(request_path or "/"))
+    if "\x00" in decoded_path or "\\" in decoded_path:
+        return None
+    parts = decoded_path.split("/")
+    if any(part in {".", ".."} for part in parts):
+        return None
+    relative = "/".join(part for part in parts if part)
+    return relative or "index.html"
+
+
+def resolve_public_static_path(request_path: str) -> Path | None:
+    relative = normalize_static_request_path(request_path)
+    if relative not in PUBLIC_STATIC_FILES:
+        return None
+    candidate = (ROOT_DIR / relative).resolve()
+    try:
+        candidate.relative_to(ROOT_DIR)
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def resolve_authenticated_media_path(request_path: str) -> Path | None:
+    relative = normalize_static_request_path(request_path)
+    if not relative:
+        return None
+    relative_path = Path(relative)
+    if not relative_path.parts or relative_path.parts[0] not in AUTHENTICATED_MEDIA_DIRECTORIES:
+        return None
+    if relative_path.suffix.lower() not in AUTHENTICATED_MEDIA_EXTENSIONS:
+        return None
+    media_root = (ROOT_DIR / relative_path.parts[0]).resolve()
+    candidate = (ROOT_DIR / relative_path).resolve()
+    try:
+        candidate.relative_to(media_root)
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
 
 
 def utc_now() -> datetime:
@@ -602,37 +723,50 @@ def expand_calendar_event(raw_event: dict[str, object], target_dates: set[str]) 
     return results
 
 
-def build_calendar_schedule() -> dict[str, object]:
-    now = jakarta_now()
-    if (
-        isinstance(CALENDAR_CACHE.get("fetched_at"), datetime)
-        and (now - CALENDAR_CACHE["fetched_at"]).total_seconds() < CALENDAR_CACHE_TTL_SECONDS
-    ):
-        return CALENDAR_CACHE["payload"]
+def build_calendar_schedule_key(event: dict[str, object]) -> str:
+    start_at = event.get("startAt")
+    date_label = start_at.date().isoformat() if isinstance(start_at, datetime) else ""
+    uid = str(event.get("uid", "") or "").strip()
+    if uid:
+        base_key = uid
+    else:
+        base_text = "|".join([
+            str(event.get("summary", "") or ""),
+            str(event.get("location", "") or ""),
+            str(event.get("description", "") or ""),
+        ])
+        base_key = hashlib.sha1(base_text.encode("utf-8", errors="ignore")).hexdigest()[:18]
+    return f"{base_key}|{date_label}"
 
-    schedule = {
+
+def build_calendar_entry(event: dict[str, object]) -> dict[str, object] | None:
+    start_at = event.get("startAt")
+    if not isinstance(start_at, datetime):
+        return None
+    return {
+        "scheduleKey": build_calendar_schedule_key(event),
+        "summary": event.get("summary") or "Jadwal inspeksi",
+        "location": event.get("location") or "",
+        "description": event.get("description") or "",
+        "date": start_at.date().isoformat(),
+        "timeLabel": "Seharian" if event.get("allDay") else start_at.strftime("%H:%M"),
+        "allDay": bool(event.get("allDay")),
+    }
+
+
+def fetch_calendar_entries_for_dates(target_dates: set[str]) -> tuple[dict[str, str], list[dict[str, object]]]:
+    meta = {
         "calendarName": "PMS PLIRM34",
         "timezone": "Asia/Jakarta",
-        "today": [],
-        "tomorrow": [],
-        "history": [],
     }
-
-    target_today = now.date().isoformat()
-    target_tomorrow = (now.date() + timedelta(days=1)).isoformat()
-    history_start_date = now.date() - timedelta(days=90)
-    target_dates = {
-        (history_start_date + timedelta(days=index)).isoformat()
-        for index in range((now.date() - history_start_date).days + 2)
-    }
+    if not target_dates:
+        return meta, []
 
     try:
         with urlopen(CALENDAR_FEED_URL, timeout=CALENDAR_FETCH_TIMEOUT_SECONDS) as response:
             ics_text = response.read().decode("utf-8", errors="replace")
     except Exception:
-        CALENDAR_CACHE["fetched_at"] = now
-        CALENDAR_CACHE["payload"] = schedule
-        return schedule
+        return meta, []
 
     events: list[dict[str, object]] = []
     recurring_exceptions: dict[str, set[str]] = {}
@@ -681,9 +815,9 @@ def build_calendar_schedule() -> dict[str, object]:
         name, params, value = parse_ics_content_line(line)
         if current_event is None:
             if name == "X-WR-CALNAME" and value:
-                schedule["calendarName"] = value
+                meta["calendarName"] = value
             if name == "X-WR-TIMEZONE" and value:
-                schedule["timezone"] = value
+                meta["timezone"] = value
             continue
 
         if name == "DTSTART":
@@ -708,23 +842,49 @@ def build_calendar_schedule() -> dict[str, object]:
         filtered_events.append(event)
 
     filtered_events.sort(key=lambda item: item["startAt"])
-    for event in filtered_events:
-        start_at = event.get("startAt")
-        if not isinstance(start_at, datetime):
-            continue
-        entry = {
-            "summary": event.get("summary") or "Jadwal inspeksi",
-            "location": event.get("location") or "",
-            "description": event.get("description") or "",
-            "date": start_at.date().isoformat(),
-            "timeLabel": "Seharian" if event.get("allDay") else start_at.strftime("%H:%M"),
-            "allDay": bool(event.get("allDay")),
-        }
-        if entry["date"] == target_today:
+    entries = [
+        entry
+        for entry in (build_calendar_entry(event) for event in filtered_events)
+        if entry is not None
+    ]
+    return meta, entries
+
+
+def build_calendar_schedule() -> dict[str, object]:
+    now = jakarta_now()
+    if (
+        isinstance(CALENDAR_CACHE.get("fetched_at"), datetime)
+        and (now - CALENDAR_CACHE["fetched_at"]).total_seconds() < CALENDAR_CACHE_TTL_SECONDS
+    ):
+        return CALENDAR_CACHE["payload"]
+
+    schedule = {
+        "calendarName": "PMS PLIRM34",
+        "timezone": "Asia/Jakarta",
+        "today": [],
+        "tomorrow": [],
+        "history": [],
+    }
+
+    target_today = now.date().isoformat()
+    target_tomorrow = (now.date() + timedelta(days=1)).isoformat()
+    history_start_date = now.date() - timedelta(days=90)
+    target_dates = {
+        (history_start_date + timedelta(days=index)).isoformat()
+        for index in range((now.date() - history_start_date).days + 2)
+    }
+
+    meta, entries = fetch_calendar_entries_for_dates(target_dates)
+    schedule["calendarName"] = meta["calendarName"]
+    schedule["timezone"] = meta["timezone"]
+
+    for entry in entries:
+        entry_date = str(entry.get("date") or "")
+        if entry_date == target_today:
             schedule["today"].append(entry)
-        elif entry["date"] == target_tomorrow:
+        elif entry_date == target_tomorrow:
             schedule["tomorrow"].append(entry)
-        elif history_start_date.isoformat() <= entry["date"] < target_today:
+        elif history_start_date.isoformat() <= entry_date < target_today:
             schedule["history"].append(entry)
 
     schedule["history"].sort(key=lambda item: item["date"], reverse=True)
@@ -733,6 +893,70 @@ def build_calendar_schedule() -> dict[str, object]:
     CALENDAR_CACHE["fetched_at"] = now
     CALENDAR_CACHE["payload"] = schedule
     return schedule
+
+
+def build_mobile_calendar_schedule() -> dict[str, object]:
+    full_schedule = build_calendar_schedule()
+
+    def compact_entries(entries: list[dict], limit: int) -> list[dict]:
+        compacted: list[dict] = []
+        for entry in entries[:limit]:
+            description = str(entry.get("description", "") or "").strip()
+            if len(description) > 240:
+                description = description[:237].rstrip() + "..."
+            compacted.append({
+                "scheduleKey": str(entry.get("scheduleKey", "") or ""),
+                "summary": str(entry.get("summary", "") or "Jadwal inspeksi"),
+                "description": description,
+                "date": str(entry.get("date", "") or ""),
+                "timeLabel": str(entry.get("timeLabel", "") or ""),
+                "allDay": bool(entry.get("allDay")),
+            })
+        return compacted
+
+    return {
+        "calendarName": str(full_schedule.get("calendarName", "PMS PLIRM34") or "PMS PLIRM34"),
+        "timezone": str(full_schedule.get("timezone", "Asia/Jakarta") or "Asia/Jakarta"),
+        "today": compact_entries(full_schedule.get("today", []), 20),
+        "tomorrow": compact_entries(full_schedule.get("tomorrow", []), 20),
+        "history": compact_entries(full_schedule.get("history", []), 10),
+    }
+
+
+def parse_iso_date(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        return None
+    try:
+        return datetime.fromisoformat(f"{text}T00:00:00+07:00")
+    except ValueError:
+        return None
+
+
+def build_calendar_range_schedule(start_date: str, end_date: str) -> dict[str, object]:
+    start_at = parse_iso_date(start_date)
+    end_at = parse_iso_date(end_date)
+    if not start_at or not end_at:
+        raise ValueError("Tanggal awal dan akhir wajib berformat YYYY-MM-DD")
+    if start_at > end_at:
+        raise ValueError("Tanggal awal tidak boleh lebih besar dari tanggal akhir")
+    total_days = (end_at.date() - start_at.date()).days + 1
+    if total_days > CALENDAR_EXPORT_MAX_DAYS:
+        raise ValueError(f"Range export maksimal {CALENDAR_EXPORT_MAX_DAYS} hari")
+
+    target_dates = {
+        (start_at.date() + timedelta(days=index)).isoformat()
+        for index in range(total_days)
+    }
+    meta, entries = fetch_calendar_entries_for_dates(target_dates)
+    entries.sort(key=lambda item: (str(item.get("date") or ""), str(item.get("timeLabel") or ""), str(item.get("summary") or "")))
+    return {
+        "calendarName": meta["calendarName"],
+        "timezone": meta["timezone"],
+        "start": start_at.date().isoformat(),
+        "end": end_at.date().isoformat(),
+        "items": entries,
+    }
 
 
 def hash_password(password: str, salt: str | None = None) -> str:
@@ -756,7 +980,37 @@ def verify_password(password: str, encoded: str) -> bool:
     return hmac.compare_digest(candidate, stored_hash)
 
 
+def ensure_private_data_directory() -> None:
+    global PRIVATE_DATA_READY
+    if PRIVATE_DATA_READY:
+        return
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        DATA_DIR.chmod(0o700)
+    except OSError:
+        pass
+
+    skip_legacy_migration = str(os.environ.get("PLIRM34_SKIP_LEGACY_MIGRATION", "") or "").strip().lower() in {"1", "true", "yes"}
+    if not skip_legacy_migration:
+        for legacy_path, private_path in LEGACY_RUNTIME_PATHS.items():
+            if not legacy_path.exists() or private_path.exists():
+                continue
+            private_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(legacy_path), str(private_path))
+
+    for private_file in (DB_PATH, WHATSAPP_BOT_CONFIG_PATH, WHATSAPP_BOT_STATUS_PATH):
+        if not private_file.exists():
+            continue
+        try:
+            private_file.chmod(0o600)
+        except OSError:
+            pass
+    PRIVATE_DATA_READY = True
+
+
 def get_connection() -> sqlite3.Connection:
+    ensure_private_data_directory()
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     return connection
@@ -770,6 +1024,7 @@ def checkpoint_connection(connection: sqlite3.Connection) -> None:
 
 
 def init_db() -> None:
+    ensure_private_data_directory()
     with get_connection() as connection:
         connection.executescript(
             """
@@ -835,6 +1090,23 @@ def init_db() -> None:
                 setting_key TEXT PRIMARY KEY,
                 value_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS inspection_schedule_realizations (
+                schedule_key TEXT PRIMARY KEY,
+                planned_date TEXT NOT NULL,
+                planned_title TEXT NOT NULL,
+                planned_time_label TEXT NOT NULL DEFAULT '',
+                realized_date TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                created_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
+                created_by_username TEXT NOT NULL DEFAULT '',
+                updated_by_username TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+                FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS equipment_reference (
@@ -959,6 +1231,36 @@ def init_db() -> None:
                 measurements_json TEXT NOT NULL DEFAULT '{}',
                 stats_json TEXT NOT NULL DEFAULT '{}',
                 FOREIGN KEY (service_id) REFERENCES service_items (id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS carbon_brush_stock (
+                stock_key TEXT PRIMARY KEY,
+                sap_no TEXT NOT NULL,
+                brush_name TEXT NOT NULL,
+                use_label TEXT NOT NULL DEFAULT '',
+                current_stock INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS carbon_brush_stock_logs (
+                id TEXT PRIMARY KEY,
+                stock_key TEXT NOT NULL,
+                sap_no TEXT NOT NULL,
+                brush_name TEXT NOT NULL,
+                movement_type TEXT NOT NULL,
+                quantity_delta INTEGER NOT NULL,
+                stock_before INTEGER NOT NULL,
+                stock_after INTEGER NOT NULL,
+                source TEXT NOT NULL DEFAULT '',
+                service_id TEXT NOT NULL DEFAULT '',
+                equipment_name TEXT NOT NULL DEFAULT '',
+                point_keys_json TEXT NOT NULL DEFAULT '[]',
+                note TEXT NOT NULL DEFAULT '',
+                actor_user_id INTEGER,
+                actor_username TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (stock_key) REFERENCES carbon_brush_stock (stock_key) ON DELETE CASCADE,
+                FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS service_mcc_details (
@@ -1089,11 +1391,13 @@ def init_db() -> None:
             )
 
         seed_master_data(connection)
+        seed_carbon_brush_stock(connection)
         ensure_audit_columns(connection)
         ensure_bom_columns(connection)
         ensure_spb_columns(connection)
         ensure_service_motor_mv_columns(connection)
         migrate_snapshot_state(connection)
+    write_whatsapp_bot_runtime_config()
 
 
 def get_user_by_username(username: str) -> sqlite3.Row | None:
@@ -1212,6 +1516,339 @@ def list_activity_logs(limit: int = 300) -> list[dict]:
             }
         )
     return items
+
+
+def normalize_schedule_date(value: str, label: str) -> str:
+    parsed = parse_iso_date(value)
+    if not parsed:
+        raise ValueError(f"{label} wajib berformat YYYY-MM-DD")
+    return parsed.date().isoformat()
+
+
+def deserialize_inspection_schedule_realization(row: sqlite3.Row) -> dict:
+    pic = row["updated_by_username"] or row["created_by_username"] or ""
+    return {
+        "scheduleKey": row["schedule_key"],
+        "plannedDate": row["planned_date"],
+        "plannedTitle": row["planned_title"],
+        "plannedTimeLabel": row["planned_time_label"],
+        "realizedDate": row["realized_date"],
+        "note": row["note"],
+        "pic": pic,
+        "createdBy": row["created_by_username"],
+        "updatedBy": row["updated_by_username"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def list_inspection_schedule_realizations(start_date: str | None = None, end_date: str | None = None) -> list[dict]:
+    query = """
+        SELECT schedule_key, planned_date, planned_title, planned_time_label,
+               realized_date, note, created_by_user_id, updated_by_user_id,
+               created_by_username, updated_by_username, created_at, updated_at
+        FROM inspection_schedule_realizations
+    """
+    params: list[str] = []
+    where_clauses: list[str] = []
+    if start_date:
+        where_clauses.append("planned_date >= ?")
+        params.append(normalize_schedule_date(start_date, "Tanggal awal"))
+    if end_date:
+        where_clauses.append("planned_date <= ?")
+        params.append(normalize_schedule_date(end_date, "Tanggal akhir"))
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
+    query += " ORDER BY planned_date DESC, planned_title"
+
+    with get_connection() as connection:
+        rows = connection.execute(query, params).fetchall()
+    return [deserialize_inspection_schedule_realization(row) for row in rows]
+
+
+def list_inspection_schedule_realizations_for_backup() -> list[dict]:
+    return list_inspection_schedule_realizations()
+
+
+def merge_default_setting(default: dict, value: dict | None) -> dict:
+    merged = dict(default)
+    if isinstance(value, dict):
+        merged.update(value)
+    return merged
+
+
+def get_whatsapp_bot_setting() -> dict:
+    default_setting = DEFAULT_APP_SETTINGS["whatsapp_bot"]
+    setting = merge_default_setting(default_setting, get_app_setting_value("whatsapp_bot", default_setting))
+    if not str(setting.get("botToken", "") or "").strip():
+        setting["botToken"] = secrets.token_urlsafe(32)
+        save_app_setting_value("whatsapp_bot", setting)
+    return setting
+
+
+def public_whatsapp_bot_setting(setting: dict) -> dict:
+    return {
+        "enabled": bool(setting.get("enabled")),
+        "groupId": str(setting.get("groupId", "") or ""),
+        "groupName": str(setting.get("groupName", "") or ""),
+        "autoWriteEnabled": bool(setting.get("autoWriteEnabled", True)),
+        "dailyScheduleEnabled": bool(setting.get("dailyScheduleEnabled", True)),
+        "dailyScheduleTime": str(setting.get("dailyScheduleTime", "08:00") or "08:00"),
+        "commandPrefix": str(setting.get("commandPrefix", "!") or "!")[:4],
+        "botTokenSet": bool(str(setting.get("botToken", "") or "").strip()),
+    }
+
+
+def write_whatsapp_bot_runtime_config(setting: dict | None = None) -> None:
+    ensure_private_data_directory()
+    resolved_setting = setting or get_whatsapp_bot_setting()
+    payload = {
+        "apiBaseUrl": "http://127.0.0.1:8017/api",
+        "statusPath": str(WHATSAPP_BOT_STATUS_PATH),
+        "sessionPath": str(WHATSAPP_BOT_SESSION_PATH),
+        "updatedAt": utc_now().isoformat(),
+        **public_whatsapp_bot_setting(resolved_setting),
+        "botToken": str(resolved_setting.get("botToken", "") or ""),
+    }
+    WHATSAPP_BOT_CONFIG_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        WHATSAPP_BOT_CONFIG_PATH.chmod(0o600)
+    except OSError:
+        pass
+
+
+def read_whatsapp_bot_status() -> dict:
+    try:
+        payload = json.loads(WHATSAPP_BOT_STATUS_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {
+            "state": "not-started",
+            "ready": False,
+            "message": "Service WhatsApp belum menulis status.",
+            "updatedAt": "",
+            "qrDataUrl": "",
+            "groups": [],
+        }
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_whatsapp_bot_setting(payload: dict) -> dict:
+    current = get_whatsapp_bot_setting()
+    next_setting = {
+        **current,
+        "enabled": bool(payload.get("enabled")),
+        "groupId": str(payload.get("groupId", "") or "").strip(),
+        "groupName": str(payload.get("groupName", "") or "").strip(),
+        "autoWriteEnabled": bool(payload.get("autoWriteEnabled")),
+        "dailyScheduleEnabled": bool(payload.get("dailyScheduleEnabled")),
+        "dailyScheduleTime": str(payload.get("dailyScheduleTime", "08:00") or "08:00").strip(),
+        "commandPrefix": str(payload.get("commandPrefix", "!") or "!").strip()[:4] or "!",
+    }
+    if not re.fullmatch(r"\d{2}:\d{2}", next_setting["dailyScheduleTime"]):
+        raise ValueError("Jam kirim jadwal wajib berformat HH:MM")
+    hour_text, minute_text = next_setting["dailyScheduleTime"].split(":", 1)
+    if int(hour_text) > 23 or int(minute_text) > 59:
+        raise ValueError("Jam kirim jadwal tidak valid")
+    if next_setting["groupId"] and not re.fullmatch(r"\d+(?:-\d+)?@g\.us", next_setting["groupId"]):
+        raise ValueError("Group ID WhatsApp tidak valid")
+    if next_setting["enabled"] and not next_setting["groupId"]:
+        raise ValueError("Pilih group target sebelum mengaktifkan WhatsApp Bot")
+    save_app_setting_value("whatsapp_bot", next_setting)
+    write_whatsapp_bot_runtime_config(next_setting)
+    return next_setting
+
+
+def reset_whatsapp_bot_token() -> dict:
+    setting = get_whatsapp_bot_setting()
+    setting["botToken"] = secrets.token_urlsafe(32)
+    save_app_setting_value("whatsapp_bot", setting)
+    write_whatsapp_bot_runtime_config(setting)
+    return setting
+
+
+def verify_whatsapp_bot_token(headers) -> bool:
+    expected_token = str(get_whatsapp_bot_setting().get("botToken", "") or "").strip()
+    supplied_token = str(headers.get("X-PLIRM34-Bot-Token", "") or "").strip()
+    return bool(expected_token and supplied_token and hmac.compare_digest(expected_token, supplied_token))
+
+
+def get_whatsapp_bot_actor_user_id() -> int:
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1"
+        ).fetchone()
+    return int(row["id"]) if row else 1
+
+
+def list_open_negatif_items_for_bot(limit: int = 20) -> list[dict]:
+    safe_limit = max(1, min(int(limit or 20), 50))
+    items = [
+        item for item in list_items("negatif-list")
+        if str(item.get("workStatus", "") or "").strip().lower() == "open"
+    ]
+    items.sort(key=lambda item: str(item.get("foundDate", "") or ""), reverse=True)
+    return [
+        {
+            "id": item.get("id", ""),
+            "equipment": item.get("equipment", ""),
+            "description": item.get("damageDescription", ""),
+            "foundDate": item.get("foundDate", ""),
+            "pendingMark": item.get("pendingMark", ""),
+            "area": item.get("area", ""),
+        }
+        for item in items[:safe_limit]
+    ]
+
+
+def create_negatif_item_from_bot(payload: dict) -> dict:
+    equipment = str(payload.get("equipment", "") or "").strip().upper()
+    description = str(payload.get("description", payload.get("damageDescription", "")) or "").strip()
+    if not equipment or not description:
+        raise ValueError("Equipment dan deskripsi wajib diisi")
+    digest = hashlib.sha1(f"{equipment}|{description}|{utc_now().isoformat()}".encode("utf-8")).hexdigest()[:10]
+    item = {
+        "id": f"wa-negatif-{utc_now().strftime('%Y%m%d%H%M%S')}-{digest}",
+        "equipment": equipment,
+        "damageDescription": description[:600],
+        "followUpPlan": str(payload.get("followUpPlan", "") or "Tindak lanjut dari input WhatsApp").strip()[:600],
+        "foundDate": str(payload.get("foundDate", "") or jakarta_now().date().isoformat()).strip(),
+        "pendingMark": str(payload.get("pendingMark", "") or "Input WhatsApp").strip()[:120],
+        "workStatus": "Open",
+        "category": str(payload.get("category", "") or "WhatsApp").strip()[:120],
+        "area": str(payload.get("area", "") or "-").strip()[:120],
+    }
+    user_id = get_whatsapp_bot_actor_user_id()
+    saved_item = create_or_update_item("negatif-list", item, user_id)
+    log_activity(
+        actor_user_id=user_id,
+        actor_username="whatsapp-bot",
+        actor_role="bot",
+        action="create",
+        resource="negatif-list",
+        target_id=str(saved_item.get("id", "")),
+        target_label=str(saved_item.get("equipment", "")),
+        detail={"source": "whatsapp", "description": description[:140]},
+    )
+    return saved_item
+
+
+def close_negatif_item_from_bot(payload: dict) -> dict:
+    equipment_query = str(payload.get("equipment", "") or "").strip().upper()
+    note = str(payload.get("note", "") or "Closed dari WhatsApp").strip()[:240]
+    if not equipment_query:
+        raise ValueError("Equipment wajib diisi")
+
+    open_items = [
+        item for item in list_items("negatif-list")
+        if str(item.get("workStatus", "") or "").strip().lower() == "open"
+    ]
+    exact_matches = [
+        item for item in open_items
+        if str(item.get("equipment", "") or "").strip().upper() == equipment_query
+    ]
+    partial_matches = [
+        item for item in open_items
+        if equipment_query in str(item.get("equipment", "") or "").strip().upper()
+    ]
+    candidates = exact_matches or partial_matches
+    if not candidates:
+        raise ValueError(f"Tidak ada Negatif List Open untuk equipment {equipment_query}")
+    candidates.sort(key=lambda item: str(item.get("foundDate", "") or ""), reverse=True)
+    item = dict(candidates[0])
+    item["workStatus"] = "Close"
+    item["pendingMark"] = note or item.get("pendingMark", "")
+    user_id = get_whatsapp_bot_actor_user_id()
+    saved_item = create_or_update_item("negatif-list", item, user_id)
+    log_activity(
+        actor_user_id=user_id,
+        actor_username="whatsapp-bot",
+        actor_role="bot",
+        action="close",
+        resource="negatif-list",
+        target_id=str(saved_item.get("id", "")),
+        target_label=str(saved_item.get("equipment", "")),
+        detail={"source": "whatsapp", "note": note},
+    )
+    return saved_item
+
+
+def get_today_inspection_schedule_for_bot() -> list[dict]:
+    schedule = build_calendar_schedule()
+    return [
+        {
+            "summary": item.get("summary", "Jadwal inspeksi"),
+            "date": item.get("date", ""),
+            "timeLabel": item.get("timeLabel", ""),
+            "location": item.get("location", ""),
+            "description": item.get("description", ""),
+        }
+        for item in (schedule.get("today", []) if isinstance(schedule, dict) else [])
+    ]
+
+
+def save_inspection_schedule_realization(payload: dict, user: dict) -> dict:
+    schedule_key = str(payload.get("scheduleKey", "") or "").strip()
+    planned_date = normalize_schedule_date(str(payload.get("plannedDate", "") or ""), "Tanggal rencana")
+    planned_title = str(payload.get("plannedTitle", "") or "").strip()
+    planned_time_label = str(payload.get("plannedTimeLabel", "") or "").strip()
+    realized_date = normalize_schedule_date(str(payload.get("realizedDate", "") or ""), "Tanggal realisasi")
+    note = str(payload.get("note", "") or "").strip()[:1200]
+
+    if not schedule_key:
+        raise ValueError("Schedule key wajib ada")
+    if not planned_title:
+        raise ValueError("Judul jadwal wajib ada")
+
+    now_iso = utc_now().isoformat()
+    user_id = int(user["id"])
+    username = str(user["username"])
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO inspection_schedule_realizations (
+                schedule_key, planned_date, planned_title, planned_time_label,
+                realized_date, note, created_by_user_id, updated_by_user_id,
+                created_by_username, updated_by_username, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(schedule_key) DO UPDATE SET
+                planned_date = excluded.planned_date,
+                planned_title = excluded.planned_title,
+                planned_time_label = excluded.planned_time_label,
+                realized_date = excluded.realized_date,
+                note = excluded.note,
+                updated_by_user_id = excluded.updated_by_user_id,
+                updated_by_username = excluded.updated_by_username,
+                updated_at = excluded.updated_at
+            """,
+            (
+                schedule_key,
+                planned_date,
+                planned_title,
+                planned_time_label,
+                realized_date,
+                note,
+                user_id,
+                user_id,
+                username,
+                username,
+                now_iso,
+                now_iso,
+            ),
+        )
+        checkpoint_connection(connection)
+        row = connection.execute(
+            """
+            SELECT schedule_key, planned_date, planned_title, planned_time_label,
+                   realized_date, note, created_by_user_id, updated_by_user_id,
+                   created_by_username, updated_by_username, created_at, updated_at
+            FROM inspection_schedule_realizations
+            WHERE schedule_key = ?
+            """,
+            (schedule_key,),
+        ).fetchone()
+    if not row:
+        raise ValueError("Gagal menyimpan realisasi jadwal")
+    return deserialize_inspection_schedule_realization(row)
 
 
 def count_admin_users() -> int:
@@ -1335,7 +1972,7 @@ def build_service_list_payload(payload: dict) -> dict:
 def get_state_snapshot(resource_keys: list[str] | None = None) -> dict:
     selected_keys = [
         resource_key
-        for resource_key in (resource_keys or list(STATE_KEYS.keys()))
+        for resource_key in (list(STATE_KEYS.keys()) if resource_keys is None else resource_keys)
         if resource_key in STATE_KEYS
     ]
     snapshot: dict[str, list[dict]] = {}
@@ -1369,11 +2006,30 @@ def build_bootstrap_payload(user: dict, scope: str = "full") -> dict:
     return {
         "user": user,
         "data": get_state_snapshot(resource_keys),
-        "calendar": build_calendar_schedule(),
+        "calendar": build_mobile_calendar_schedule() if resolved_scope == "meta" else build_calendar_schedule(),
         "users": list_users() if user["role"] == "admin" else [],
         "resourceCounts": get_resource_counts(),
         "loadedResources": resource_keys,
         "scope": resolved_scope,
+    }
+
+
+def build_native_legacy_bootstrap_payload(user: dict) -> dict:
+    return {
+        "user": user,
+        "data": {
+            "negatif_list": list_negatif_list_items_filtered(status="Open", limit=50, compact=True),
+            "sparepart": [],
+            "service": list_service_items_compact(limit=500),
+            "bom": [],
+            "bom_motor": [],
+            "spb": list_items("spb")[:200],
+        },
+        "calendar": build_mobile_calendar_schedule(),
+        "users": list_users() if user["role"] == "admin" else [],
+        "resourceCounts": get_resource_counts(),
+        "loadedResources": ["negatif-list", "service", "spb"],
+        "scope": "native-legacy",
     }
 
 
@@ -1397,33 +2053,95 @@ def save_state(resource_key: str, payload: list, user_id: int | None = None) -> 
         checkpoint_connection(connection)
 
 
-def get_item_by_id(resource_key: str, item_id: str) -> dict | None:
+def get_item_by_id_from_connection(connection: sqlite3.Connection, resource_key: str, item_id: str) -> dict | None:
     resource_config = RESOURCE_TABLES[resource_key]
-    with get_connection() as connection:
-        row = connection.execute(
-            f"SELECT * FROM {resource_config['table']} WHERE id = ?",
-            (item_id,),
-        ).fetchone()
+    row = connection.execute(
+        f"SELECT * FROM {resource_config['table']} WHERE id = ?",
+        (item_id,),
+    ).fetchone()
     return deserialize_resource_item(resource_key, row) if row else None
+
+
+def get_item_by_id(resource_key: str, item_id: str) -> dict | None:
+    with get_connection() as connection:
+        return get_item_by_id_from_connection(connection, resource_key, item_id)
 
 
 def list_items(resource_key: str) -> list[dict]:
     return load_resource_items(resource_key, include_media=(resource_key != "service"))
 
 
-def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
+def list_service_items_compact(limit: int | None = None) -> list[dict]:
+    sql = """
+        SELECT * FROM service_items
+        ORDER BY COALESCE(json_extract(payload_json, '$.inspectionDate'), updated_at) DESC,
+                 updated_at DESC,
+                 rowid DESC
+    """
+    params: list[object] = []
+    if limit is not None and limit > 0:
+        sql += " LIMIT ?"
+        params.append(int(limit))
+    with get_connection() as connection:
+        rows = connection.execute(sql, params).fetchall()
+    return [deserialize_resource_item("service", row, include_media=False) for row in rows]
+
+
+def list_negatif_list_items_filtered(status: str = "", limit: int | None = None, *, compact: bool = False) -> list[dict]:
+    sql = "SELECT * FROM negatif_list_items"
+    params: list[object] = []
+    normalized_status = str(status or "").strip().lower()
+    if normalized_status:
+        sql += " WHERE lower(work_status) = ?"
+        params.append(normalized_status)
+    sql += " ORDER BY found_date DESC, rowid DESC"
+    if limit is not None and limit > 0:
+        sql += " LIMIT ?"
+        params.append(int(limit))
+    with get_connection() as connection:
+        rows = connection.execute(sql, params).fetchall()
+    items = [deserialize_resource_item("negatif-list", row, include_media=False) for row in rows]
+    if not compact:
+        return items
+
+    def trim_text(value: object, max_length: int = 260) -> str:
+        text = str(value or "").strip()
+        if len(text) <= max_length:
+            return text
+        return text[: max_length - 3].rstrip() + "..."
+
+    compacted: list[dict] = []
+    for item in items:
+        compacted.append({
+            **item,
+            "equipment": trim_text(item.get("equipment"), 80),
+            "damageDescription": trim_text(item.get("damageDescription"), 260),
+            "followUpPlan": trim_text(item.get("followUpPlan"), 260),
+            "pendingMark": trim_text(item.get("pendingMark"), 120),
+            "workStatus": trim_text(item.get("workStatus"), 40),
+            "category": trim_text(item.get("category"), 80),
+            "area": trim_text(item.get("area"), 80),
+            "compact": True,
+        })
+    return compacted
+
+
+
+
+def create_or_update_item_in_connection(connection: sqlite3.Connection, resource_key: str, item: dict, user_id: int) -> dict:
     if not item.get("id"):
         raise ValueError("ID item wajib ada")
-
-    with get_connection() as connection:
-        upsert_resource_item(connection, resource_key, item, user_id)
-        refresh_snapshot(connection, resource_key)
-        checkpoint_connection(connection)
-
-    saved_item = get_item_by_id(resource_key, str(item["id"]))
+    upsert_resource_item(connection, resource_key, item, user_id)
+    refresh_snapshot(connection, resource_key)
+    saved_item = get_item_by_id_from_connection(connection, resource_key, str(item["id"]))
     if not saved_item:
         raise ValueError("Gagal menyimpan item")
     return saved_item
+
+
+def create_or_update_item(resource_key: str, item: dict, user_id: int) -> dict:
+    with get_connection() as connection:
+        return create_or_update_item_in_connection(connection, resource_key, item, user_id)
 
 
 def upsert_resource_item(connection: sqlite3.Connection, resource_key: str, item: dict, user_id: int) -> None:
@@ -2823,6 +3541,999 @@ def compute_carbon_brush_stats(measurements: dict, equipment_name: str, explicit
     return stats
 
 
+def normalize_carbon_brush_equipment_for_alert(value: str) -> str:
+    text = str(value or "").strip().upper()
+    text = re.sub(r"\([^)]*\)", "", text)
+    return re.sub(r"\s+", "", text)
+
+
+def parse_carbon_brush_inspection_date(value: object):
+    text = str(value or "").strip()
+    if not text:
+        return None
+    normalized = text.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            parsed = datetime.fromisoformat(text[:10])
+        except ValueError:
+            return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(JAKARTA_TIMEZONE)
+    return parsed.date()
+
+
+def normalize_carbon_brush_replaced_points(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    valid_points = set(CARBON_BRUSH_MEASUREMENT_KEYS)
+    return [
+        str(point or "").strip()
+        for point in value
+        if str(point or "").strip() in valid_points
+    ]
+
+
+def get_carbon_brush_stock_key(sap_no: str, brush_name: str) -> str:
+    normalized_sap = str(sap_no or "").strip().upper()
+    normalized_name = re.sub(r"\s+", " ", str(brush_name or "").strip().upper())
+    return f"{normalized_sap}|{normalized_name}"
+
+
+def get_carbon_brush_type_reference_groups() -> list[dict]:
+    grouped: dict[str, dict] = {}
+    for reference in CARBON_BRUSH_TYPE_REFERENCES:
+        sap_no = str(reference.get("sapNo", "") or "").strip().upper()
+        brush_name = str(reference.get("name", "") or "").strip()
+        if not sap_no or not brush_name:
+            continue
+        stock_key = get_carbon_brush_stock_key(sap_no, brush_name)
+        if stock_key not in grouped:
+            grouped[stock_key] = {
+                "stockKey": stock_key,
+                "sapNo": sap_no,
+                "brushName": brush_name,
+                "uses": [],
+            }
+        use_label = str(reference.get("use", "") or "").strip()
+        if use_label and use_label not in grouped[stock_key]["uses"]:
+            grouped[stock_key]["uses"].append(use_label)
+    return list(grouped.values())
+
+
+def get_carbon_brush_equipment_match_keys(value: str) -> list[str]:
+    normalized = normalize_carbon_brush_equipment_for_alert(value)
+    if not normalized:
+        return []
+    keys = {normalized}
+    match = re.search(r"\d{3}[A-Z]+\d+(?:M\d+)?", normalized)
+    if match:
+        equipment_code = match.group(0)
+        keys.add(equipment_code)
+        base_match = re.search(r"\d{3}[A-Z]+\d+", equipment_code)
+        if base_match:
+            keys.add(base_match.group(0))
+    return [key for key in keys if key]
+
+
+def score_carbon_brush_type_reference_match(reference: dict, equipment_name: str) -> int:
+    normalized_equipment = normalize_carbon_brush_equipment_for_alert(equipment_name)
+    normalized_use = normalize_carbon_brush_equipment_for_alert(str(reference.get("use", "") or ""))
+    if not normalized_equipment or not normalized_use:
+        return 0
+    score = 0
+    if normalized_equipment == normalized_use:
+        score += 100
+    elif normalized_equipment.startswith(normalized_use) or normalized_use.startswith(normalized_equipment):
+        score += 60
+    equipment_suffix = normalized_equipment.split("-", 1)[1] if "-" in normalized_equipment else ""
+    use_suffix = normalized_use.split("-", 1)[1] if "-" in normalized_use else ""
+    if equipment_suffix and use_suffix:
+        score += 30 if equipment_suffix == use_suffix else -30
+    elif use_suffix:
+        score -= 5
+    return score
+
+
+def get_carbon_brush_type_matches_for_equipment(equipment_name: str) -> list[dict]:
+    equipment_keys = get_carbon_brush_equipment_match_keys(equipment_name)
+    if not equipment_keys:
+        return []
+    matches: list[dict] = []
+    seen: set[str] = set()
+    for reference in CARBON_BRUSH_TYPE_REFERENCES:
+        use_items = re.split(r",|\bdan\b", str(reference.get("use", "") or ""), flags=re.IGNORECASE)
+        normalized_use_items: list[str] = []
+        for use_item in use_items:
+            normalized_use_items.extend(get_carbon_brush_equipment_match_keys(use_item.split("-")[0]))
+        is_match = any(
+            use_key == equipment_key or use_key.startswith(equipment_key) or equipment_key.startswith(use_key)
+            for use_key in normalized_use_items
+            for equipment_key in equipment_keys
+        )
+        if not is_match:
+            continue
+        stock_key = get_carbon_brush_stock_key(str(reference.get("sapNo", "")), str(reference.get("name", "")))
+        if stock_key in seen:
+            continue
+        seen.add(stock_key)
+        matches.append({
+            "stockKey": stock_key,
+            "sapNo": str(reference.get("sapNo", "") or "").strip().upper(),
+            "brushName": str(reference.get("name", "") or "").strip(),
+            "use": str(reference.get("use", "") or "").strip(),
+            "_matchScore": score_carbon_brush_type_reference_match(reference, equipment_name),
+        })
+    matches.sort(key=lambda item: item.get("_matchScore", 0), reverse=True)
+    for item in matches:
+        item.pop("_matchScore", None)
+    return matches
+
+
+def get_carbon_brush_stock_reference_for_service(item: dict) -> dict | None:
+    payload = item.get("payload", {}) if isinstance(item.get("payload", {}), dict) else {}
+    stock_key = str(payload.get("carbonBrushStockKey", "") or "").strip()
+    if stock_key:
+        for reference in get_carbon_brush_type_reference_groups():
+            if reference["stockKey"] == stock_key:
+                return {
+                    "stockKey": reference["stockKey"],
+                    "sapNo": reference["sapNo"],
+                    "brushName": reference["brushName"],
+                    "use": ", ".join(reference["uses"]),
+                }
+    matches = get_carbon_brush_type_matches_for_equipment(str(item.get("equipmentName", "") or ""))
+    return matches[0] if matches else None
+
+
+def seed_carbon_brush_stock(connection: sqlite3.Connection) -> None:
+    for reference in get_carbon_brush_type_reference_groups():
+        connection.execute(
+            """
+            INSERT INTO carbon_brush_stock (stock_key, sap_no, brush_name, use_label, current_stock, updated_at)
+            VALUES (?, ?, ?, ?, 0, ?)
+            ON CONFLICT(stock_key) DO UPDATE SET
+                sap_no = excluded.sap_no,
+                brush_name = excluded.brush_name,
+                use_label = excluded.use_label
+            """,
+            (
+                reference["stockKey"],
+                reference["sapNo"],
+                reference["brushName"],
+                ", ".join(reference["uses"]),
+                utc_now().isoformat(),
+            ),
+        )
+
+
+def deserialize_carbon_brush_stock(row: sqlite3.Row) -> dict:
+    return {
+        "stockKey": row["stock_key"],
+        "sapNo": row["sap_no"],
+        "brushName": row["brush_name"],
+        "useLabel": row["use_label"],
+        "currentStock": int(row["current_stock"] or 0),
+        "updatedAt": row["updated_at"],
+    }
+
+
+def deserialize_carbon_brush_stock_log(row: sqlite3.Row) -> dict:
+    try:
+        point_keys = json.loads(row["point_keys_json"] or "[]")
+    except json.JSONDecodeError:
+        point_keys = []
+    return {
+        "id": row["id"],
+        "stockKey": row["stock_key"],
+        "sapNo": row["sap_no"],
+        "brushName": row["brush_name"],
+        "movementType": row["movement_type"],
+        "quantityDelta": int(row["quantity_delta"] or 0),
+        "stockBefore": int(row["stock_before"] or 0),
+        "stockAfter": int(row["stock_after"] or 0),
+        "source": row["source"],
+        "serviceId": row["service_id"],
+        "equipmentName": row["equipment_name"],
+        "pointKeys": point_keys if isinstance(point_keys, list) else [],
+        "note": row["note"],
+        "actorUsername": row["actor_username"],
+        "createdAt": row["created_at"],
+    }
+
+
+def list_carbon_brush_stock_items() -> list[dict]:
+    with get_connection() as connection:
+        seed_carbon_brush_stock(connection)
+        rows = connection.execute(
+            """
+            SELECT stock_key, sap_no, brush_name, use_label, current_stock, updated_at
+            FROM carbon_brush_stock
+            ORDER BY sap_no, brush_name
+            """
+        ).fetchall()
+    return [deserialize_carbon_brush_stock(row) for row in rows]
+
+
+def list_carbon_brush_stock_logs(limit: int = 50) -> list[dict]:
+    safe_limit = min(max(int(limit or 50), 1), 200)
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, stock_key, sap_no, brush_name, movement_type, quantity_delta,
+                   stock_before, stock_after, source, service_id, equipment_name,
+                   point_keys_json, note, actor_user_id, actor_username, created_at
+            FROM carbon_brush_stock_logs
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (safe_limit,),
+        ).fetchall()
+    return [deserialize_carbon_brush_stock_log(row) for row in rows]
+
+
+def apply_carbon_brush_stock_movement(
+    connection: sqlite3.Connection,
+    *,
+    stock_key: str,
+    quantity_delta: int,
+    movement_type: str,
+    source: str,
+    service_id: str = "",
+    equipment_name: str = "",
+    point_keys: list[str] | None = None,
+    note: str = "",
+    actor_user_id: int | None = None,
+    actor_username: str = "",
+) -> dict:
+    if quantity_delta == 0:
+        raise ValueError("Qty mutasi tidak boleh 0")
+    reference = next((item for item in get_carbon_brush_type_reference_groups() if item["stockKey"] == stock_key), None)
+    if reference is None:
+        row = connection.execute(
+            "SELECT stock_key, sap_no, brush_name, use_label FROM carbon_brush_stock WHERE stock_key = ?",
+            (stock_key,),
+        ).fetchone()
+        if not row:
+            raise ValueError("Type Carbon Brush tidak ditemukan")
+        reference = {
+            "stockKey": row["stock_key"],
+            "sapNo": row["sap_no"],
+            "brushName": row["brush_name"],
+            "uses": [row["use_label"]],
+        }
+
+    seed_carbon_brush_stock(connection)
+    row = connection.execute(
+        "SELECT current_stock FROM carbon_brush_stock WHERE stock_key = ?",
+        (stock_key,),
+    ).fetchone()
+    stock_before = int(row["current_stock"] or 0) if row else 0
+    stock_after = stock_before + int(quantity_delta)
+    now = utc_now().isoformat()
+    connection.execute(
+        """
+        INSERT INTO carbon_brush_stock (stock_key, sap_no, brush_name, use_label, current_stock, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(stock_key) DO UPDATE SET
+            sap_no = excluded.sap_no,
+            brush_name = excluded.brush_name,
+            use_label = excluded.use_label,
+            current_stock = excluded.current_stock,
+            updated_at = excluded.updated_at
+        """,
+        (
+            stock_key,
+            reference["sapNo"],
+            reference["brushName"],
+            ", ".join(reference.get("uses", [])),
+            stock_after,
+            now,
+        ),
+    )
+    log_id = f"cb-stock-{utc_now().strftime('%Y%m%d%H%M%S%f')}-{secrets.token_hex(2)}"
+    connection.execute(
+        """
+        INSERT INTO carbon_brush_stock_logs (
+            id, stock_key, sap_no, brush_name, movement_type, quantity_delta,
+            stock_before, stock_after, source, service_id, equipment_name,
+            point_keys_json, note, actor_user_id, actor_username, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            log_id,
+            stock_key,
+            reference["sapNo"],
+            reference["brushName"],
+            movement_type,
+            int(quantity_delta),
+            stock_before,
+            stock_after,
+            source,
+            service_id,
+            equipment_name,
+            json.dumps(point_keys or [], ensure_ascii=False),
+            note,
+            actor_user_id,
+            actor_username,
+            now,
+        ),
+    )
+    return {
+        "stockKey": stock_key,
+        "quantityDelta": int(quantity_delta),
+        "stockBefore": stock_before,
+        "stockAfter": stock_after,
+        "logId": log_id,
+    }
+
+
+def save_manual_carbon_brush_stock_movement(payload: dict, user: dict) -> dict:
+    stock_key = str(payload.get("stockKey", "") or "").strip()
+    movement_type = str(payload.get("movementType", "in") or "in").strip().lower()
+    try:
+        quantity = int(float(str(payload.get("quantity", "") or "").replace(",", ".")))
+    except ValueError:
+        raise ValueError("Qty stock wajib angka")
+    if movement_type not in {"in", "adjust"}:
+        raise ValueError("Mode stock tidak valid")
+    if quantity < 0:
+        raise ValueError("Qty stock tidak boleh negatif")
+    if not stock_key:
+        raise ValueError("Type Carbon Brush wajib dipilih")
+
+    with get_connection() as connection:
+        seed_carbon_brush_stock(connection)
+        row = connection.execute(
+            "SELECT current_stock FROM carbon_brush_stock WHERE stock_key = ?",
+            (stock_key,),
+        ).fetchone()
+        stock_before = int(row["current_stock"] or 0) if row else 0
+        quantity_delta = quantity - stock_before if movement_type == "adjust" else quantity
+        if movement_type == "adjust" and quantity_delta == 0:
+            return {
+                "stockKey": stock_key,
+                "quantityDelta": 0,
+                "stockBefore": stock_before,
+                "stockAfter": stock_before,
+                "logId": "",
+                "noOp": True,
+            }
+        movement = apply_carbon_brush_stock_movement(
+            connection,
+            stock_key=stock_key,
+            quantity_delta=quantity_delta,
+            movement_type=movement_type,
+            source="manual",
+            note=str(payload.get("note", "") or "").strip()[:500],
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+        )
+        checkpoint_connection(connection)
+    return movement
+
+
+def apply_carbon_brush_stock_usage_from_service(
+    existing_item: dict | None,
+    saved_item: dict,
+    user: dict,
+    *,
+    connection: sqlite3.Connection | None = None,
+) -> dict | None:
+    if str(saved_item.get("formType", "")) != "service-motor-mv-carbon-brush":
+        return None
+    existing_payload = existing_item.get("payload", {}) if isinstance(existing_item, dict) and isinstance(existing_item.get("payload", {}), dict) else {}
+    saved_payload = saved_item.get("payload", {}) if isinstance(saved_item.get("payload", {}), dict) else {}
+    previous_points = set(normalize_carbon_brush_replaced_points(existing_payload.get("replacedPoints")))
+    next_points = set(normalize_carbon_brush_replaced_points(saved_payload.get("replacedPoints")))
+    added_points = sorted(next_points - previous_points)
+    removed_points = sorted(previous_points - next_points)
+    if not added_points and not removed_points:
+        return None
+
+    reference = get_carbon_brush_stock_reference_for_service(saved_item)
+    if reference is None:
+        raise ValueError("Type Carbon Brush untuk equipment ini belum terdaftar, stok tidak bisa dimutasi otomatis")
+
+    def apply_movements(active_connection: sqlite3.Connection) -> list[dict]:
+        movements: list[dict] = []
+        seed_carbon_brush_stock(active_connection)
+        if added_points:
+            movements.append(apply_carbon_brush_stock_movement(
+                active_connection,
+                stock_key=reference["stockKey"],
+                quantity_delta=-len(added_points),
+                movement_type="out",
+                source="service",
+                service_id=str(saved_item.get("id", "")),
+                equipment_name=str(saved_item.get("equipmentName", "")),
+                point_keys=added_points,
+                note="Auto pengurangan dari titik Carbon Brush yang ditandai diganti",
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+            ))
+        if removed_points:
+            movements.append(apply_carbon_brush_stock_movement(
+                active_connection,
+                stock_key=reference["stockKey"],
+                quantity_delta=len(removed_points),
+                movement_type="return",
+                source="service",
+                service_id=str(saved_item.get("id", "")),
+                equipment_name=str(saved_item.get("equipmentName", "")),
+                point_keys=removed_points,
+                note="Auto pengembalian karena tanda titik diganti dibatalkan",
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+            ))
+        return movements
+
+    if connection is None:
+        with get_connection() as owned_connection:
+            movements = apply_movements(owned_connection)
+    else:
+        movements = apply_movements(connection)
+    return {
+        "stockKey": reference["stockKey"],
+        "sapNo": reference["sapNo"],
+        "brushName": reference["brushName"],
+        "addedPoints": added_points,
+        "removedPoints": removed_points,
+        "movements": movements,
+    }
+
+
+def create_or_update_service_item_atomic(item: dict, user: dict) -> tuple[dict | None, dict, dict | None]:
+    if not item.get("id"):
+        raise ValueError("ID item wajib ada")
+    with get_connection() as connection:
+        existing_item = get_item_by_id_from_connection(connection, "service", str(item["id"]))
+        saved_item = create_or_update_item_in_connection(connection, "service", item, int(user["id"]))
+        stock_result = apply_carbon_brush_stock_usage_from_service(
+            existing_item,
+            saved_item,
+            user,
+            connection=connection,
+        )
+    return existing_item, saved_item, stock_result
+
+
+def get_carbon_brush_alert_settings() -> dict:
+    settings = get_app_setting_value("carbon_brush_thresholds", DEFAULT_APP_SETTINGS["carbon_brush_thresholds"])
+    alerts = settings.get("alerts", {}) if isinstance(settings, dict) else {}
+
+    def read_days(key: str, default_value: int) -> int:
+        try:
+            return max(0, int(float(alerts.get(key, default_value))))
+        except (TypeError, ValueError):
+            return default_value
+
+    return {
+        "prepareDays": read_days("prepareDays", 30),
+        "urgentDays": read_days("urgentDays", 14),
+        "criticalDays": read_days("criticalDays", 7),
+    }
+
+
+def get_median_number(values: list[float]) -> float | None:
+    numbers = sorted(float(value) for value in values if isinstance(value, (int, float)))
+    if not numbers:
+        return None
+    middle_index = len(numbers) // 2
+    if len(numbers) % 2 == 1:
+        return numbers[middle_index]
+    return (numbers[middle_index - 1] + numbers[middle_index]) / 2
+
+
+def classify_carbon_brush_prediction_quality(recent_intervals: list[dict]) -> dict:
+    if len(recent_intervals) < 3:
+        return {"key": "insufficient", "label": "Belum cukup histori"}
+    gap_days = [
+        float(interval.get("gapDays", 0))
+        for interval in recent_intervals
+        if float(interval.get("gapDays", 0) or 0) > 0
+    ]
+    wear_rates = [
+        float(interval.get("wearRatePerDay", 0))
+        for interval in recent_intervals
+        if float(interval.get("wearRatePerDay", 0) or 0) > 0
+    ]
+    if len(gap_days) < 3 or len(wear_rates) < 3:
+        return {"key": "insufficient", "label": "Belum cukup histori"}
+    gap_spread = max(gap_days) - min(gap_days)
+    wear_ratio = max(wear_rates) / min(wear_rates) if min(wear_rates) > 0 else float("inf")
+    if max(gap_days) > 75 or gap_spread > 45 or wear_ratio > 3.5:
+        return {"key": "low", "label": "Prediksi lemah"}
+    if max(gap_days) > 45 or gap_spread > 28 or wear_ratio > 2.25:
+        return {"key": "medium", "label": "Prediksi cukup"}
+    return {"key": "high", "label": "Prediksi stabil"}
+
+
+def classify_carbon_brush_countdown_status(countdown_days: int | None, settings: dict) -> dict:
+    if countdown_days is None:
+        return {"key": "monitor", "label": "Belum cukup histori", "severity": 0}
+    if countdown_days <= int(settings.get("criticalDays", 7)):
+        return {"key": "critical", "label": "Critical", "severity": 3}
+    if countdown_days <= int(settings.get("urgentDays", 14)):
+        return {"key": "urgent", "label": "Urgent", "severity": 2}
+    if countdown_days <= int(settings.get("prepareDays", 30)):
+        return {"key": "prepare", "label": "Prepare", "severity": 1}
+    return {"key": "monitor", "label": "Monitor", "severity": 0}
+
+
+def classify_carbon_brush_actual_status(current_value: float | None, threshold_low: float, threshold_high: float) -> dict:
+    if current_value is None:
+        return {
+            "key": "monitor",
+            "label": "Belum ada angka",
+            "severity": 0,
+            "source": "actual",
+            "actionLabel": "Lengkapi pengukuran aktual titik ini",
+        }
+    if current_value < threshold_low:
+        return {
+            "key": "critical",
+            "label": "Melewati limit",
+            "severity": 3,
+            "source": "actual",
+            "actionLabel": "Titik ini sudah prioritas aktual untuk rawmill off",
+        }
+    if current_value < threshold_high:
+        return {
+            "key": "prepare",
+            "label": "Dekat limit",
+            "severity": 2,
+            "source": "actual",
+            "actionLabel": "Persiapkan sparepart berdasarkan titik yang masuk range planning",
+        }
+    return {
+        "key": "monitor",
+        "label": "Masih aman",
+        "severity": 0,
+        "source": "actual",
+        "actionLabel": "Tetap monitor sambil lihat arah countdown",
+    }
+
+
+def get_carbon_brush_point_history(service_items: list[dict], item: dict, point_key: str) -> list[dict]:
+    target_equipment_key = normalize_carbon_brush_equipment_for_alert(str(item.get("equipmentName", "")))
+    history: list[dict] = []
+    for entry in service_items:
+        if str(entry.get("formType", "")) != "service-motor-mv-carbon-brush":
+            continue
+        if normalize_carbon_brush_equipment_for_alert(str(entry.get("equipmentName", ""))) != target_equipment_key:
+            continue
+        payload = entry.get("payload", {}) if isinstance(entry.get("payload", {}), dict) else {}
+        inspection_date = parse_carbon_brush_inspection_date(payload.get("inspectionDate", ""))
+        if inspection_date is None:
+            continue
+        measurements = payload.get("measurements", {}) if isinstance(payload.get("measurements", {}), dict) else {}
+        raw_value = str(measurements.get(point_key, "") or "").strip()
+        numeric_value = parse_carbon_brush_numeric_value(raw_value)
+        history.append({
+            "id": str(entry.get("id", "")),
+            "inspectionDate": inspection_date,
+            "rawValue": raw_value,
+            "numericValue": numeric_value,
+            "replacedConfirmed": point_key in normalize_carbon_brush_replaced_points(payload.get("replacedPoints")),
+        })
+    return sorted(history, key=lambda history_item: history_item["inspectionDate"])
+
+
+def analyze_carbon_brush_point_for_bot(service_items: list[dict], item: dict, point_key: str, today_date) -> dict | None:
+    payload = item.get("payload", {}) if isinstance(item.get("payload", {}), dict) else {}
+    measurements = payload.get("measurements", {}) if isinstance(payload.get("measurements", {}), dict) else {}
+    current_raw_value = str(measurements.get(point_key, "") or "").strip()
+    current_value = parse_carbon_brush_numeric_value(current_raw_value)
+    if current_value is None:
+        return None
+
+    replaced_points = normalize_carbon_brush_replaced_points(payload.get("replacedPoints"))
+    if point_key in replaced_points:
+        return None
+
+    item_date = parse_carbon_brush_inspection_date(payload.get("inspectionDate", ""))
+    history = [
+        entry
+        for entry in get_carbon_brush_point_history(service_items, item, point_key)
+        if entry["numericValue"] is not None and (item_date is None or entry["inspectionDate"] <= item_date)
+    ]
+    if len(history) < 4:
+        return None
+
+    thresholds = get_carbon_brush_thresholds(str(item.get("equipmentName", "")), str(payload.get("plant", "")))
+    current_cycle_history = [history[0]]
+    current_cycle_intervals: list[dict] = []
+    for index in range(1, len(history)):
+        previous = history[index - 1]
+        current = history[index]
+        value_increase = float(current["numericValue"]) - float(previous["numericValue"])
+        if current.get("replacedConfirmed") or value_increase >= 3:
+            current_cycle_history = [current]
+            current_cycle_intervals = []
+            continue
+
+        gap_days = (current["inspectionDate"] - previous["inspectionDate"]).days
+        wear_mm = float(previous["numericValue"]) - float(current["numericValue"])
+        current_cycle_history.append(current)
+        if gap_days <= 0 or wear_mm <= 0:
+            continue
+        current_cycle_intervals.append({
+            "gapDays": gap_days,
+            "wearMm": wear_mm,
+            "wearRatePerDay": wear_mm / gap_days,
+        })
+
+    recent_intervals = current_cycle_intervals[-3:]
+    if len(recent_intervals) < 3:
+        return None
+
+    median_wear_rate = get_median_number([interval["wearRatePerDay"] for interval in recent_intervals])
+    if median_wear_rate is None or median_wear_rate <= 0:
+        return None
+
+    latest_history = history[-1]
+    latest_value = float(latest_history["numericValue"])
+    remaining_mm = latest_value - float(thresholds["low"])
+    baseline_countdown_days = 0 if remaining_mm <= 0 else int((remaining_mm / median_wear_rate) + 0.999999)
+    days_since_latest_inspection = max(0, (today_date - latest_history["inspectionDate"]).days)
+    countdown_days = max(0, baseline_countdown_days - days_since_latest_inspection)
+    estimated_date = today_date + timedelta(days=countdown_days)
+
+    return {
+        "pointKey": point_key,
+        "countdownDays": countdown_days,
+        "estimatedReplacementDate": estimated_date.isoformat(),
+        "lastInspectionDate": latest_history["inspectionDate"].isoformat(),
+        "lastMeasurementMm": round(latest_value, 2),
+        "remainingMm": round(remaining_mm, 2),
+        "thresholdLow": thresholds["low"],
+        "thresholdHigh": thresholds["high"],
+        "thresholdPlant": thresholds["plant"],
+        "medianWearRateMmPerDay": round(median_wear_rate, 4),
+        "daysSinceLatestInspection": days_since_latest_inspection,
+        "historyCount": len(current_cycle_history),
+        "intervalCount": len(current_cycle_intervals),
+        "predictionQuality": classify_carbon_brush_prediction_quality(recent_intervals),
+    }
+
+
+def get_carbon_brush_prediction_status(countdown_days: int | None, prediction_quality: dict, settings: dict) -> dict:
+    quality_key = str((prediction_quality or {}).get("key", "insufficient"))
+    if countdown_days is None or quality_key == "insufficient":
+        return {
+            "key": "monitor",
+            "label": "Belum cukup histori",
+            "severity": 0,
+            "source": "prediction",
+            "actionLabel": "Lengkapi histori titik",
+        }
+    status = classify_carbon_brush_countdown_status(countdown_days, settings)
+    status["source"] = "prediction"
+    if status.get("key") == "critical":
+        status["actionLabel"] = "Prioritaskan rawmill off terdekat"
+    elif status.get("key") == "urgent":
+        status["actionLabel"] = "Koordinasikan window off mulai sekarang"
+    elif status.get("key") == "prepare":
+        status["actionLabel"] = "Persiapkan sparepart berdasarkan titik yang masuk range planning"
+    else:
+        status["actionLabel"] = "Lanjutkan monitoring periodik"
+    return status
+
+
+def is_carbon_brush_prediction_usable(analysis: dict | None) -> bool:
+    if not analysis:
+        return False
+    quality_key = str((analysis.get("predictionQuality") or {}).get("key", "insufficient"))
+    return quality_key in {"high", "medium"}
+
+
+def get_carbon_brush_display_status(analysis: dict) -> dict:
+    actual_status = analysis.get("actualStatus") or {}
+    prediction_status = analysis.get("predictionStatus") or {}
+    actual_severity = int(actual_status.get("severity", 0) or 0)
+    prediction_severity = (
+        int(prediction_status.get("severity", 0) or 0)
+        if is_carbon_brush_prediction_usable(analysis)
+        else 0
+    )
+    if prediction_severity > actual_severity:
+        result = dict(prediction_status)
+        result["label"] = f"Prediksi {prediction_status.get('label', 'Monitor')}"
+        result["source"] = "prediction"
+        result["sourceLabel"] = "Prediksi"
+        return result
+    if actual_severity > 0:
+        result = dict(actual_status)
+        result["source"] = "actual"
+        result["sourceLabel"] = "Aktual"
+        return result
+    if prediction_severity > 0:
+        result = dict(prediction_status)
+        result["label"] = f"Prediksi {prediction_status.get('label', 'Monitor')}"
+        result["source"] = "prediction"
+        result["sourceLabel"] = "Prediksi"
+        return result
+    result = dict(actual_status)
+    result["source"] = "monitor"
+    result["sourceLabel"] = "Monitor"
+    return result
+
+
+def get_carbon_brush_threshold_legend(thresholds: dict) -> str:
+    low = thresholds.get("low", 0)
+    high = thresholds.get("high", 0)
+    high_label = f"{float(high) - 0.01:.2f}" if isinstance(high, (int, float)) else str(high)
+    return f"{thresholds.get('plant', '-')}: Merah < {low} | Kuning {low}-{high_label} | Hijau >= {high}"
+
+
+def round_carbon_brush_number(value: float | None, digits: int = 2):
+    if value is None:
+        return None
+    return round(float(value), digits)
+
+
+def analyze_carbon_brush_point_unified(service_items: list[dict], item: dict, point_key: str, today_date, settings: dict) -> dict | None:
+    payload = item.get("payload", {}) if isinstance(item.get("payload", {}), dict) else {}
+    measurements = payload.get("measurements", {}) if isinstance(payload.get("measurements", {}), dict) else {}
+    current_raw_value = str(measurements.get(point_key, "") or "").strip()
+    current_value = parse_carbon_brush_numeric_value(current_raw_value)
+    if current_value is None:
+        return None
+
+    item_date = parse_carbon_brush_inspection_date(payload.get("inspectionDate", ""))
+    history = [
+        entry
+        for entry in get_carbon_brush_point_history(service_items, item, point_key)
+        if entry["numericValue"] is not None and (item_date is None or entry["inspectionDate"] <= item_date)
+    ]
+    thresholds = get_carbon_brush_thresholds(str(item.get("equipmentName", "")), str(payload.get("plant", "")))
+    latest_replaced_confirmed = point_key in normalize_carbon_brush_replaced_points(payload.get("replacedPoints"))
+    remaining_mm = float(current_value) - float(thresholds["low"])
+    actual_status = (
+        {
+            "key": "monitor",
+            "label": "Sudah ditandai diganti",
+            "severity": 0,
+            "source": "actual",
+            "actionLabel": "Alert titik ini direset dari inspeksi terbaru",
+        }
+        if latest_replaced_confirmed
+        else classify_carbon_brush_actual_status(float(current_value), float(thresholds["low"]), float(thresholds["high"]))
+    )
+
+    current_cycle_history = list(history[:1])
+    current_cycle_intervals: list[dict] = []
+    cycle_reset_events: list[dict] = []
+    for index in range(1, len(history)):
+        previous = history[index - 1]
+        current = history[index]
+        value_increase = float(current["numericValue"]) - float(previous["numericValue"])
+        if current.get("replacedConfirmed") or value_increase >= 3:
+            cycle_reset_events.append({
+                "date": current["inspectionDate"].isoformat(),
+                "pointKey": point_key,
+                "previousValue": round_carbon_brush_number(float(previous["numericValue"]), 2),
+                "currentValue": round_carbon_brush_number(float(current["numericValue"]), 2),
+                "increase": round_carbon_brush_number(value_increase, 2),
+                "confirmed": bool(current.get("replacedConfirmed")),
+                "reason": "Titik ditandai diganti" if current.get("replacedConfirmed") else "Indikasi nilai titik naik setelah penggantian",
+            })
+            current_cycle_history = [current]
+            current_cycle_intervals = []
+            continue
+
+        gap_days = (current["inspectionDate"] - previous["inspectionDate"]).days
+        wear_mm = float(previous["numericValue"]) - float(current["numericValue"])
+        current_cycle_history.append(current)
+        if gap_days <= 0 or wear_mm <= 0:
+            continue
+        current_cycle_intervals.append({
+            "gapDays": gap_days,
+            "wearMm": wear_mm,
+            "wearRatePerDay": wear_mm / gap_days,
+        })
+
+    recent_intervals = current_cycle_intervals[-3:]
+    median_wear_rate = get_median_number([interval["wearRatePerDay"] for interval in recent_intervals]) if len(recent_intervals) >= 3 else None
+    latest_history = history[-1] if history else None
+    latest_inspection_date = latest_history["inspectionDate"] if latest_history else item_date
+    days_since_latest_inspection = max(0, (today_date - latest_inspection_date).days) if latest_inspection_date else 0
+    prediction_quality = classify_carbon_brush_prediction_quality(recent_intervals)
+
+    baseline_countdown_days = None
+    if not latest_replaced_confirmed:
+        if remaining_mm <= 0:
+            baseline_countdown_days = 0
+        elif median_wear_rate is not None and median_wear_rate > 0:
+            baseline_countdown_days = int((remaining_mm / median_wear_rate) + 0.999999)
+
+    countdown_days = None if baseline_countdown_days is None else max(0, baseline_countdown_days - days_since_latest_inspection)
+    estimated_date = None if countdown_days is None else today_date + timedelta(days=countdown_days)
+    projected_remaining_mm = (
+        max(0, remaining_mm - (median_wear_rate * days_since_latest_inspection))
+        if median_wear_rate is not None and median_wear_rate > 0
+        else remaining_mm
+    )
+    prediction_status = get_carbon_brush_prediction_status(countdown_days, prediction_quality, settings)
+    display_status = get_carbon_brush_display_status({
+        "actualStatus": actual_status,
+        "predictionStatus": prediction_status,
+        "predictionQuality": prediction_quality,
+    })
+
+    return {
+        "pointKey": point_key,
+        "currentValue": round_carbon_brush_number(float(current_value), 2),
+        "lastMeasurementMm": round_carbon_brush_number(float(current_value), 2),
+        "rawValue": current_raw_value,
+        "remainingMm": round_carbon_brush_number(remaining_mm, 2),
+        "projectedRemainingMm": round_carbon_brush_number(projected_remaining_mm, 2),
+        "baselineCountdownDays": baseline_countdown_days,
+        "countdownDays": countdown_days,
+        "estimatedReplacementDate": estimated_date.isoformat() if estimated_date else None,
+        "lastInspectionDate": latest_inspection_date.isoformat() if latest_inspection_date else "",
+        "thresholdLow": thresholds["low"],
+        "thresholdHigh": thresholds["high"],
+        "thresholdPlant": thresholds["plant"],
+        "thresholdPlantLabel": thresholds["plant"],
+        "thresholdLegend": get_carbon_brush_threshold_legend(thresholds),
+        "medianWearRateMmPerDay": round_carbon_brush_number(median_wear_rate, 4),
+        "medianWearRate": round_carbon_brush_number(median_wear_rate, 4),
+        "daysSinceLatestInspection": days_since_latest_inspection,
+        "historyCount": len(current_cycle_history),
+        "intervalCount": len(current_cycle_intervals),
+        "hasEnoughHistory": len(recent_intervals) >= 3,
+        "latestReplacedConfirmed": latest_replaced_confirmed,
+        "actualStatus": actual_status,
+        "predictionStatus": prediction_status,
+        "predictionQuality": prediction_quality,
+        "displayStatus": display_status,
+        "cycleResetEvents": cycle_reset_events,
+    }
+
+
+def get_carbon_brush_latest_equipment_items(service_items: list[dict]) -> list[dict]:
+    latest_by_equipment: dict[str, dict] = {}
+    for item in service_items:
+        if str(item.get("formType", "")) != "service-motor-mv-carbon-brush":
+            continue
+        equipment_key = normalize_carbon_brush_equipment_for_alert(str(item.get("equipmentName", "")))
+        if not equipment_key:
+            continue
+        payload = item.get("payload", {}) if isinstance(item.get("payload", {}), dict) else {}
+        item_date = parse_carbon_brush_inspection_date(payload.get("inspectionDate", ""))
+        existing = latest_by_equipment.get(equipment_key)
+        existing_payload = existing.get("payload", {}) if isinstance(existing, dict) and isinstance(existing.get("payload", {}), dict) else {}
+        existing_date = parse_carbon_brush_inspection_date(existing_payload.get("inspectionDate", "")) if existing else None
+        if existing is None or (item_date is not None and (existing_date is None or item_date >= existing_date)):
+            latest_by_equipment[equipment_key] = item
+    return list(latest_by_equipment.values())
+
+
+def get_carbon_brush_point_priority(analysis: dict) -> tuple:
+    actual_severity = int((analysis.get("actualStatus") or {}).get("severity", 0) or 0)
+    prediction_severity = int((analysis.get("predictionStatus") or {}).get("severity", 0) or 0) if is_carbon_brush_prediction_usable(analysis) else 0
+    countdown_sort = analysis.get("countdownDays") if analysis.get("countdownDays") is not None else 999999
+    remaining_sort = analysis.get("remainingMm") if analysis.get("remainingMm") is not None else 999999
+    current_sort = analysis.get("currentValue") if analysis.get("currentValue") is not None else 999999
+    return (-actual_severity, -prediction_severity, int(countdown_sort), float(remaining_sort), float(current_sort), str(analysis.get("pointKey", "")))
+
+
+def is_carbon_brush_planning_point(analysis: dict, settings: dict) -> bool:
+    if not analysis or analysis.get("latestReplacedConfirmed") or analysis.get("currentValue") is None:
+        return False
+    if int((analysis.get("actualStatus") or {}).get("severity", 0) or 0) > 0:
+        return True
+    countdown_days = analysis.get("countdownDays")
+    return (
+        is_carbon_brush_prediction_usable(analysis)
+        and countdown_days is not None
+        and int(countdown_days) <= int(settings.get("prepareDays", 30))
+    )
+
+
+def should_notify_carbon_brush_point(analysis: dict, settings: dict) -> bool:
+    if not analysis or analysis.get("latestReplacedConfirmed"):
+        return False
+    actual_severity = int((analysis.get("actualStatus") or {}).get("severity", 0) or 0)
+    if actual_severity >= 3:
+        return True
+    countdown_days = analysis.get("countdownDays")
+    return (
+        is_carbon_brush_prediction_usable(analysis)
+        and countdown_days is not None
+        and int(countdown_days) <= int(settings.get("criticalDays", 7))
+    )
+
+
+def list_carbon_brush_alert_summary(limit: int = 10, bot_only: bool = False) -> list[dict]:
+    safe_limit = min(max(int(limit or 10), 1), 25)
+    service_items = list_items("service")
+    latest_equipment_items = get_carbon_brush_latest_equipment_items(service_items)
+    today_date = jakarta_now().date()
+    settings = get_carbon_brush_alert_settings()
+    alerts: list[dict] = []
+    for item in latest_equipment_items:
+        payload = item.get("payload", {}) if isinstance(item.get("payload", {}), dict) else {}
+        measurements = payload.get("measurements", {}) if isinstance(payload.get("measurements", {}), dict) else {}
+        measurement_keys = [key for key in CARBON_BRUSH_MEASUREMENT_KEYS if key in measurements]
+        extra_keys = sorted([str(key) for key in measurements.keys() if str(key) not in measurement_keys])
+        point_analyses = [
+            analysis
+            for point_key in measurement_keys + extra_keys
+            for analysis in [analyze_carbon_brush_point_unified(service_items, item, point_key, today_date, settings)]
+            if analysis is not None
+        ]
+        if not point_analyses:
+            continue
+        active_point_analyses = [analysis for analysis in point_analyses if not analysis.get("latestReplacedConfirmed")]
+        if not active_point_analyses:
+            continue
+        ranked_points = sorted(active_point_analyses, key=get_carbon_brush_point_priority)
+        worst_point = ranked_points[0]
+        planning_points = [
+            analysis
+            for analysis in ranked_points
+            if analysis.get("pointKey") != worst_point.get("pointKey") and is_carbon_brush_planning_point(analysis, settings)
+        ]
+        planning_points = sorted(planning_points, key=get_carbon_brush_point_priority)
+        should_notify_bot = any(should_notify_carbon_brush_point(analysis, settings) for analysis in point_analyses)
+        if bot_only and not should_notify_bot:
+            continue
+
+        status = worst_point.get("displayStatus") or get_carbon_brush_display_status(worst_point)
+        alert = {
+            "equipment": str(item.get("equipmentName", "") or "-"),
+            "equipmentKey": normalize_carbon_brush_equipment_for_alert(str(item.get("equipmentName", ""))),
+            "serviceId": str(item.get("id", "")),
+            "pointKey": worst_point["pointKey"],
+            "estimatedReplacementDate": worst_point.get("estimatedReplacementDate"),
+            "countdownDays": worst_point.get("countdownDays"),
+            "lastInspectionDate": worst_point.get("lastInspectionDate"),
+            "lastMeasurementMm": worst_point.get("lastMeasurementMm"),
+            "currentValue": worst_point.get("currentValue"),
+            "remainingMm": worst_point.get("remainingMm"),
+            "projectedRemainingMm": worst_point.get("projectedRemainingMm"),
+            "thresholdLow": worst_point.get("thresholdLow"),
+            "thresholdHigh": worst_point.get("thresholdHigh"),
+            "thresholdPlant": worst_point.get("thresholdPlant"),
+            "thresholdPlantLabel": worst_point.get("thresholdPlantLabel"),
+            "thresholdLegend": worst_point.get("thresholdLegend"),
+            "medianWearRateMmPerDay": worst_point.get("medianWearRateMmPerDay"),
+            "medianWearRate": worst_point.get("medianWearRate"),
+            "daysSinceLatestInspection": worst_point.get("daysSinceLatestInspection"),
+            "historyCount": worst_point.get("historyCount"),
+            "intervalCount": worst_point.get("intervalCount"),
+            "hasEnoughHistory": worst_point.get("hasEnoughHistory"),
+            "latestReplacedConfirmed": worst_point.get("latestReplacedConfirmed"),
+            "actualStatus": worst_point.get("actualStatus"),
+            "predictionStatus": worst_point.get("predictionStatus"),
+            "predictionQuality": worst_point.get("predictionQuality"),
+            "status": status,
+            "displayStatus": status,
+            "worstPoint": worst_point,
+            "secondaryPoints": planning_points[:5],
+            "secondaryAlertPoints": planning_points[:5],
+            "companionPointCount": len(planning_points),
+            "totalAlertPointCount": len(planning_points) + (1 if is_carbon_brush_planning_point(worst_point, settings) else 0),
+            "shouldNotifyBot": should_notify_bot,
+        }
+        alerts.append(alert)
+
+    alerts.sort(key=lambda item: (
+        0 if item.get("shouldNotifyBot") else 1,
+        get_carbon_brush_point_priority(item.get("worstPoint") or {}),
+        str(item.get("equipment", "")),
+    ))
+    return alerts[:safe_limit]
+
+
+def list_carbon_brush_alerts_for_bot(limit: int = 10) -> list[dict]:
+    return list_carbon_brush_alert_summary(limit, bot_only=True)
+
+
 def build_carbon_brush_import_items(csv_text: str) -> list[dict]:
     reader = csv.DictReader(io.StringIO(csv_text))
     items: list[dict] = []
@@ -3324,6 +5035,7 @@ def build_backup_payload() -> dict:
         "equipmentReferences": list_equipment_references(),
         "sparepartReferences": list_sparepart_references(),
         "appSettings": list_app_settings(),
+        "inspectionScheduleRealizations": list_inspection_schedule_realizations_for_backup(),
         "data": get_state_snapshot(),
     }
 
@@ -3429,6 +5141,39 @@ def restore_backup_payload(payload: dict) -> None:
                     ),
                 )
 
+        inspection_schedule_realizations = payload.get("inspectionScheduleRealizations", [])
+        if isinstance(inspection_schedule_realizations, list):
+            connection.execute("DELETE FROM inspection_schedule_realizations")
+            for entry in inspection_schedule_realizations:
+                schedule_key = str(entry.get("scheduleKey", "") or "").strip()
+                planned_date = str(entry.get("plannedDate", "") or "").strip()
+                planned_title = str(entry.get("plannedTitle", "") or "").strip()
+                realized_date = str(entry.get("realizedDate", "") or "").strip()
+                if not schedule_key or not planned_date or not planned_title:
+                    continue
+                connection.execute(
+                    """
+                    INSERT INTO inspection_schedule_realizations (
+                        schedule_key, planned_date, planned_title, planned_time_label,
+                        realized_date, note, created_by_username, updated_by_username,
+                        created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        schedule_key,
+                        planned_date,
+                        planned_title,
+                        str(entry.get("plannedTimeLabel", "") or ""),
+                        realized_date,
+                        str(entry.get("note", "") or ""),
+                        str(entry.get("createdBy", entry.get("pic", "")) or ""),
+                        str(entry.get("updatedBy", entry.get("pic", "")) or ""),
+                        str(entry.get("createdAt", entry.get("updatedAt", utc_now().isoformat()))),
+                        str(entry.get("updatedAt", utc_now().isoformat())),
+                    ),
+                )
+
         data = payload.get("data", {})
         for resource_key in STATE_KEYS:
             items = data.get(STATE_KEYS[resource_key], data.get(resource_key.replace("-", "_"), []))
@@ -3464,6 +5209,41 @@ th, td {{ border: 1px solid #999999; padding: 6px 8px; vertical-align: top; mso-
 </table>
 </body>
 </html>"""
+
+
+def format_report_date(value: str) -> str:
+    parsed = parse_iso_date(value)
+    if not parsed:
+        return str(value or "")
+    return parsed.strftime("%d-%m-%Y")
+
+
+def export_inspection_calendar_excel(start_date: str, end_date: str) -> str:
+    schedule = build_calendar_range_schedule(start_date, end_date)
+    realizations = {
+        item["scheduleKey"]: item
+        for item in list_inspection_schedule_realizations(str(schedule["start"]), str(schedule["end"]))
+    }
+    headers = ["Tanggal", "Equipment", "Rencana", "Realisasi", "Status", "PIC", "Catatan"]
+    rows: list[list[object]] = []
+    for item in schedule["items"]:
+        realization = realizations.get(str(item.get("scheduleKey") or ""), {})
+        planned_date = str(item.get("date") or "")
+        planned_time = str(item.get("timeLabel") or "")
+        planned_label = f"{format_report_date(planned_date)} {planned_time}".strip()
+        realized_date = str(realization.get("realizedDate") or "")
+        rows.append([
+            format_report_date(planned_date),
+            item.get("summary") or "Jadwal inspeksi",
+            planned_label,
+            format_report_date(realized_date) if realized_date else "",
+            "Terealisasi" if realized_date else "Belum realisasi",
+            realization.get("pic", ""),
+            realization.get("note", ""),
+        ])
+
+    title = f"INSPEKSI PLIRM34 ({format_report_date(str(schedule['start']))} s.d. {format_report_date(str(schedule['end']))})"
+    return build_excel_table(title, headers, rows)
 
 
 def export_resource_excel(resource_key: str) -> str:
@@ -3585,11 +5365,19 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
 
         if parsed.path.startswith("/api/reports/export/"):
-            self._handle_export_report(parsed.path)
+            self._handle_export_report(parsed.path, parsed.query)
             return
 
         if parsed.path == "/api/reports/service-summary":
             self._handle_service_summary_get()
+            return
+
+        if parsed.path == "/api/inspection-schedule/realizations":
+            self._handle_inspection_schedule_realizations_get(parsed.query)
+            return
+
+        if parsed.path == "/api/carbon-brush-stock":
+            self._handle_carbon_brush_stock_get(parsed.query)
             return
 
         if parsed.path == "/api/admin/backup":
@@ -3600,12 +5388,28 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_activity_logs_get(parsed.query)
             return
 
+        if parsed.path == "/api/admin/whatsapp-bot":
+            self._handle_admin_whatsapp_bot_get()
+            return
+
+        if parsed.path == "/api/bot/whatsapp/negatif-list/open":
+            self._handle_bot_negatif_list_open_get(parsed.query)
+            return
+
+        if parsed.path == "/api/bot/whatsapp/inspection-today":
+            self._handle_bot_inspection_today_get()
+            return
+
+        if parsed.path == "/api/bot/whatsapp/carbon-brush-alerts":
+            self._handle_bot_carbon_brush_alerts_get(parsed.query)
+            return
+
         if parsed.path.startswith("/api/admin/masters/"):
             self._handle_admin_masters_get(parsed.path)
             return
 
         if parsed.path.startswith("/api/items/"):
-            self._handle_items_get(parsed.path)
+            self._handle_items_get(parsed.path, parsed.query)
             return
 
         if parsed.path == "/api/auth/me":
@@ -3619,6 +5423,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 return
             params = parse_qs(parsed.query or "")
             requested_scope = str(params.get("scope", ["full"])[0] or "full").strip().lower()
+            user_agent = str(self.headers.get("User-Agent", "") or "")
+            if "scope" not in params and "PLIRM34-Native-Android" in user_agent:
+                self._send_json(build_native_legacy_bootstrap_payload(user))
+                return
             self._send_json(build_bootstrap_payload(user, scope=requested_scope))
             return
 
@@ -3632,7 +5440,29 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"users": list_users()})
             return
 
-        return super().do_GET()
+        media_path = resolve_authenticated_media_path(parsed.path)
+        if media_path:
+            user = self._require_user()
+            if user:
+                self._send_file(media_path, cache_control="private, max-age=300")
+            return
+
+        if resolve_public_static_path(parsed.path):
+            return super().do_GET()
+
+        self.send_error(HTTPStatus.NOT_FOUND, "File tidak ditemukan")
+
+    def do_HEAD(self):
+        parsed = urlparse(self.path)
+        media_path = resolve_authenticated_media_path(parsed.path)
+        if media_path:
+            user = self._require_user()
+            if user:
+                self._send_file(media_path, cache_control="private, max-age=300", head_only=True)
+            return
+        if resolve_public_static_path(parsed.path):
+            return super().do_HEAD()
+        self.send_error(HTTPStatus.NOT_FOUND, "File tidak ditemukan")
 
     def do_POST(self):
         parsed = urlparse(self.path)
@@ -3668,6 +5498,18 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_admin_mso_motor_reset_post()
             return
 
+        if parsed.path == "/api/admin/whatsapp-bot":
+            self._handle_admin_whatsapp_bot_post()
+            return
+
+        if parsed.path == "/api/admin/whatsapp-bot/reset-token":
+            self._handle_admin_whatsapp_bot_reset_token_post()
+            return
+
+        if parsed.path == "/api/carbon-brush-stock/movement":
+            self._handle_carbon_brush_stock_movement_post()
+            return
+
         if parsed.path.startswith("/api/admin/import/"):
             self._handle_admin_import_post(parsed.path)
             return
@@ -3678,6 +5520,18 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         if parsed.path.startswith("/api/items/"):
             self._handle_items_post(parsed.path)
+            return
+
+        if parsed.path == "/api/inspection-schedule/realization":
+            self._handle_inspection_schedule_realization_post()
+            return
+
+        if parsed.path == "/api/bot/whatsapp/negatif-list":
+            self._handle_bot_negatif_list_post()
+            return
+
+        if parsed.path == "/api/bot/whatsapp/negatif-list/close":
+            self._handle_bot_negatif_list_close_post()
             return
 
         if parsed.path == "/api/auth/login":
@@ -3786,6 +5640,19 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_file(self, file_path: Path, *, cache_control: str = "no-store", head_only: bool = False):
+        stat_result = file_path.stat()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", self.guess_type(str(file_path)))
+        self.send_header("Content-Length", str(stat_result.st_size))
+        self.send_header("Cache-Control", cache_control)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        if head_only:
+            return
+        with file_path.open("rb") as source:
+            shutil.copyfileobj(source, self.wfile)
+
     def _read_session_cookie(self) -> str | None:
         cookie_header = self.headers.get("Cookie", "")
         if not cookie_header:
@@ -3811,6 +5678,12 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return user
         self._send_json({"error": "Autentikasi diperlukan"}, status=HTTPStatus.UNAUTHORIZED)
         return None
+
+    def _require_bot_token(self) -> bool:
+        if verify_whatsapp_bot_token(self.headers):
+            return True
+        self._send_json({"error": "Token bot tidak valid"}, status=HTTPStatus.UNAUTHORIZED)
+        return False
 
     def _parse_item_route(self, path: str) -> tuple[str | None, str | None]:
         parts = [part for part in path.split("/") if part]
@@ -3842,11 +5715,27 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             }
         )
 
-    def _handle_export_report(self, path: str):
+    def _handle_export_report(self, path: str, query: str = ""):
         user = self._require_user()
         if not user:
             return
         resource_key = path.rsplit("/", 1)[-1]
+        if resource_key == "inspection-calendar":
+            params = parse_qs(query or "")
+            start_date = str(params.get("start", [""])[0] or "").strip()
+            end_date = str(params.get("end", [""])[0] or "").strip()
+            try:
+                excel_text = export_inspection_calendar_excel(start_date, end_date)
+            except ValueError as error:
+                self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+                return
+            filename = f"inspeksi-plirm34-{start_date}-sd-{end_date}.xls"
+            self._send_text(
+                excel_text,
+                content_type="application/vnd.ms-excel; charset=utf-8",
+                extra_headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+            return
         if resource_key not in RESOURCE_TABLES:
             self._send_json({"error": "Resource export tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
             return
@@ -3856,6 +5745,47 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             content_type="application/vnd.ms-excel; charset=utf-8",
             extra_headers={"Content-Disposition": f'attachment; filename="{resource_key}.xls"'},
         )
+
+    def _handle_inspection_schedule_realizations_get(self, query: str):
+        user = self._require_user()
+        if not user:
+            return
+        params = parse_qs(query or "")
+        start_date = str(params.get("start", [""])[0] or "").strip()
+        end_date = str(params.get("end", [""])[0] or "").strip()
+        try:
+            items = list_inspection_schedule_realizations(start_date or None, end_date or None)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self._send_json({"items": items})
+
+    def _handle_inspection_schedule_realization_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        try:
+            payload = self._parse_json_body()
+            item = save_inspection_schedule_realization(payload, user)
+        except json.JSONDecodeError:
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="save-realization",
+            resource="inspection-schedule",
+            target_id=item["scheduleKey"],
+            target_label=item["plannedTitle"],
+            detail={
+                "plannedDate": item["plannedDate"],
+                "realizedDate": item["realizedDate"],
+            },
+        )
+        self._send_json({"item": item})
 
     def _handle_service_summary_get(self):
         user = self._require_user()
@@ -3886,6 +5816,122 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Parameter limit tidak valid"}, status=HTTPStatus.BAD_REQUEST)
             return
         self._send_json({"items": list_activity_logs(limit)})
+
+    def _handle_admin_whatsapp_bot_get(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        setting = get_whatsapp_bot_setting()
+        write_whatsapp_bot_runtime_config(setting)
+        self._send_json({
+            "settings": public_whatsapp_bot_setting(setting),
+            "status": read_whatsapp_bot_status(),
+        })
+
+    def _handle_admin_whatsapp_bot_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+            setting = save_whatsapp_bot_setting(payload)
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="save",
+            resource="whatsapp-bot",
+            target_label="Setting WhatsApp Bot",
+        )
+        self._send_json({
+            "ok": True,
+            "settings": public_whatsapp_bot_setting(setting),
+            "status": read_whatsapp_bot_status(),
+        })
+
+    def _handle_admin_whatsapp_bot_reset_token_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not can_edit_resource(user["role"], "users"):
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        setting = reset_whatsapp_bot_token()
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="reset-token",
+            resource="whatsapp-bot",
+            target_label="Reset token WhatsApp Bot",
+        )
+        self._send_json({"ok": True, "settings": public_whatsapp_bot_setting(setting)})
+
+    def _handle_bot_negatif_list_open_get(self, query: str):
+        if not self._require_bot_token():
+            return
+        params = parse_qs(query or "")
+        try:
+            limit = int(params.get("limit", ["20"])[0])
+        except ValueError:
+            limit = 20
+        self._send_json({"items": list_open_negatif_items_for_bot(limit)})
+
+    def _handle_bot_inspection_today_get(self):
+        if not self._require_bot_token():
+            return
+        self._send_json({"items": get_today_inspection_schedule_for_bot()})
+
+    def _handle_bot_carbon_brush_alerts_get(self, query: str):
+        if not self._require_bot_token():
+            return
+        params = parse_qs(query or "")
+        try:
+            limit = int(params.get("limit", ["10"])[0])
+        except ValueError:
+            limit = 10
+        alert_settings = get_carbon_brush_alert_settings()
+        self._send_json({
+            "items": list_carbon_brush_alerts_for_bot(limit),
+            "thresholdDays": int(alert_settings.get("criticalDays", 7)),
+        })
+
+    def _handle_bot_negatif_list_post(self):
+        if not self._require_bot_token():
+            return
+        try:
+            payload = self._parse_json_body()
+            item = create_negatif_item_from_bot(payload)
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self._send_json({"ok": True, "item": item}, status=HTTPStatus.CREATED)
+
+    def _handle_bot_negatif_list_close_post(self):
+        if not self._require_bot_token():
+            return
+        try:
+            payload = self._parse_json_body()
+            item = close_negatif_item_from_bot(payload)
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self._send_json({"ok": True, "item": item})
 
     def _handle_restore_post(self):
         user = self._require_user()
@@ -4265,7 +6311,67 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         )
         self._send_json({"ok": True})
 
-    def _handle_items_get(self, path: str):
+    def _handle_carbon_brush_stock_get(self, query: str):
+        user = self._require_user()
+        if not user:
+            return
+        params = parse_qs(query or "")
+        try:
+            log_limit = int(params.get("limit", ["50"])[0] or 50)
+        except ValueError:
+            log_limit = 50
+        try:
+            alert_limit = int(params.get("alertLimit", ["10"])[0] or 10)
+        except ValueError:
+            alert_limit = 10
+        self._send_json({
+            "items": list_carbon_brush_stock_items(),
+            "logs": list_carbon_brush_stock_logs(log_limit),
+            "alerts": list_carbon_brush_alert_summary(alert_limit),
+            "botAlerts": list_carbon_brush_alert_summary(alert_limit, bot_only=True),
+            "alertSettings": get_carbon_brush_alert_settings(),
+        })
+
+    def _handle_carbon_brush_stock_movement_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if not self._require_edit_access(user, "service"):
+            return
+
+        try:
+            payload = self._parse_json_body()
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+
+        try:
+            movement = save_manual_carbon_brush_stock_movement(payload, user)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if not movement.get("noOp"):
+            log_activity(
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+                actor_role=str(user["role"]),
+                action="stock-movement",
+                resource="carbon-brush-stock",
+                target_id=str(payload.get("stockKey", "")),
+                target_label=str(payload.get("stockKey", "")),
+                detail=movement,
+            )
+        self._send_json({
+            "ok": True,
+            "movement": movement,
+            "items": list_carbon_brush_stock_items(),
+            "logs": list_carbon_brush_stock_logs(50),
+            "alerts": list_carbon_brush_alert_summary(10),
+            "botAlerts": list_carbon_brush_alert_summary(10, bot_only=True),
+            "alertSettings": get_carbon_brush_alert_settings(),
+        }, status=HTTPStatus.CREATED)
+
+    def _handle_items_get(self, path: str, query: str = ""):
         user = self._require_user()
         if not user:
             return
@@ -4280,6 +6386,33 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json({"item": item})
             return
+        if resource_key == "service":
+            params = parse_qs(query or "")
+            compact = str(params.get("compact", [""])[0] or "").strip().lower() in {"1", "true", "yes"}
+            limit = None
+            try:
+                requested_limit = int(params.get("limit", ["0"])[0] or 0)
+                if requested_limit > 0:
+                    limit = min(requested_limit, 1000)
+            except ValueError:
+                limit = None
+            if compact or limit:
+                self._send_json({"items": list_service_items_compact(limit=limit)})
+                return
+        if resource_key == "negatif-list":
+            params = parse_qs(query or "")
+            status = str(params.get("status", [""])[0] or "").strip()
+            compact = str(params.get("compact", [""])[0] or "").strip().lower() in {"1", "true", "yes"}
+            limit = None
+            try:
+                requested_limit = int(params.get("limit", ["0"])[0] or 0)
+                if requested_limit > 0:
+                    limit = min(requested_limit, 1000)
+            except ValueError:
+                limit = None
+            if status or limit or compact:
+                self._send_json({"items": list_negatif_list_items_filtered(status=status, limit=limit, compact=compact)})
+                return
         self._send_json({"items": list_items(resource_key)})
 
     def _handle_items_post(self, path: str):
@@ -4304,8 +6437,12 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
 
         existing_item = get_item_by_id(resource_key, str(item.get("id", ""))) if item.get("id") else None
+        carbon_brush_stock_result = None
         try:
-            saved_item = create_or_update_item(resource_key, item, user["id"])
+            if resource_key == "service":
+                existing_item, saved_item, carbon_brush_stock_result = create_or_update_service_item_atomic(item, user)
+            else:
+                saved_item = create_or_update_item(resource_key, item, user["id"])
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             return
@@ -4319,7 +6456,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_id=str(saved_item.get("id", "")),
             target_label=str(label or ""),
         )
-        self._send_json({"ok": True, "item": saved_item}, status=HTTPStatus.CREATED)
+        response = {"ok": True, "item": saved_item}
+        if carbon_brush_stock_result:
+            response["carbonBrushStock"] = carbon_brush_stock_result
+        self._send_json(response, status=HTTPStatus.CREATED)
 
     def _handle_items_put(self, path: str):
         user = self._require_user()
@@ -4344,8 +6484,12 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         existing_item = get_item_by_id(resource_key, item_id)
         item["id"] = item_id
 
+        carbon_brush_stock_result = None
         try:
-            saved_item = create_or_update_item(resource_key, item, user["id"])
+            if resource_key == "service":
+                existing_item, saved_item, carbon_brush_stock_result = create_or_update_service_item_atomic(item, user)
+            else:
+                saved_item = create_or_update_item(resource_key, item, user["id"])
         except ValueError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
             return
@@ -4359,7 +6503,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_id=str(saved_item.get("id", "")),
             target_label=str(label or ""),
         )
-        self._send_json({"ok": True, "item": saved_item})
+        response = {"ok": True, "item": saved_item}
+        if carbon_brush_stock_result:
+            response["carbonBrushStock"] = carbon_brush_stock_result
+        self._send_json(response)
 
     def _handle_items_delete(self, path: str):
         user = self._require_user()

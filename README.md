@@ -2,6 +2,22 @@
 
 Aplikasi web operasional untuk digitalisasi unit kerja `PLIRM34`, terdiri dari frontend web, backend Python, dan database SQLite lokal.
 
+## Spec-Driven Development
+
+Project ini memakai pendekatan Spec-Driven Development untuk perubahan fitur berikutnya. Sumber kebenaran spec ada di folder `specs/`.
+
+- `specs/product/`: perilaku produk per menu dan modul.
+- `specs/api/`: kontrak endpoint backend.
+- `specs/data/`: model data, payload, dan tabel.
+- `specs/acceptance/`: checklist verifikasi sebelum fitur dianggap selesai.
+
+Alur kerja yang disarankan:
+
+1. Update spec yang terdampak.
+2. Implementasi mengikuti spec.
+3. Jalankan acceptance checklist terkait.
+4. Update dokumentasi bila perilaku aktual memang berubah.
+
 ## Stack
 
 - Frontend: `index.html`, `styles.css`, `app.js`
@@ -96,6 +112,23 @@ http://127.0.0.1:8017
 ```text
 http://192.168.x.x:8017
 ```
+
+## Data Runtime Privat
+
+Database, token/status WhatsApp Bot, dan session WhatsApp tidak lagi disimpan di document root aplikasi. Lokasi default-nya adalah folder sibling privat:
+
+```text
+../.plirm34-data/
+```
+
+Lokasi tersebut dapat diatur dengan environment variable absolut `PLIRM34_DATA_DIR`. Direktori yang berada di dalam folder aplikasi akan ditolak agar file runtime tidak bisa ikut dilayani sebagai static asset.
+
+```powershell
+$env:PLIRM34_DATA_DIR = "D:\PLIRM34-DATA"
+python server.py --host 0.0.0.0 --port 8017
+```
+
+Saat startup pertama setelah upgrade, file runtime legacy di root proyek dipindahkan otomatis ke data directory apabila target belum ada. Web hanya melayani shell asset yang ada di allowlist; foto BOM dan slideshow memerlukan session login.
 
 ## Endpoint Utama
 

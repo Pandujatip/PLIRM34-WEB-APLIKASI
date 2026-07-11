@@ -35,7 +35,13 @@ function loginWithUser(user) {
   loginScreen.classList.add("hidden");
   workspace.classList.remove("hidden");
   sidebar?.classList.remove("menu-open");
+  if (typeof initializeAuthenticatedWorkspace === "function") {
+    void initializeAuthenticatedWorkspace();
+  }
   renderUserManagementTable();
   openSection("dashboard");
+  if (typeof syncDashboardSlideshowState === "function") {
+    syncDashboardSlideshowState();
+  }
   resetIdleLogoutTimer();
 }

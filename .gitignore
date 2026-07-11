@@ -5,6 +5,18 @@ plirm34.db
 *.db-shm
 *.db-wal
 __pycache__/
+.venv/
+server.*.log
+node_modules/
+.wwebjs_auth/
+whatsapp-bot-runtime.json
+whatsapp-bot-status.json
+whatsapp-bot.*.log
+native-android/build/
+native-android/dist/
+native-android/screenshots-audit/
+native-android/*.keystore
+native-android/*.jks
 
 bom-images/
 bom-motor-images/

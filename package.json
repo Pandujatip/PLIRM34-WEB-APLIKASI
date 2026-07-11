@@ -1,0 +1,15 @@
+{
+  "name": "plirm34-whatsapp-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WhatsApp Web sidecar bot for PLIRM34",
+  "main": "whatsapp-bot.js",
+  "scripts": {
+    "test": "node tests/test_frontend_and_bot_regressions.js",
+    "wa:bot": "node whatsapp-bot.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "whatsapp-web.js": "^1.26.0"
+  }
+}
