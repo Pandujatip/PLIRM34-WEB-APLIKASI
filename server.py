@@ -3898,6 +3898,20 @@ def list_carbon_brush_stock_logs(limit: int = 50) -> list[dict]:
     return [deserialize_carbon_brush_stock_log(row) for row in rows]
 
 
+def list_carbon_brush_stock_logs_for_backup() -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, stock_key, sap_no, brush_name, movement_type, quantity_delta,
+                   stock_before, stock_after, source, service_id, equipment_name,
+                   point_keys_json, note, actor_user_id, actor_username, created_at
+            FROM carbon_brush_stock_logs
+            ORDER BY created_at, id
+            """
+        ).fetchall()
+    return [deserialize_carbon_brush_stock_log(row) for row in rows]
+
+
 def apply_carbon_brush_stock_movement(
     connection: sqlite3.Connection,
     *,
@@ -4046,28 +4060,70 @@ def apply_carbon_brush_stock_usage_from_service(
     *,
     connection: sqlite3.Connection | None = None,
 ) -> dict | None:
-    if str(saved_item.get("formType", "")) != "service-motor-mv-carbon-brush":
-        return None
-    existing_payload = existing_item.get("payload", {}) if isinstance(existing_item, dict) and isinstance(existing_item.get("payload", {}), dict) else {}
-    saved_payload = saved_item.get("payload", {}) if isinstance(saved_item.get("payload", {}), dict) else {}
-    previous_points = set(normalize_carbon_brush_replaced_points(existing_payload.get("replacedPoints")))
-    next_points = set(normalize_carbon_brush_replaced_points(saved_payload.get("replacedPoints")))
-    added_points = sorted(next_points - previous_points)
-    removed_points = sorted(previous_points - next_points)
+    active_connection = connection
+
+    def get_usage_state(item: dict | None) -> tuple[set[str], dict | None]:
+        if not isinstance(item, dict) or str(item.get("formType", "")) != "service-motor-mv-carbon-brush":
+            return set(), None
+        payload = item.get("payload", {}) if isinstance(item.get("payload", {}), dict) else {}
+        points = set(normalize_carbon_brush_replaced_points(payload.get("replacedPoints")))
+        if not points:
+            return points, None
+        explicit_stock_key = str(payload.get("carbonBrushStockKey", "") or "").strip()
+        reference = None
+        if explicit_stock_key and active_connection is not None:
+            row = active_connection.execute(
+                "SELECT stock_key, sap_no, brush_name, use_label FROM carbon_brush_stock WHERE stock_key = ?",
+                (explicit_stock_key,),
+            ).fetchone()
+            if row:
+                reference = {
+                    "stockKey": row["stock_key"],
+                    "sapNo": row["sap_no"],
+                    "brushName": row["brush_name"],
+                    "use": row["use_label"],
+                }
+        if reference is None:
+            reference = get_carbon_brush_stock_reference_for_service(item)
+        if reference is None:
+            raise ValueError("Type Carbon Brush untuk equipment ini belum terdaftar, stok tidak bisa dimutasi otomatis")
+        return points, reference
+
+    previous_points, previous_reference = get_usage_state(existing_item)
+    next_points, next_reference = get_usage_state(saved_item)
+    previous_stock_key = str((previous_reference or {}).get("stockKey", ""))
+    next_stock_key = str((next_reference or {}).get("stockKey", ""))
+
+    if previous_stock_key == next_stock_key:
+        added_points = sorted(next_points - previous_points)
+        removed_points = sorted(previous_points - next_points)
+    else:
+        added_points = sorted(next_points)
+        removed_points = sorted(previous_points)
     if not added_points and not removed_points:
         return None
 
-    reference = get_carbon_brush_stock_reference_for_service(saved_item)
-    if reference is None:
-        raise ValueError("Type Carbon Brush untuk equipment ini belum terdaftar, stok tidak bisa dimutasi otomatis")
-
-    def apply_movements(active_connection: sqlite3.Connection) -> list[dict]:
+    def apply_movements(movement_connection: sqlite3.Connection) -> list[dict]:
         movements: list[dict] = []
-        seed_carbon_brush_stock(active_connection)
+        seed_carbon_brush_stock(movement_connection)
+        if removed_points and previous_reference:
+            movements.append(apply_carbon_brush_stock_movement(
+                movement_connection,
+                stock_key=previous_reference["stockKey"],
+                quantity_delta=len(removed_points),
+                movement_type="return",
+                source="service",
+                service_id=str((existing_item or {}).get("id", "") or saved_item.get("id", "")),
+                equipment_name=str((existing_item or {}).get("equipmentName", "")),
+                point_keys=removed_points,
+                note="Auto pengembalian karena titik diganti dibatalkan, tipe berubah, atau inspeksi dihapus",
+                actor_user_id=int(user["id"]),
+                actor_username=str(user["username"]),
+            ))
         if added_points:
             movements.append(apply_carbon_brush_stock_movement(
-                active_connection,
-                stock_key=reference["stockKey"],
+                movement_connection,
+                stock_key=next_reference["stockKey"],
                 quantity_delta=-len(added_points),
                 movement_type="out",
                 source="service",
@@ -4075,20 +4131,6 @@ def apply_carbon_brush_stock_usage_from_service(
                 equipment_name=str(saved_item.get("equipmentName", "")),
                 point_keys=added_points,
                 note="Auto pengurangan dari titik Carbon Brush yang ditandai diganti",
-                actor_user_id=int(user["id"]),
-                actor_username=str(user["username"]),
-            ))
-        if removed_points:
-            movements.append(apply_carbon_brush_stock_movement(
-                active_connection,
-                stock_key=reference["stockKey"],
-                quantity_delta=len(removed_points),
-                movement_type="return",
-                source="service",
-                service_id=str(saved_item.get("id", "")),
-                equipment_name=str(saved_item.get("equipmentName", "")),
-                point_keys=removed_points,
-                note="Auto pengembalian karena tanda titik diganti dibatalkan",
                 actor_user_id=int(user["id"]),
                 actor_username=str(user["username"]),
             ))
@@ -4100,9 +4142,11 @@ def apply_carbon_brush_stock_usage_from_service(
     else:
         movements = apply_movements(connection)
     return {
-        "stockKey": reference["stockKey"],
-        "sapNo": reference["sapNo"],
-        "brushName": reference["brushName"],
+        "stockKey": next_stock_key or previous_stock_key,
+        "previousStockKey": previous_stock_key,
+        "nextStockKey": next_stock_key,
+        "sapNo": str((next_reference or previous_reference or {}).get("sapNo", "")),
+        "brushName": str((next_reference or previous_reference or {}).get("brushName", "")),
         "addedPoints": added_points,
         "removedPoints": removed_points,
         "movements": movements,
@@ -4122,6 +4166,30 @@ def create_or_update_service_item_atomic(item: dict, user: dict) -> tuple[dict |
             connection=connection,
         )
     return existing_item, saved_item, stock_result
+
+
+def delete_service_item_atomic(item_id: str, user: dict) -> tuple[dict | None, dict | None]:
+    with get_connection() as connection:
+        existing_item = get_item_by_id_from_connection(connection, "service", item_id)
+        if not existing_item:
+            return None, None
+        deleted_marker = {
+            "id": item_id,
+            "formType": "",
+            "equipmentName": "",
+            "payload": {},
+        }
+        stock_result = apply_carbon_brush_stock_usage_from_service(
+            existing_item,
+            deleted_marker,
+            user,
+            connection=connection,
+        )
+        sync_service_detail_tables(connection, deleted_marker)
+        connection.execute("DELETE FROM service_items WHERE id = ?", (item_id,))
+        refresh_snapshot(connection, "service")
+        checkpoint_connection(connection)
+    return existing_item, stock_result
 
 
 def get_carbon_brush_alert_settings() -> dict:
@@ -5152,7 +5220,7 @@ def build_backup_payload() -> dict:
         "meta": {
             "generatedAt": utc_now().isoformat(),
             "app": "PLIRM34",
-            "version": 1,
+            "version": 2,
         },
         "users": list_users_for_backup(),
         "areas": list_areas(),
@@ -5161,6 +5229,8 @@ def build_backup_payload() -> dict:
         "sparepartReferences": list_sparepart_references(),
         "appSettings": list_app_settings(),
         "inspectionScheduleRealizations": list_inspection_schedule_realizations_for_backup(),
+        "carbonBrushStock": list_carbon_brush_stock_items(),
+        "carbonBrushStockLogs": list_carbon_brush_stock_logs_for_backup(),
         "data": get_state_snapshot(),
     }
 
@@ -5296,6 +5366,81 @@ def restore_backup_payload(payload: dict) -> None:
                         str(entry.get("updatedBy", entry.get("pic", "")) or ""),
                         str(entry.get("createdAt", entry.get("updatedAt", utc_now().isoformat()))),
                         str(entry.get("updatedAt", utc_now().isoformat())),
+                    ),
+                )
+
+        if "carbonBrushStock" in payload:
+            carbon_brush_stock = payload.get("carbonBrushStock", [])
+            carbon_brush_stock_logs = payload.get("carbonBrushStockLogs", [])
+            if not isinstance(carbon_brush_stock, list) or not isinstance(carbon_brush_stock_logs, list):
+                raise ValueError("Payload backup stock Carbon Brush tidak valid")
+            connection.execute("DELETE FROM carbon_brush_stock_logs")
+            connection.execute("DELETE FROM carbon_brush_stock")
+            for stock in carbon_brush_stock:
+                if not isinstance(stock, dict):
+                    continue
+                stock_key = str(stock.get("stockKey", "") or "").strip()
+                if not stock_key:
+                    continue
+                connection.execute(
+                    """
+                    INSERT INTO carbon_brush_stock (
+                        stock_key, sap_no, brush_name, use_label, current_stock, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        stock_key,
+                        str(stock.get("sapNo", "") or ""),
+                        str(stock.get("brushName", "") or ""),
+                        str(stock.get("useLabel", "") or ""),
+                        int(stock.get("currentStock", 0) or 0),
+                        str(stock.get("updatedAt", utc_now().isoformat()) or utc_now().isoformat()),
+                    ),
+                )
+            seed_carbon_brush_stock(connection)
+            for movement in carbon_brush_stock_logs:
+                if not isinstance(movement, dict):
+                    continue
+                log_id = str(movement.get("id", "") or "").strip()
+                stock_key = str(movement.get("stockKey", "") or "").strip()
+                if not log_id or not stock_key:
+                    continue
+                stock_exists = connection.execute(
+                    "SELECT 1 FROM carbon_brush_stock WHERE stock_key = ?",
+                    (stock_key,),
+                ).fetchone()
+                if not stock_exists:
+                    continue
+                actor_username = str(movement.get("actorUsername", "") or "")
+                actor_row = connection.execute(
+                    "SELECT id FROM users WHERE lower(username) = lower(?)",
+                    (actor_username,),
+                ).fetchone() if actor_username else None
+                connection.execute(
+                    """
+                    INSERT INTO carbon_brush_stock_logs (
+                        id, stock_key, sap_no, brush_name, movement_type, quantity_delta,
+                        stock_before, stock_after, source, service_id, equipment_name,
+                        point_keys_json, note, actor_user_id, actor_username, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        log_id,
+                        stock_key,
+                        str(movement.get("sapNo", "") or ""),
+                        str(movement.get("brushName", "") or ""),
+                        str(movement.get("movementType", "") or ""),
+                        int(movement.get("quantityDelta", 0) or 0),
+                        int(movement.get("stockBefore", 0) or 0),
+                        int(movement.get("stockAfter", 0) or 0),
+                        str(movement.get("source", "") or ""),
+                        str(movement.get("serviceId", "") or ""),
+                        str(movement.get("equipmentName", "") or ""),
+                        json.dumps(movement.get("pointKeys", []), ensure_ascii=False),
+                        str(movement.get("note", "") or ""),
+                        int(actor_row["id"]) if actor_row else None,
+                        actor_username,
+                        str(movement.get("createdAt", utc_now().isoformat()) or utc_now().isoformat()),
                     ),
                 )
 
@@ -6657,8 +6802,13 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         if resource_key == "service" and str(user["role"]) == "team":
             self._send_json({"error": "Role team tidak diizinkan menghapus data service"}, status=HTTPStatus.FORBIDDEN)
             return
-        existing_item = get_item_by_id(resource_key, item_id)
-        deleted = delete_item(resource_key, item_id)
+        carbon_brush_stock_result = None
+        if resource_key == "service":
+            existing_item, carbon_brush_stock_result = delete_service_item_atomic(item_id, user)
+            deleted = existing_item is not None
+        else:
+            existing_item = get_item_by_id(resource_key, item_id)
+            deleted = delete_item(resource_key, item_id)
         if not deleted:
             self._send_json({"error": "Item tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
             return
@@ -6674,7 +6824,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_id=str(item_id),
             target_label=str(label or item_id),
         )
-        self._send_json({"ok": True, "id": item_id})
+        response = {"ok": True, "id": item_id}
+        if carbon_brush_stock_result:
+            response["carbonBrushStock"] = carbon_brush_stock_result
+        self._send_json(response)
 
     def _handle_login(self):
         try:

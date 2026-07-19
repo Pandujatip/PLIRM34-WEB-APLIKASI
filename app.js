@@ -6943,9 +6943,12 @@ async function deleteItemFromBackend(resourceKey, itemId) {
     return true;
   }
 
-  await apiRequest(`/items/${resourceKey}/${encodeURIComponent(itemId)}`, {
+  const result = await apiRequest(`/items/${resourceKey}/${encodeURIComponent(itemId)}`, {
     method: "DELETE",
   });
+  if (resourceKey === "service" && result.carbonBrushStock) {
+    void refreshCarbonBrushStockData({ force: true }).catch(() => {});
+  }
   return true;
 }
 
