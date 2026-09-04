@@ -10,5 +10,13 @@
         ]
       }
     }
+  },
+  "hosting": {
+    "public": "public-auth",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
   }
 }

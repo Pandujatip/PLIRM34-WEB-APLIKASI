@@ -4848,7 +4848,7 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 try {
-                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(DEFAULT_BASE_URL + "/api/auth/google/login"));
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://portable-tool-inspection.web.app/auth.html"));
                     startActivity(browserIntent);
                 } catch (Exception err) {
                     Toast.makeText(MainActivity.this, "Gagal membuka browser untuk login Google.", Toast.LENGTH_SHORT).show();
