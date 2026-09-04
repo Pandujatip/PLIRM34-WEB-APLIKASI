@@ -8343,3 +8343,837 @@ html { scroll-behavior: smooth; }
   transform: translateY(-4px);
   box-shadow: var(--shadow-soft);
 }
+/* Lembur Outsourching: dense industrial monitoring surfaces. */
+.overtime-panel {
+  --ot-bg: #080c0e;
+  --ot-surface: #11181c;
+  --ot-raised: #182329;
+  --ot-border: #314149;
+  --ot-border-strong: #50616a;
+  --ot-primary: #e67e22;
+  --ot-text: #f3f6f7;
+  --ot-muted: #a7b2b8;
+  --ot-success: #46c98b;
+  --ot-warning: #f2b84b;
+  --ot-critical: #f05d5e;
+  --ot-info: #5aa9ff;
+  color: var(--ot-text);
+}
+
+.overtime-panel > *,
+.overtime-overview-grid > *,
+.overtime-metrics,
+.overtime-toolbar,
+.overtime-upload-grid,
+.overtime-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.overtime-panel .overtime-heading,
+.overtime-admin-panel,
+.overtime-surface,
+.overtime-toolbar,
+.overtime-metrics article,
+.overtime-state {
+  border: 1px solid var(--ot-border);
+  border-radius: 10px;
+  background: var(--ot-surface);
+  box-shadow: none;
+}
+
+.overtime-panel .overtime-heading {
+  border-left: 4px solid var(--ot-primary);
+}
+
+.overtime-admin-panel,
+.overtime-surface {
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.overtime-admin-panel {
+  border-color: rgba(230, 126, 34, 0.5);
+  background: #151b1e;
+}
+
+.overtime-section-head,
+.overtime-section-head > div:first-child,
+.overtime-bulk-bar,
+.overtime-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.overtime-section-head > div:first-child {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.overtime-section-head h4,
+.overtime-section-head p {
+  margin: 0;
+}
+
+.overtime-section-head h4 {
+  font-size: 1rem;
+}
+
+.overtime-section-head p,
+.overtime-inline-note,
+.overtime-field small {
+  color: var(--ot-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.overtime-kicker {
+  color: var(--ot-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.overtime-status-badge,
+.overtime-day-badge,
+.overtime-group-badge,
+.overtime-company-badge,
+.overtime-quota-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid var(--ot-border-strong);
+  border-radius: 999px;
+  color: var(--ot-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.overtime-company-badge {
+  border-color: var(--ot-border);
+  color: var(--ot-text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.overtime-classification-source {
+  display: block;
+  margin-top: 4px;
+  color: var(--ot-muted);
+  font-size: 0.7rem;
+}
+
+.overtime-classification-source.is-outside-contract {
+  color: #f2b84b;
+}
+
+.overtime-schedule-upload {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ot-border);
+}
+
+.overtime-schedule-upload h5 {
+  margin: 4px 0;
+  color: var(--ot-text);
+  font-size: 0.92rem;
+}
+
+.overtime-schedule-upload p {
+  margin: 0;
+  color: var(--ot-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.overtime-ranking-slicers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.overtime-ranking-slicers .overtime-field {
+  min-width: 132px;
+}
+
+.overtime-status-badge.is-information,
+.overtime-quota-badge.is-normal {
+  border-color: rgba(90, 169, 255, 0.55);
+  color: #b9d9ff;
+  background: rgba(90, 169, 255, 0.1);
+}
+
+.overtime-quota-badge.is-warning,
+.overtime-day-badge.is-unknown {
+  border-color: rgba(242, 184, 75, 0.55);
+  color: #ffe0a0;
+  background: rgba(242, 184, 75, 0.1);
+}
+
+.overtime-quota-badge.is-exhausted,
+.overtime-quota-badge.is-exceeded {
+  border-color: rgba(240, 93, 94, 0.6);
+  color: #ffb4b4;
+  background: rgba(240, 93, 94, 0.12);
+}
+
+.overtime-day-badge.is-workday,
+.overtime-group-badge.is-preventif {
+  border-color: rgba(70, 201, 139, 0.55);
+  color: #a7f0cc;
+  background: rgba(70, 201, 139, 0.1);
+}
+
+.overtime-day-badge.is-day_off,
+.overtime-group-badge.is-gangguan {
+  border-color: rgba(230, 126, 34, 0.6);
+  color: #ffc591;
+  background: rgba(230, 126, 34, 0.12);
+}
+
+.overtime-upload-grid,
+.overtime-toolbar {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(260px, 2fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.overtime-toolbar {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  margin-top: 16px;
+  padding: 12px;
+}
+
+.overtime-toolbar .overtime-search {
+  grid-column: span 2;
+}
+
+.overtime-contract-window strong {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--ot-border);
+  border-radius: 10px;
+  color: var(--ot-text);
+  background: #0b1114;
+  font-size: 0.82rem;
+}
+
+.overtime-field,
+.overtime-file-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ot-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.overtime-field input,
+.overtime-field select,
+.overtime-file-field {
+  min-height: 48px;
+  border: 1px solid var(--ot-border);
+  border-radius: 10px;
+  color: var(--ot-text);
+  background: var(--ot-bg);
+}
+
+.overtime-field input,
+.overtime-field select {
+  width: 100%;
+  padding: 0 12px;
+}
+
+.overtime-file-field {
+  justify-content: center;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.overtime-file-field:hover,
+.overtime-field input:focus,
+.overtime-field select:focus {
+  border-color: var(--ot-primary);
+  outline: 2px solid rgba(230, 126, 34, 0.18);
+  outline-offset: 1px;
+}
+
+.overtime-file-field strong {
+  overflow: hidden;
+  color: var(--ot-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overtime-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.overtime-metrics article {
+  min-height: 126px;
+  padding: 14px;
+}
+
+.overtime-metrics article.is-primary {
+  border-color: rgba(230, 126, 34, 0.7);
+  background: #2b2118;
+}
+
+.overtime-metrics span,
+.overtime-metrics small {
+  display: block;
+  color: var(--ot-muted);
+  font-size: 0.72rem;
+}
+
+.overtime-metrics strong {
+  display: block;
+  margin: 10px 0 8px;
+  color: var(--ot-text);
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.overtime-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.8fr) minmax(460px, 1.2fr);
+  gap: 16px;
+}
+
+.overtime-group-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.overtime-group-card {
+  padding: 12px;
+  border: 1px solid var(--ot-border);
+  border-radius: 10px;
+  background: var(--ot-bg);
+}
+
+.overtime-group-card strong,
+.overtime-group-card span,
+.overtime-group-card small {
+  display: block;
+}
+
+.overtime-group-card strong {
+  margin: 10px 0 4px;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.overtime-group-card span,
+.overtime-group-card small {
+  color: var(--ot-muted);
+  font-size: 0.72rem;
+}
+
+.overtime-trend {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(20px, 1fr));
+  gap: 6px;
+  align-items: end;
+  min-height: 168px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-bottom: 1px solid var(--ot-border);
+}
+
+.overtime-trend-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 150px;
+  text-align: center;
+}
+
+.overtime-trend-item span {
+  display: block;
+  min-height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--ot-primary);
+}
+
+.overtime-trend-item small {
+  color: var(--ot-muted);
+  font-size: 0.64rem;
+}
+
+.overtime-table-wrap {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  overflow-x: auto;
+  border: 1px solid var(--ot-border);
+  border-radius: 10px;
+}
+
+.overtime-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  color: var(--ot-text);
+  font-size: 0.78rem;
+}
+
+.overtime-transaction-table {
+  min-width: 1180px;
+}
+
+.overtime-table th,
+.overtime-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--ot-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.overtime-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: var(--ot-muted);
+  background: var(--ot-raised);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.overtime-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.overtime-table strong,
+.overtime-table small {
+  display: block;
+}
+
+.overtime-table small {
+  margin-top: 3px;
+  color: var(--ot-muted);
+}
+
+.overtime-live-value,
+.overtime-raw-value {
+  font-size: 0.92rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.overtime-live-value {
+  color: #ffc591;
+}
+
+.overtime-audit-warning {
+  color: #ffe0a0;
+}
+
+.overtime-day-select,
+.overtime-group-select {
+  min-height: 42px;
+  padding: 0 9px;
+  border: 1px solid var(--ot-border);
+  border-radius: 8px;
+  color: var(--ot-text);
+  background: var(--ot-bg);
+}
+
+.overtime-bulk-bar {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(230, 126, 34, 0.45);
+  border-radius: 10px;
+  background: #2b2118;
+}
+
+.overtime-bulk-bar > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.overtime-pagination {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.overtime-state {
+  margin-top: 12px;
+  padding: 12px 14px;
+  color: var(--ot-muted);
+}
+
+.overtime-state.is-error {
+  border-color: rgba(240, 93, 94, 0.55);
+  color: #ffb4b4;
+}
+
+.overtime-state.is-success {
+  border-color: rgba(70, 201, 139, 0.5);
+  color: #a7f0cc;
+}
+
+.overtime-empty-row {
+  padding: 28px !important;
+  color: var(--ot-muted);
+  text-align: center !important;
+}
+
+.overtime-progress {
+  width: 150px;
+  height: 7px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #26343b;
+}
+
+.overtime-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--ot-primary);
+}
+
+@media (max-width: 1180px) {
+  .overtime-toolbar {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+
+  .overtime-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .overtime-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main-content,
+  .overtime-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .overtime-admin-panel,
+  .overtime-surface {
+    padding: 12px;
+  }
+
+  .overtime-upload-grid,
+  .overtime-schedule-upload,
+  .overtime-toolbar,
+  .overtime-metrics,
+  .overtime-group-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .overtime-toolbar .overtime-search {
+    grid-column: auto;
+  }
+
+  .overtime-metrics article {
+    min-height: 104px;
+  }
+
+  .overtime-section-head,
+  .overtime-ranking-slicers,
+  .overtime-bulk-bar,
+  .overtime-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .overtime-bulk-bar .btn,
+  .overtime-pagination .btn {
+    min-height: 48px;
+  }
+
+  .overtime-trend {
+    gap: 3px;
+  }
+
+  .overtime-trend-item small {
+    font-size: 0.58rem;
+  }
+}
+
+/* Date Picker Pop-up Styling */
+input[type="date"] {
+  cursor: pointer;
+  position: relative;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1) brightness(0.9);
+  opacity: 0.85;
+  padding: 4px;
+  border-radius: 6px;
+  transition: opacity 0.15s ease, filter 0.15s ease, transform 0.1s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: invert(1) brightness(1.2);
+  transform: scale(1.12);
+}
+
+/* ==========================================================================
+   PLIRM34 OVERTIME DATEPICKER POPUP MODAL
+   ========================================================================== */
+
+.overtime-datepicker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(4, 4, 4, 0.72);
+  backdrop-filter: blur(8px);
+  animation: otDpFade 180ms ease-out;
+}
+
+@keyframes otDpFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.overtime-datepicker-card {
+  width: min(380px, 94vw);
+  background: #141414;
+  border: 1px solid rgba(255, 122, 24, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 122, 24, 0.18);
+  padding: 20px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: otDpScale 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes otDpScale {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.overtime-datepicker-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+}
+
+.ot-dp-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.ot-dp-title-row h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.ot-dp-close-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.15s ease;
+}
+
+.ot-dp-close-btn:hover {
+  color: var(--text);
+  background: rgba(255, 106, 0, 0.2);
+  border-color: var(--accent);
+}
+
+.ot-dp-preview {
+  color: var(--accent-2);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.ot-dp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ot-dp-preset-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--neutral);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ot-dp-preset-btn:hover {
+  background: rgba(255, 106, 0, 0.15);
+  border-color: rgba(255, 106, 0, 0.4);
+  color: #fff;
+}
+
+.overtime-datepicker-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 6px 8px;
+}
+
+.ot-dp-nav-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.ot-dp-nav-btn:hover {
+  background: rgba(255, 106, 0, 0.25);
+  border-color: var(--accent);
+}
+
+.ot-dp-selectors {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+
+.ot-dp-select {
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+}
+
+.ot-dp-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 106, 0, 0.2);
+}
+
+.overtime-datepicker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.overtime-datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.ot-dp-day-btn {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  padding: 0;
+}
+
+.ot-dp-day-btn:hover:not(.is-empty) {
+  background: rgba(255, 106, 0, 0.2);
+  border-color: rgba(255, 106, 0, 0.4);
+}
+
+.ot-dp-day-btn.is-today {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--accent-2);
+}
+
+.ot-dp-day-btn.is-selected {
+  background: linear-gradient(135deg, #ff6a00, #ff8f3f) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  border-color: #ff8f3f !important;
+  box-shadow: 0 4px 14px rgba(255, 106, 0, 0.45);
+}
+
+.ot-dp-day-btn.is-empty {
+  cursor: default;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overtime-datepicker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+
+.overtime-datepicker-actions .btn {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 0.82rem;
+}

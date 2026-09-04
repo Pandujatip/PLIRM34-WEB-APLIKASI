@@ -1,4 +1,4 @@
-(function bootstrapPlirm34Login() {
+﻿(function bootstrapPlirm34Login() {
   "use strict";
 
 
@@ -174,6 +174,29 @@
       if (!fullAppReady) setLoading(false);
     }
   })();
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.type === "date") {
+      try {
+        if (typeof target.showPicker === "function") {
+          target.showPicker();
+        }
+      } catch (e) {}
+    }
+  });
+
+  
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.type === "date") {
+      try {
+        if (typeof target.showPicker === "function") {
+          target.showPicker();
+        }
+      } catch (e) {}
+    }
+  });
 
   window.plirm34Bootstrap = {
     ensureFullAppLoaded,

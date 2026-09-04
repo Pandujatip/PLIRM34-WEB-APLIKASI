@@ -22,6 +22,18 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import urlopen
 
+from overtime import (
+    ensure_overtime_schema,
+    import_overtime_schedule_xlsx,
+    import_overtime_xls,
+    list_overtime,
+    list_overtime_personnel,
+    preview_overtime_xls,
+    preview_overtime_schedule_xlsx,
+    update_overtime_day_types,
+    update_overtime_personnel,
+)
+
 
 ROOT_DIR = Path(__file__).resolve().parent
 
@@ -114,6 +126,7 @@ PUBLIC_STATIC_FILES = frozenset({
     "app.mso.js",
     "app.dashboard.js",
     "app.admin.js",
+    "app.overtime.js",
     "app.js",
     "service-worker.js",
     "manifest.webmanifest",
@@ -136,6 +149,8 @@ MAX_ADMIN_IMPORT_BODY_BYTES = 6 * 1024 * 1024
 MAX_BACKUP_BODY_BYTES = 12 * 1024 * 1024
 MAX_MSO_UPLOAD_BODY_BYTES = 24 * 1024 * 1024
 MAX_MSO_SCRAPE_BODY_BYTES = 3 * 1024 * 1024
+MAX_OVERTIME_UPLOAD_BODY_BYTES = 18 * 1024 * 1024
+MAX_OVERTIME_FILE_BYTES = 12 * 1024 * 1024
 MAX_WHATSAPP_BOT_BODY_BYTES = 16 * 1024
 WHATSAPP_BOT_FIELD_LIMITS = {
     "sourceMessageId": 96,
@@ -1520,6 +1535,7 @@ def init_db() -> None:
         ensure_bom_columns(connection)
         ensure_spb_columns(connection)
         ensure_service_motor_mv_columns(connection)
+        ensure_overtime_schema(connection)
         migrate_snapshot_state(connection)
     write_whatsapp_bot_runtime_config()
 
@@ -5622,6 +5638,14 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_carbon_brush_stock_get(parsed.query)
             return
 
+        if parsed.path == "/api/overtime":
+            self._handle_overtime_get(parsed.query)
+            return
+
+        if parsed.path == "/api/overtime/personnel":
+            self._handle_overtime_personnel_get(parsed.query)
+            return
+
         if parsed.path == "/api/admin/backup":
             self._handle_backup_get()
             return
@@ -5713,6 +5737,12 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/monitor/error-log":
             self._handle_monitor_error_log()
             return
+        if parsed.path == "/api/admin/overtime/import":
+            self._handle_admin_overtime_import_post()
+            return
+        if parsed.path == "/api/admin/overtime/schedule/import":
+            self._handle_admin_overtime_schedule_import_post()
+            return
 
         if parsed.path == "/api/admin/restore":
             self._handle_restore_post()
@@ -5798,6 +5828,15 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/admin/overtime/day-types":
+            self._handle_admin_overtime_day_types_put()
+            return
+
+        if parsed.path.startswith("/api/admin/overtime/personnel/"):
+            employee_no = unquote(parsed.path.removeprefix("/api/admin/overtime/personnel/").strip("/"))
+            self._handle_admin_overtime_personnel_put(employee_no)
+            return
+
         if parsed.path.startswith("/api/items/"):
             self._handle_items_put(parsed.path)
             return
@@ -6571,6 +6610,154 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_label=str(identifier),
         )
         self._send_json({"ok": True})
+
+    def _handle_overtime_get(self, query: str):
+        user = self._require_user()
+        if not user:
+            return
+        query_values = parse_qs(query or "")
+        params = {key: str(values[0] if values else "") for key, values in query_values.items()}
+        try:
+            self._send_json(list_overtime(get_connection, params))
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_overtime_personnel_get(self, query: str):
+        user = self._require_user()
+        if not user:
+            return
+        params = parse_qs(query or "")
+        year = str(params.get("year", [""])[0] or "").strip()
+        period = str(params.get("period", [""])[0] or "").strip() or None
+        try:
+            self._send_json(list_overtime_personnel(get_connection, year, period))
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    def _handle_admin_overtime_import_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if user["role"] != "admin":
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body(max_bytes=MAX_OVERTIME_UPLOAD_BODY_BYTES, label="Upload lembur .xls")
+            if payload.get("previewOnly") is True:
+                self._send_json({"ok": True, **preview_overtime_xls(payload, MAX_OVERTIME_FILE_BYTES, get_connection)})
+                return
+            result = import_overtime_xls(
+                get_connection,
+                payload,
+                user,
+                utc_now().isoformat(),
+                MAX_OVERTIME_FILE_BYTES,
+            )
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="import",
+            resource="overtime",
+            target_id=str(result.get("batchId", "")),
+            target_label=f"Import lembur {', '.join(result.get('periods') or [str(result.get('period', '') or '')])}",
+            detail={
+                "fileName": result.get("fileName", ""),
+                "periods": result.get("periods", []),
+                "imported": result.get("imported", 0),
+                "replaced": result.get("replaced", 0),
+                "noOp": bool(result.get("noOp")),
+            },
+        )
+        self._send_json({"ok": True, **result}, status=HTTPStatus.OK if result.get("noOp") else HTTPStatus.CREATED)
+
+    def _handle_admin_overtime_schedule_import_post(self):
+        user = self._require_user()
+        if not user:
+            return
+        if user["role"] != "admin":
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body(max_bytes=MAX_OVERTIME_UPLOAD_BODY_BYTES, label="Upload jadwal kerja .xlsx")
+            if payload.get("previewOnly") is True:
+                self._send_json({"ok": True, **preview_overtime_schedule_xlsx(payload, MAX_OVERTIME_FILE_BYTES)})
+                return
+            result = import_overtime_schedule_xlsx(
+                get_connection, payload, user, utc_now().isoformat(), MAX_OVERTIME_FILE_BYTES
+            )
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="import", resource="overtime-schedule", target_id=str(result.get("batchId", "")),
+            target_label="Import jadwal kerja lembur",
+            detail={"fileName": result.get("fileName", ""), "imported": result.get("imported", 0), "noOp": bool(result.get("noOp"))},
+        )
+        self._send_json({"ok": True, **result}, status=HTTPStatus.OK if result.get("noOp") else HTTPStatus.CREATED)
+
+    def _handle_admin_overtime_personnel_put(self, employee_no: str):
+        user = self._require_user()
+        if not user:
+            return
+        if user["role"] != "admin":
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+            item = update_overtime_personnel(
+                get_connection,
+                employee_no,
+                str(payload.get("groupType") or ""),
+                int(user["id"]),
+                utc_now().isoformat(),
+            )
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="update", resource="overtime-personnel", target_id=employee_no,
+            target_label=str(item.get("employeeName") or employee_no), detail={"groupType": item["groupType"]},
+        )
+        self._send_json({"ok": True, "item": item})
+
+    def _handle_admin_overtime_day_types_put(self):
+        user = self._require_user()
+        if not user:
+            return
+        if user["role"] != "admin":
+            self._send_json({"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+            return
+        try:
+            payload = self._parse_json_body()
+            result = update_overtime_day_types(
+                get_connection,
+                payload.get("classifications"),
+                int(user["id"]),
+                utc_now().isoformat(),
+            )
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="classify", resource="overtime", target_label="Klasifikasi hari lembur",
+            detail={"updated": result["updated"]},
+        )
+        self._send_json({"ok": True, **result})
 
     def _handle_carbon_brush_stock_get(self, query: str):
         user = self._require_user()

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260711-02">
+  <link rel="stylesheet" href="styles.css?v=20260831-01">
 </head>
 <body>
   <div class="app-shell">
@@ -111,6 +111,7 @@
           <button class="menu-item" data-section="service" type="button"><span class="menu-item-main"><strong>Service</strong><small>Mission log</small></span><span class="menu-item-badge" data-menu-badge="service">B1</span></button>
           <button class="menu-item" data-section="bom" type="button"><span class="menu-item-main"><strong>BOM</strong><small>Blueprint</small></span><span class="menu-item-badge" data-menu-badge="bom">B1</span></button>
           <button class="menu-item" data-section="spb" type="button"><span class="menu-item-main"><strong>SPB</strong><small>Resource route</small></span><span class="menu-item-badge" data-menu-badge="spb">B1</span></button>
+          <button class="menu-item" data-section="overtime" type="button"><span class="menu-item-main"><strong>Lembur Outsourching</strong><small>Monitoring jam hidup</small></span><span class="menu-item-badge" data-menu-badge="overtime">OT</span></button>
           <button class="menu-item hidden" data-section="user-management" type="button"><span class="menu-item-main"><strong>Manajemen User</strong><small>Admin gate</small></span><span class="menu-item-badge" data-menu-badge="user-management">GM</span></button>
           <button class="menu-item hidden" data-section="activity-log" type="button"><span class="menu-item-main"><strong>Log Aktivitas</strong><small>Replay log</small></span><span class="menu-item-badge" data-menu-badge="activity-log">LOG</span></button>
         </nav>
@@ -1255,6 +1256,7 @@
                   <button type="button" data-pwa-section="negatif-list">Negatif List</button>
                   <button type="button" data-pwa-section="service">Service</button>
                   <button type="button" data-pwa-section="spb">SPB</button>
+                  <button type="button" data-pwa-section="overtime">Lembur Outsourching</button>
                   <button type="button" data-pwa-section="bom">BOM</button>
                   <button type="button" data-pwa-section="user-management">Admin</button>
                 </div>
@@ -3588,6 +3590,173 @@
           <div class="mobile-card-list" id="spb-mobile"></div>
         </section>
 
+        <section class="panel-section overtime-panel" data-panel="overtime" aria-labelledby="overtime-title">
+          <div class="card-head overtime-heading">
+            <p class="eyebrow">Kontrol Lembur Outsourching</p>
+            <h3 id="overtime-title">Jam hidup dan kuota personel</h3>
+            <p>Impor jam mati dari Excel, klasifikasikan hari kerja/libur, lalu pantau pool 384 jam hidup per periode kontrak PT.</p>
+          </div>
+
+          <div class="overtime-state hidden" id="overtime-state" role="status" aria-live="polite"></div>
+
+          <section class="overtime-admin-panel hidden" id="overtime-admin-panel" aria-label="Impor data lembur">
+            <div class="overtime-section-head">
+              <div>
+                <span class="overtime-kicker">ADMIN</span>
+                <h4>Impor transaksi lembur</h4>
+                <p>Bulan dibaca otomatis dari kolom Tanggal. Satu file boleh berisi beberapa bulan dan hanya bulan yang ada di file yang akan diganti.</p>
+              </div>
+              <span class="overtime-status-badge is-information">Khusus admin</span>
+            </div>
+            <div class="overtime-upload-grid">
+              <label class="overtime-file-field" for="overtime-import-file">
+                <span>File Excel (.xls)</span>
+                <strong id="overtime-file-name">Pilih file transaksi lembur</strong>
+                <small>Maksimal 12 MB. Tanggal transaksi menentukan periode bulan secara otomatis.</small>
+              </label>
+              <input id="overtime-import-file" type="file" accept=".xls,application/vnd.ms-excel" hidden>
+              <button class="btn btn-primary" id="overtime-import-button" type="button">Validasi &amp; Impor</button>
+            </div>
+            <p class="overtime-inline-note" id="overtime-import-note">Belum ada file dipilih.</p>
+            <div class="overtime-schedule-upload">
+              <div>
+                <span class="overtime-kicker">SOURCE OF TRUTH</span>
+                <h5>Jadwal kerja otomatis</h5>
+                <p>Unggah jadwal `.xlsx` untuk mengklasifikasikan hari masuk/libur semua personel berdasarkan badge. Sheet revisi seperti `006R01` atau `R01006` diprioritaskan.</p>
+              </div>
+              <label class="overtime-file-field" for="overtime-schedule-file">
+                <span>Jadwal Kerja (.xlsx)</span>
+                <strong id="overtime-schedule-file-name">Pilih file jadwal kerja</strong>
+                <small>Maksimal 12 MB. Klasifikasi manual tetap menjadi override.</small>
+              </label>
+              <input id="overtime-schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+              <button class="btn btn-secondary" id="overtime-schedule-import-button" type="button">Validasi &amp; Sinkronkan Jadwal</button>
+            </div>
+            <p class="overtime-inline-note" id="overtime-schedule-note">Belum ada jadwal kerja tersinkron.</p>
+          </section>
+
+          <div class="overtime-toolbar" aria-label="Filter lembur">
+            <label class="overtime-field">
+              <span>PT</span>
+              <select id="overtime-company-filter"><option value="">Semua PT</option></select>
+            </label>
+            <div class="overtime-field overtime-contract-window">
+              <span>Periode kontrak</span>
+              <strong id="overtime-contract-period">Pilih PT untuk melihat periode kontrak</strong>
+            </div>
+            <label class="overtime-field">
+              <span>Tanggal awal</span>
+              <input id="overtime-start-date" type="date">
+            </label>
+            <label class="overtime-field">
+              <span>Tanggal akhir</span>
+              <input id="overtime-end-date" type="date">
+            </label>
+            <label class="overtime-field overtime-search">
+              <span>Cari personel atau tugas</span>
+              <input id="overtime-search" type="search" placeholder="Nama, nomor pegawai, tugas, unit">
+            </label>
+            <label class="overtime-field">
+              <span>Grup</span>
+              <select id="overtime-group-filter">
+                <option value="">Semua grup</option>
+                <option value="gangguan">Gangguan</option>
+                <option value="preventif">Preventif</option>
+                <option value="unassigned">Belum ditentukan</option>
+              </select>
+            </label>
+            <label class="overtime-field">
+              <span>Tipe hari</span>
+              <select id="overtime-day-filter">
+                <option value="">Semua tipe hari</option>
+                <option value="workday">Hari kerja</option>
+                <option value="day_off">Hari libur</option>
+                <option value="unknown">Belum diklasifikasi</option>
+              </select>
+            </label>
+            <label class="overtime-field">
+              <span>Status sumber</span>
+              <select id="overtime-status-filter"><option value="">Semua status</option></select>
+            </label>
+            <button class="btn btn-secondary" id="overtime-refresh-button" type="button">Muat ulang</button>
+          </div>
+
+          <div class="overtime-metrics" id="overtime-metrics" aria-label="Ringkasan lembur">
+            <article><span>Jam mati rentang terpilih</span><strong id="overtime-total-raw">0</strong><small>Indikator durasi sumber</small></article>
+            <article class="is-primary"><span>Jam hidup rentang terpilih</span><strong id="overtime-total-live">0</strong><small>Dasar perhitungan kontrak</small></article>
+            <article><span>Belum diklasifikasi</span><strong id="overtime-unclassified">0</strong><small>Transaksi menunggu tipe hari</small></article>
+            <article><span>Personel aktif</span><strong id="overtime-people">0</strong><small>Pada periode terpilih</small></article>
+            <article><span>Jam hidup kontrak</span><strong id="overtime-annual-used">0</strong><small>Akumulasi personel–PT periode terpilih</small></article>
+            <article><span>Sisa pool kontrak</span><strong id="overtime-annual-remaining">0</strong><small>384 jam per personel–PT</small></article>
+          </div>
+
+          <div class="overtime-overview-grid">
+            <section class="overtime-surface">
+              <div class="overtime-section-head compact">
+                <div><span class="overtime-kicker">KELOMPOK</span><h4>Distribusi jam hidup</h4></div>
+              </div>
+              <div class="overtime-group-grid" id="overtime-group-summary"></div>
+            </section>
+            <section class="overtime-surface">
+              <div class="overtime-section-head compact">
+                <div><span class="overtime-kicker">TREN KONTRAK</span><h4>Jam hidup per bulan</h4></div>
+              </div>
+              <div class="overtime-trend" id="overtime-trend" aria-label="Grafik jam hidup bulanan"></div>
+            </section>
+          </div>
+
+          <section class="overtime-surface">
+            <div class="overtime-section-head">
+              <div><span class="overtime-kicker">KUOTA PERSONEL</span><h4>Ranking penggunaan periode kontrak</h4><p>Pool 384 jam dihitung terpisah per personel–PT: SBG 01/03/2026–28/02/2027; SMOR dan SONAR 02/08/2026–01/08/2027.</p></div>
+              <div class="overtime-ranking-slicers" aria-label="Slicer ranking kuota personel">
+                <label class="overtime-field"><span>PT</span><select id="overtime-ranking-company"><option value="">Semua PT</option></select></label>
+                <label class="overtime-field"><span>Grup</span><select id="overtime-ranking-group"><option value="">Semua grup</option><option value="gangguan">Gangguan</option><option value="preventif">Preventif</option><option value="unassigned">Belum ditentukan</option></select></label>
+                <label class="overtime-field"><span>Kuota</span><select id="overtime-ranking-quota"><option value="">Semua status</option><option value="normal">Normal</option><option value="warning">Mendekati kuota</option><option value="exhausted">Kuota habis</option><option value="exceeded">Kuota terlampaui</option></select></label>
+              </div>
+            </div>
+            <div class="overtime-table-wrap">
+              <table class="overtime-table">
+                <thead><tr><th>Personel</th><th>PT &amp; Periode</th><th>Grup</th><th>Bulan ini</th><th>Kontrak</th><th>Sisa</th><th>Kuota</th></tr></thead>
+                <tbody id="overtime-ranking-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="overtime-surface">
+            <div class="overtime-section-head">
+              <div><span class="overtime-kicker">TRANSAKSI</span><h4>Rincian jam lembur</h4><p id="overtime-table-note">Belum ada data dimuat.</p></div>
+            </div>
+            <div class="overtime-bulk-bar hidden" id="overtime-bulk-bar">
+              <strong><span id="overtime-selected-count">0</span> tanggal/personel dipilih</strong>
+              <div>
+                <button class="btn btn-secondary" data-overtime-bulk-day="workday" type="button">Tandai Hari Kerja</button>
+                <button class="btn btn-primary" data-overtime-bulk-day="day_off" type="button">Tandai Hari Libur</button>
+                <button class="btn btn-secondary" data-overtime-bulk-day="unknown" type="button">Reset</button>
+              </div>
+            </div>
+            <div class="overtime-table-wrap">
+              <table class="overtime-table overtime-transaction-table">
+                <thead><tr><th class="overtime-admin-column"><input id="overtime-select-all" type="checkbox" aria-label="Pilih semua transaksi pada halaman"></th><th>Tanggal</th><th>Personel</th><th>PT</th><th>Tugas</th><th>Status</th><th>Jam mati</th><th>Tipe hari</th><th>Jam hidup</th><th>Audit</th></tr></thead>
+                <tbody id="overtime-transaction-body"></tbody>
+              </table>
+            </div>
+            <div class="overtime-pagination">
+              <button class="btn btn-secondary" id="overtime-prev-page" type="button">Sebelumnya</button>
+              <span id="overtime-page-label">Halaman 1 dari 1</span>
+              <button class="btn btn-secondary" id="overtime-next-page" type="button">Berikutnya</button>
+            </div>
+          </section>
+
+          <section class="overtime-surface hidden" id="overtime-personnel-admin">
+            <div class="overtime-section-head">
+              <div><span class="overtime-kicker">MASTER PERSONEL</span><h4>Mapping Gangguan dan Preventif</h4><p>Mapping disimpan berdasarkan nomor pegawai dan tetap digunakan saat periode diimpor ulang.</p></div>
+            </div>
+            <div class="overtime-table-wrap">
+              <table class="overtime-table"><thead><tr><th>No. Pegawai</th><th>Nama</th><th>PT</th><th>Grup</th><th>Jam hidup tahunan</th><th>Status kuota</th></tr></thead><tbody id="overtime-personnel-body"></tbody></table>
+            </div>
+          </section>
+        </section>
+
         <section class="panel-section" data-panel="user-management">
           <div class="card-head">
             <p class="eyebrow">Admin Panel</p>
@@ -4258,7 +4427,7 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {
-        navigator.serviceWorker.register("/service-worker.js?v=20260711-03").catch((error) => {
+        navigator.serviceWorker.register("/service-worker.js?v=20260831-01").catch((error) => {
             console.warn("PWA service worker registration failed", error);
           });
         };

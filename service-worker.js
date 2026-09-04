@@ -1,9 +1,9 @@
-const CACHE_NAME = "plirm34-pwa-v20260711-03";
+﻿const CACHE_NAME = "plirm34-pwa-v20260831-01";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260711-02",
-  "/app.bootstrap.js?v=20260711-02",
+  "/styles.css?v=20260831-01",
+  "/app.bootstrap.js?v=20260831-01",
   "/manifest.webmanifest",
   "/pwa-icons/icon-192.webp",
   "/pwa-icons/icon-512.webp",
@@ -43,7 +43,8 @@ function isCacheableRequest(request) {
     || url.pathname.startsWith("/session")
     || url.pathname.startsWith("/masters")
     || url.pathname.startsWith("/activity-logs")
-    || url.pathname.startsWith("/admin")) {
+    || url.pathname.startsWith("/admin")
+    || url.pathname.startsWith("/overtime")) {
     return false;
   }
   return request.destination === "document"

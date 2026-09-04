@@ -10,6 +10,8 @@ from typing import Callable
 from urllib.parse import parse_qs, unquote, urlparse
 
 from server import (
+    MAX_OVERTIME_FILE_BYTES,
+    MAX_OVERTIME_UPLOAD_BODY_BYTES,
     RESOURCE_TABLES,
     SESSION_COOKIE_NAME,
     SESSION_DURATION_DAYS,
@@ -33,12 +35,18 @@ from server import (
     import_carbon_brush_from_url,
     import_negatif_list_from_url,
     import_resource_csv,
+    import_overtime_schedule_xlsx,
+    import_overtime_xls,
     init_db,
     list_activity_logs,
     list_items,
+    list_overtime,
+    list_overtime_personnel,
     list_master_records,
     list_users,
     log_activity,
+    preview_overtime_xls,
+    preview_overtime_schedule_xlsx,
     public_static_cache_control,
     restore_backup_payload,
     resolve_authenticated_media_path,
@@ -46,8 +54,11 @@ from server import (
     save_master_record,
     save_state,
     update_user_role,
+    update_overtime_day_types,
+    update_overtime_personnel,
     utc_now,
     verify_password,
+    get_connection,
 )
 
 
@@ -205,6 +216,29 @@ def app(environ: dict, start_response: Callable):
             },
         )
 
+    if path == "/api/overtime" and method == "GET":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        query_values = parse_qs(query or "")
+        params = {key: str(values[0] if values else "") for key, values in query_values.items()}
+        try:
+            return json_response(start_response, list_overtime(get_connection, params))
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    if path == "/api/overtime/personnel" and method == "GET":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        params = parse_qs(query or "")
+        year = str(params.get("year", [""])[0] or "").strip()
+        period = str(params.get("period", [""])[0] or "").strip() or None
+        try:
+            return json_response(start_response, list_overtime_personnel(get_connection, year, period))
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
     if path == "/api/masters" and method == "GET":
         user = require_user(environ, start_response)
         if not user:
@@ -358,6 +392,104 @@ def app(environ: dict, start_response: Callable):
         restore_backup_payload(backup)
         log_activity(actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]), action="restore", resource="backup", target_label="Restore backup aplikasi")
         return json_response(start_response, {"ok": True})
+
+    if path == "/api/admin/overtime/import" and method == "POST":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        try:
+            content_length = int(environ.get("CONTENT_LENGTH") or "0")
+        except ValueError:
+            content_length = 0
+        if content_length > MAX_OVERTIME_UPLOAD_BODY_BYTES:
+            return json_response(start_response, {"error": "Upload lembur .xls melebihi batas 18 MB"}, status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            if payload.get("previewOnly") is True:
+                return json_response(start_response, {"ok": True, **preview_overtime_xls(payload, MAX_OVERTIME_FILE_BYTES, get_connection)})
+            result = import_overtime_xls(get_connection, payload, user, utc_now().isoformat(), MAX_OVERTIME_FILE_BYTES)
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="import", resource="overtime", target_id=str(result.get("batchId", "")),
+            target_label=f"Import lembur {', '.join(result.get('periods') or [str(result.get('period', '') or '')])}",
+            detail={"fileName": result.get("fileName", ""), "periods": result.get("periods", []), "imported": result.get("imported", 0), "replaced": result.get("replaced", 0), "noOp": bool(result.get("noOp"))},
+        )
+        return json_response(start_response, {"ok": True, **result}, status=HTTPStatus.OK if result.get("noOp") else HTTPStatus.CREATED)
+
+    if path == "/api/admin/overtime/schedule/import" and method == "POST":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        try:
+            content_length = int(environ.get("CONTENT_LENGTH") or "0")
+        except ValueError:
+            content_length = 0
+        if content_length > MAX_OVERTIME_UPLOAD_BODY_BYTES:
+            return json_response(start_response, {"error": "Upload jadwal kerja .xlsx melebihi batas 18 MB"}, status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            if payload.get("previewOnly") is True:
+                return json_response(start_response, {"ok": True, **preview_overtime_schedule_xlsx(payload, MAX_OVERTIME_FILE_BYTES)})
+            result = import_overtime_schedule_xlsx(get_connection, payload, user, utc_now().isoformat(), MAX_OVERTIME_FILE_BYTES)
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="import", resource="overtime-schedule", target_id=str(result.get("batchId", "")),
+            target_label="Import jadwal kerja lembur",
+            detail={"fileName": result.get("fileName", ""), "imported": result.get("imported", 0), "noOp": bool(result.get("noOp"))},
+        )
+        return json_response(start_response, {"ok": True, **result}, status=HTTPStatus.OK if result.get("noOp") else HTTPStatus.CREATED)
+
+    if path == "/api/admin/overtime/day-types" and method == "PUT":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            result = update_overtime_day_types(get_connection, payload.get("classifications"), int(user["id"]), utc_now().isoformat())
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="classify", resource="overtime", target_label="Klasifikasi hari lembur", detail={"updated": result["updated"]},
+        )
+        return json_response(start_response, {"ok": True, **result})
+
+    if path.startswith("/api/admin/overtime/personnel/") and method == "PUT":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        employee_no = unquote(path.removeprefix("/api/admin/overtime/personnel/").strip("/"))
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            item = update_overtime_personnel(get_connection, employee_no, str(payload.get("groupType") or ""), int(user["id"]), utc_now().isoformat())
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="update", resource="overtime-personnel", target_id=employee_no,
+            target_label=str(item.get("employeeName") or employee_no), detail={"groupType": item["groupType"]},
+        )
+        return json_response(start_response, {"ok": True, "item": item})
 
     if path.startswith("/api/admin/masters/"):
         user = require_user(environ, start_response)
