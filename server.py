@@ -2305,14 +2305,22 @@ def list_items(resource_key: str) -> list[dict]:
     return load_resource_items(resource_key, include_media=(resource_key != "service"))
 
 
-def list_service_items_compact(limit: int | None = None) -> list[dict]:
-    sql = """
-        SELECT * FROM service_items
+def list_service_items_compact(limit: int | None = None, *, start_date: str = "", end_date: str = "") -> list[dict]:
+    conditions: list[str] = []
+    params: list[object] = []
+    if start_date:
+        conditions.append("COALESCE(json_extract(payload_json, '$.inspectionDate'), updated_at) >= ?")
+        params.append(start_date)
+    if end_date:
+        conditions.append("COALESCE(json_extract(payload_json, '$.inspectionDate'), updated_at) <= ?")
+        params.append(end_date + "T23:59:59")
+    where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+    sql = f"""
+        SELECT * FROM service_items{where}
         ORDER BY COALESCE(json_extract(payload_json, '$.inspectionDate'), updated_at) DESC,
                  updated_at DESC,
                  rowid DESC
     """
-    params: list[object] = []
     if limit is not None and limit > 0:
         sql += " LIMIT ?"
         params.append(int(limit))
@@ -5618,6 +5626,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"ok": True, "timestamp": utc_now().isoformat()})
             return
 
+        if parsed.path == "/api/monitor/overview":
+            self._handle_monitor_overview()
+            return
+
         if parsed.path == "/api/masters":
             self._handle_masters_get(parsed.query)
             return
@@ -6095,6 +6107,53 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             },
         )
         self._send_json({"item": item})
+
+    def _handle_monitor_overview(self):
+        user = self._require_user()
+        if not user:
+            return
+        today = utc_now().strftime("%Y-%m-%d")
+        with get_connection() as connection:
+            # Total service items today
+            service_today = connection.execute(
+                "SELECT COUNT(*) AS cnt FROM service_items WHERE COALESCE(json_extract(payload_json, '$.inspectionDate'), updated_at) >= ?",
+                (today,),
+            ).fetchone()["cnt"]
+            # Total service items overall
+            service_total = connection.execute("SELECT COUNT(*) AS cnt FROM service_items").fetchone()["cnt"]
+            # Service by subtype
+            subtype_rows = connection.execute(
+                "SELECT subtype, COUNT(*) AS total FROM service_items GROUP BY subtype ORDER BY subtype"
+            ).fetchall()
+            service_by_subtype = {row["subtype"]: row["total"] for row in subtype_rows}
+            # Open negative-list items
+            open_negatif = connection.execute(
+                "SELECT COUNT(*) AS cnt FROM negatif_list_items WHERE lower(work_status) = 'open'"
+            ).fetchone()["cnt"]
+            # Total equipment reference
+            equipment_total = connection.execute("SELECT COUNT(*) AS cnt FROM equipment_reference").fetchone()["cnt"]
+            # Carbon brush alerts
+            brush_alerts = connection.execute(
+                "SELECT COUNT(*) AS cnt FROM carbon_brush_stock WHERE current_stock <= minimum_stock"
+            ).fetchone()["cnt"]
+            # Overtime summary (this month)
+            month_prefix = utc_now().strftime("%Y-%m")
+            overtime_count = connection.execute(
+                "SELECT COUNT(*) AS cnt FROM service_items WHERE subtype = 'overtime' AND updated_at >= ?",
+                (month_prefix,),
+            ).fetchone()["cnt"]
+        self._send_json({
+            "overview": {
+                "serviceToday": service_today,
+                "serviceTotal": service_total,
+                "serviceBySubtype": service_by_subtype,
+                "openNegatifList": open_negatif,
+                "equipmentTotal": equipment_total,
+                "carbonBrushAlerts": brush_alerts,
+                "overtimeThisMonth": overtime_count,
+                "date": today,
+            }
+        })
 
     def _handle_service_summary_get(self):
         user = self._require_user()
@@ -6849,6 +6908,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         if resource_key == "service":
             params = parse_qs(query or "")
             compact = str(params.get("compact", [""])[0] or "").strip().lower() in {"1", "true", "yes"}
+            start_date = str(params.get("start_date", [""])[0] or "").strip()
+            end_date = str(params.get("end_date", [""])[0] or "").strip()
             limit = None
             try:
                 requested_limit = int(params.get("limit", ["0"])[0] or 0)
@@ -6856,8 +6917,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                     limit = min(requested_limit, 1000)
             except ValueError:
                 limit = None
-            if compact or limit:
-                self._send_json({"items": list_service_items_compact(limit=limit)})
+            if compact or limit or start_date or end_date:
+                self._send_json({"items": list_service_items_compact(limit=limit, start_date=start_date, end_date=end_date)})
                 return
         if resource_key == "negatif-list":
             params = parse_qs(query or "")

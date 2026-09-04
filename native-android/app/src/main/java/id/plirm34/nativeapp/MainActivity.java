@@ -226,7 +226,7 @@ public class MainActivity extends Activity {
             page.addView(authHeroBrand(true));
             LinearLayout signupCard = authPanel(20);
             page.addView(signupCard, topMargin(-1, dp(22)));
-            signupCard.addView(authLabel("Buat Akun Field", 28, true));
+            signupCard.addView(authLabel("Buat Akun Baru", 28, true));
             signupCard.addView(authText("Akun baru otomatis dibuat sebagai role Team.", 13, AUTH_MUTED), topMargin(-1, dp(6)));
             fullNameInput = authInput("NAMA LENGKAP", "Nama teknisi", false, true);
             signupCard.addView(fullNameInput, topMargin(-1, dp(18)));
@@ -244,7 +244,7 @@ public class MainActivity extends Activity {
                 }
             });
             signupCard.addView(loginButton, topMargin(-1, dp(22)));
-            loginStatus = authStatus("Server production PLIRM34 siap.", AUTH_MUTED);
+            loginStatus = authStatus("Server production siap.", AUTH_MUTED);
             signupCard.addView(loginStatus, topMargin(-1, dp(14)));
             page.addView(authSwitch("Sudah memiliki akun? ", "MASUK", false), topMargin(-1, dp(22)));
         } else {
@@ -278,7 +278,7 @@ public class MainActivity extends Activity {
                 }
             });
             form.addView(loginButton, topMargin(-1, dp(26)));
-            loginStatus = authStatus("Masuk untuk sinkron data PLIRM34.", GREEN);
+            loginStatus = authStatus("Masuk untuk sinkron data.", GREEN);
             form.addView(loginStatus, topMargin(-1, dp(16)));
             form.addView(authSwitch("Belum memiliki akses? ", "DAFTAR AKUN", true), topMargin(-1, dp(12)));
             TextView offline = authSecondaryButton("LIHAT DATA OFFLINE");
@@ -308,7 +308,7 @@ public class MainActivity extends Activity {
         page.setGravity(Gravity.CENTER_HORIZONTAL);
         scroll.addView(page, matchWrap());
 
-        page.addView(label("PLIRM34 FIELD APP", 12, MUTED, true));
+        page.addView(label("PORTABLE INSPECTION TOOL", 12, MUTED, true));
 
         ImageView logo = new ImageView(this);
         logo.setImageResource(getResources().getIdentifier("plirm34_logo", "drawable", getPackageName()));
@@ -317,11 +317,11 @@ public class MainActivity extends Activity {
         logoLp.topMargin = dp(18);
         page.addView(logo, logoLp);
 
-        TextView title = label("PLIRM34", 32, TEXT, true);
+        TextView title = label("Portable Inspection Tool", 28, TEXT, true);
         title.setGravity(Gravity.CENTER);
         page.addView(title);
 
-        TextView subtitle = label("Aplikasi native pekerja lapangan untuk dashboard, service, BOM, sparepart, dan stock carbon brush.", 14, MUTED, false);
+        TextView subtitle = label("Dashboard, service, sparepart, dan monitoring overtime untuk pekerja lapangan.", 14, MUTED, false);
         subtitle.setGravity(Gravity.CENTER);
         page.addView(subtitle, widthWrap(-1));
 
@@ -492,13 +492,11 @@ public class MainActivity extends Activity {
             case 1:
                 return "Service";
             case 2:
-                return "BOM";
-            case 3:
                 return "Sparepart";
-            case 4:
-                return "More";
+            case 3:
+                return "Lembur";
             default:
-                return "PLIRM34 Tuban";
+                return "Overview";
         }
     }
 
@@ -520,8 +518,8 @@ public class MainActivity extends Activity {
             nav.setElevation(dp(12));
             nav.setTranslationZ(dp(8));
         }
-        String[] labels = {"Dashboard", "Service", "BOM", "Sparepart", "More"};
-        String[] icons = {"home", "service", "bom", "sparepart", "more"};
+        String[] labels = {"Dashboard", "Service", "Sparepart", "Lembur"};
+        String[] icons = {"home", "service", "sparepart", "more"};
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
             LinearLayout item = column(2);
@@ -538,9 +536,6 @@ public class MainActivity extends Activity {
                 @Override
                 public void onClick(View v) {
                     selectedTab = index;
-                    if (selectedTab != 4) {
-                        moreScreen = "menu";
-                    }
                     renderSelected();
                     root.removeViewAt(root.getChildCount() - 1);
                     root.addView(bottomNav(), bottomParams());
@@ -574,12 +569,9 @@ public class MainActivity extends Activity {
                 renderService();
                 break;
             case 2:
-                renderBom();
-                break;
-            case 3:
                 renderSparepart();
                 break;
-            case 4:
+            case 3:
                 renderMore();
                 break;
             default:
@@ -594,8 +586,63 @@ public class MainActivity extends Activity {
     }
 
     private void renderDashboard() {
+        // Overview Header
         content.addView(dashboardHero());
 
+        // === Stat Cards Row 1 (Clickable) ===
+        content.addView(sectionTitle("Status Equipment"));
+        LinearLayout statsTop = row(8);
+        LinearLayout serviceCard = wrapClickableStatCard(
+            statCard("Total Service", String.valueOf(serviceItems.length()), TEAL),
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    selectedTab = 1;
+                    renderSelected();
+                    refreshBottomNav();
+                }
+            }
+        );
+        statsTop.addView(serviceCard, new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout scheduleCard = wrapClickableStatCard(
+            statCard("Inspeksi Hari Ini", String.valueOf(todayScheduleCount()), AMBER),
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showTodayScheduleDetail();
+                }
+            }
+        );
+        statsTop.addView(scheduleCard, new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(statsTop);
+
+        // === Stat Cards Row 2 (Clickable) ===
+        LinearLayout statsBottom = row(8);
+        LinearLayout negatifCard = wrapClickableStatCard(
+            statCard("Negatif Open", String.valueOf(countOpenNegatif()), countOpenNegatif() > 0 ? AMBER : GREEN),
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showOpenNegatifDetail();
+                }
+            }
+        );
+        statsBottom.addView(negatifCard, new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout stockCard = wrapClickableStatCard(
+            statCard("Stock Alert", String.valueOf(buildLowStockSpareparts().size() + countLowCarbonStock()), buildLowStockSpareparts().isEmpty() && countLowCarbonStock() == 0 ? GREEN : RED),
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    selectedTab = 2;
+                    renderSelected();
+                    refreshBottomNav();
+                }
+            }
+        );
+        statsBottom.addView(stockCard, new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(statsBottom);
+
+        // === Carbon Brush Early Warning ===
         List<JSONObject> alerts = buildCarbonAlerts();
         content.addView(sectionTitle("Carbon Brush Early Warning"));
         if (alerts.isEmpty()) {
@@ -615,10 +662,11 @@ public class MainActivity extends Activity {
             startCarbonBannerRotation(alerts.size());
         }
 
+        // === Jadwal Inspeksi Hari Ini ===
         content.addView(sectionTitle("Jadwal Inspeksi Hari Ini"));
         JSONArray today = calendarPayload.optJSONArray("today");
         if (today == null || today.length() == 0) {
-            content.addView(emptyCard("Tidak ada jadwal hari ini", "Sinkron dari Google Calendar PLIRM34."));
+            content.addView(emptyCard("Tidak ada jadwal hari ini", "Sinkron dari Google Calendar."));
         } else {
             for (int i = 0; i < Math.min(5, today.length()); i++) {
                 final JSONObject item = today.optJSONObject(i);
@@ -635,25 +683,18 @@ public class MainActivity extends Activity {
             }
         }
 
-        LinearLayout statsTop = row(8);
-        statsTop.addView(statCard("Negatif Open", String.valueOf(countOpenNegatif()), countOpenNegatif() > 0 ? AMBER : GREEN), new LinearLayout.LayoutParams(0, -2, 1));
-        statsTop.addView(statCard("Jadwal Hari Ini", String.valueOf(todayScheduleCount()), AMBER), new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(statsTop);
-        LinearLayout statsBottom = row(8);
-        statsBottom.addView(statCard("Service", String.valueOf(serviceItems.length()), TEXT), new LinearLayout.LayoutParams(0, -2, 1));
-        statsBottom.addView(statCard("Stock Low", String.valueOf(buildLowStockSpareparts().size() + countLowCarbonStock()), buildLowStockSpareparts().isEmpty() && countLowCarbonStock() == 0 ? GREEN : RED), new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(statsBottom);
-
+        // === Negatif List Open ===
         content.addView(sectionTitle("Negatif List Open"));
         List<JSONObject> openNegatif = buildOpenNegatifList();
         if (openNegatif.isEmpty()) {
-            content.addView(emptyCard("Tidak ada negatif list open", "Semua temuan negatif list sudah close atau belum sinkron."));
+            content.addView(emptyCard("Tidak ada negatif list open", "Semua temuan sudah close atau belum sinkron."));
         } else {
             for (int i = 0; i < Math.min(3, openNegatif.size()); i++) {
                 content.addView(negatifCard(openNegatif.get(i), true));
             }
         }
 
+        // === Hasil Service Terakhir ===
         content.addView(sectionTitle("Hasil Service Terakhir"));
         List<JSONObject> latestServices = sortByInspectionDate(serviceItems, false);
         if (latestServices.isEmpty()) {
@@ -665,6 +706,7 @@ public class MainActivity extends Activity {
             }
         }
 
+        // === Alert Stok Sparepart ===
         content.addView(sectionTitle("Alert Stok Sparepart"));
         List<JSONObject> lowStock = buildLowStockSpareparts();
         if (lowStock.isEmpty()) {
@@ -677,13 +719,34 @@ public class MainActivity extends Activity {
         }
     }
 
+    private LinearLayout wrapClickableStatCard(LinearLayout card, View.OnClickListener listener) {
+        card.setOnClickListener(listener);
+        card.setClickable(true);
+        card.setFocusable(true);
+        return card;
+    }
+
+    private void showTodayScheduleDetail() {
+        JSONArray today = calendarPayload.optJSONArray("today");
+        if (today != null && today.length() > 0) {
+            showScheduleDetail(today.optJSONObject(0));
+        }
+    }
+
+    private void showOpenNegatifDetail() {
+        List<JSONObject> openNegatif = buildOpenNegatifList();
+        if (!openNegatif.isEmpty()) {
+            showItemDetail("negatif-list", openNegatif.get(0));
+        }
+    }
+
     private LinearLayout dashboardHero() {
         LinearLayout hero = actionCard(14);
         hero.setBackground(rounded(INFO_SURFACE, TEAL, 24, 1));
         String username = currentUser.optString("username", "offline");
         String role = currentUser.optString("role", "offline");
-        hero.addView(rowBetween("PLIRM34 Tuban", badge(lastSyncMillis > 0 ? "LIVE" : "OFFLINE", lastSyncMillis > 0 ? TEAL : AMBER)));
-        hero.addView(label("Prioritas inspeksi, service, negatif list, dan stok lapangan hari ini.", 14, TEXT, false), topMargin(-1, dp(10)));
+        hero.addView(rowBetween("Portable Inspection Tool", badge(lastSyncMillis > 0 ? "LIVE" : "OFFLINE", lastSyncMillis > 0 ? TEAL : AMBER)));
+        hero.addView(label("Overview inspeksi, service, sparepart, dan monitoring overtime hari ini.", 14, TEXT, false), topMargin(-1, dp(10)));
         LinearLayout chips = row(8);
         chips.addView(metric("User", username), new LinearLayout.LayoutParams(0, -2, 1));
         chips.addView(metric("Role", role), new LinearLayout.LayoutParams(0, -2, 1));
@@ -4389,8 +4452,8 @@ public class MainActivity extends Activity {
         brand.addView(logo, new LinearLayout.LayoutParams(dp(46), dp(46)));
 
         LinearLayout text = column(2);
-        text.addView(label("PLIRM34", compact ? 23 : 25, TEXT, true));
-        text.addView(label("Field operations native app", 12, MUTED, false));
+        text.addView(label("Portable Inspection Tool", compact ? 20 : 22, TEXT, true));
+        text.addView(label("Industrial field operations", 12, MUTED, false));
         brand.addView(text, new LinearLayout.LayoutParams(0, -2, 1));
 
         TextView live = label("LIVE", 11, Color.rgb(3, 24, 27), true);
@@ -4408,8 +4471,8 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             hero.setElevation(dp(6));
         }
-        hero.addView(label("Masuk PLIRM34", 28, TEXT, true));
-        hero.addView(label("Dashboard, service, BOM, sparepart, dan stock carbon brush untuk pekerja lapangan.", 13, Color.rgb(210, 224, 225), false), topMargin(-1, dp(8)));
+        hero.addView(label("Sign In", 28, TEXT, true));
+        hero.addView(label("Dashboard, service, sparepart, dan monitoring overtime untuk pekerja lapangan.", 13, Color.rgb(210, 224, 225), false), topMargin(-1, dp(8)));
         LinearLayout row = row(8);
         row.addView(authHeroMetric("service", "Early warning", AMBER), new LinearLayout.LayoutParams(0, -2, 1));
         row.addView(authHeroMetric("bom", "Service log", BLUE), new LinearLayout.LayoutParams(0, -2, 1));
