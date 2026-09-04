@@ -5812,6 +5812,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_bot_negatif_list_close_post()
             return
 
+        if parsed.path == "/api/auth/google":
+            self._handle_google_login()
+            return
+
         if parsed.path == "/api/auth/login":
             self._handle_login()
             return
@@ -7002,6 +7006,56 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_label=str(label or item_id),
         )
         self._send_json({"ok": True, "id": item_id})
+
+    def _handle_google_login(self):
+        try:
+            payload = self._parse_json_body()
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+
+        id_token = payload.get("id_token")
+        if not id_token:
+            self._send_json({"error": "id_token is required"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        # Verify Google Token via HTTP (No external dependencies)
+        try:
+            req = urllib.request.Request(f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                token_info = json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            self._send_json({"error": "Google verification failed", "details": str(e)}, status=HTTPStatus.UNAUTHORIZED)
+            return
+
+        email = token_info.get("email")
+        if not email:
+            self._send_json({"error": "Email not provided by Google"}, status=HTTPStatus.UNAUTHORIZED)
+            return
+
+        username = email # We use email as username for Google SSO
+
+        user = get_user_by_username(username)
+        if not user:
+            # Auto-register
+            # We assign a random password because they login via Google
+            import secrets
+            random_pw = secrets.token_urlsafe(16)
+            user = create_user(username=username, password=random_pw, role="team")
+
+        token, _expires_at = create_session(user["id"])
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="google_login",
+            resource="auth",
+            target_id=str(user["id"]),
+            target_label=str(user["username"]),
+        )
+        self._send_json(
+            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}},
+            extra_headers={"Set-Cookie": self._build_session_cookie(token)},
+        )
 
     def _handle_login(self):
         try:
