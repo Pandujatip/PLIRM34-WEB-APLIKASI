@@ -7053,7 +7053,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_label=str(user["username"]),
         )
         self._send_json(
-            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}},
+            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}, "token": token},
             extra_headers={"Set-Cookie": self._build_session_cookie(token)},
         )
 
@@ -7085,7 +7085,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_label=str(user["username"]),
         )
         self._send_json(
-            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}},
+            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}, "token": token},
             extra_headers={"Set-Cookie": self._build_session_cookie(token)},
         )
 
@@ -7117,7 +7117,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             target_label=str(user["username"]),
         )
         self._send_json(
-            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}},
+            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}, "token": token},
             status=HTTPStatus.CREATED,
             extra_headers={"Set-Cookie": self._build_session_cookie(token)},
         )
