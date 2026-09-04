@@ -964,10 +964,10 @@ public class MainActivity extends Activity {
         LinearLayout rowDates = row(8);
 
         String startText = serviceStartDate.isEmpty() ? "Dari: Semua" : "Dari: " + formatDate(serviceStartDate);
-        TextView btnStart = label(startText, 12, TEXT, true);
-        btnStart.setGravity(Gravity.CENTER);
-        btnStart.setPadding(dp(10), dp(10), dp(10), dp(10));
-        btnStart.setBackground(selectableBackground(SURFACE_FLOAT, serviceStartDate.isEmpty() ? BORDER_SOFT : TEAL, 12));
+        TextView btnStart = button(startText, true);
+        btnStart.setTextSize(12);
+        btnStart.setMinHeight(dp(44));
+        btnStart.setPadding(dp(8), 0, dp(8), 0);
         btnStart.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -977,10 +977,10 @@ public class MainActivity extends Activity {
         rowDates.addView(btnStart, new LinearLayout.LayoutParams(0, -2, 1));
 
         String endText = serviceEndDate.isEmpty() ? "Sampai: Semua" : "Sampai: " + formatDate(serviceEndDate);
-        TextView btnEnd = label(endText, 12, TEXT, true);
-        btnEnd.setGravity(Gravity.CENTER);
-        btnEnd.setPadding(dp(10), dp(10), dp(10), dp(10));
-        btnEnd.setBackground(selectableBackground(SURFACE_FLOAT, serviceEndDate.isEmpty() ? BORDER_SOFT : TEAL, 12));
+        TextView btnEnd = button(endText, true);
+        btnEnd.setTextSize(12);
+        btnEnd.setMinHeight(dp(44));
+        btnEnd.setPadding(dp(8), 0, dp(8), 0);
         btnEnd.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -990,10 +990,7 @@ public class MainActivity extends Activity {
         rowDates.addView(btnEnd, new LinearLayout.LayoutParams(0, -2, 1));
 
         if (!serviceStartDate.isEmpty() || !serviceEndDate.isEmpty()) {
-            TextView btnReset = label("Reset", 12, RED, true);
-            btnReset.setGravity(Gravity.CENTER);
-            btnReset.setPadding(dp(10), dp(10), dp(10), dp(10));
-            btnReset.setBackground(selectableBackground(DANGER_SURFACE, RED, 12));
+            TextView btnReset = smallActionButton("Reset", RED);
             btnReset.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {

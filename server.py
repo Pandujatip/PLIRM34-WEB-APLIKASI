@@ -5953,6 +5953,17 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_json_cached(self, data, max_age=300, status=HTTPStatus.OK, public=False):
+        """Send JSON response with appropriate cache headers"""
+        cache_control = f"{'public' if public else 'private'}, max-age={max_age}"
+        headers = {
+            'Cache-Control': cache_control,
+            'ETag': hashlib.md5(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest(),
+            'Vary': 'Accept-Encoding'
+        }
+        self._send_json(data, status=status, extra_headers=headers)
+
+
     def _send_text(self, body_text: str, *, status: HTTPStatus = HTTPStatus.OK, content_type: str = "text/plain; charset=utf-8", extra_headers: dict | None = None):
         body = body_text.encode("utf-8")
         self.send_response(status)
@@ -7385,12 +7396,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-def _send_json_cached(self, data, max_age=300, status=HTTPStatus.OK, public=False):
-    """Send JSON response with appropriate cache headers"""
-    cache_control = f"{'public' if public else 'private'}, max-age={max_age}"
-    self._send_json(data, status=status, headers={
-        'Cache-Control': cache_control,
-        'ETag': hashlib.md5(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest(),
-        'Vary': 'Accept-Encoding'
-    })
