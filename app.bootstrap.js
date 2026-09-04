@@ -1,14 +1,15 @@
-(function bootstrapPlirm34Login() {
+﻿(function bootstrapPlirm34Login() {
   "use strict";
 
   const FULL_APP_SCRIPTS = [
-    "/app.auth.js?v=20260711-02",
-    "/app.carbon-brush.js?v=20260711-02",
-    "/app.service.js?v=20260711-02",
-    "/app.mso.js?v=20260711-02",
-    "/app.dashboard.js?v=20260711-02",
-    "/app.admin.js?v=20260711-02",
-    "/app.js?v=20260711-02",
+    "/app.auth.js?v=20260831-01",
+    "/app.carbon-brush.js?v=20260831-01",
+    "/app.service.js?v=20260831-01",
+    "/app.mso.js?v=20260831-01",
+    "/app.dashboard.js?v=20260831-01",
+    "/app.admin.js?v=20260831-01",
+    "/app.overtime.js?v=20260831-01",
+    "/app.js?v=20260831-01",
   ];
 
   const loginForm = document.getElementById("login-form");
@@ -176,6 +177,17 @@
       if (!fullAppReady) setLoading(false);
     }
   })();
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.type === "date") {
+      try {
+        if (typeof target.showPicker === "function") {
+          target.showPicker();
+        }
+      } catch (e) {}
+    }
+  });
 
   window.plirm34Bootstrap = {
     ensureFullAppLoaded,

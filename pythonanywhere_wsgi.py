@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import mimetypes
 from datetime import datetime, timedelta
@@ -10,8 +9,9 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, unquote, urlparse
 
-import server as core
 from server import (
+    MAX_OVERTIME_FILE_BYTES,
+    MAX_OVERTIME_UPLOAD_BODY_BYTES,
     RESOURCE_TABLES,
     SESSION_COOKIE_NAME,
     SESSION_DURATION_DAYS,
@@ -35,12 +35,18 @@ from server import (
     import_carbon_brush_from_url,
     import_negatif_list_from_url,
     import_resource_csv,
+    import_overtime_schedule_xlsx,
+    import_overtime_xls,
     init_db,
     list_activity_logs,
     list_items,
+    list_overtime,
+    list_overtime_personnel,
     list_master_records,
     list_users,
     log_activity,
+    preview_overtime_xls,
+    preview_overtime_schedule_xlsx,
     public_static_cache_control,
     restore_backup_payload,
     resolve_authenticated_media_path,
@@ -48,8 +54,11 @@ from server import (
     save_master_record,
     save_state,
     update_user_role,
+    update_overtime_day_types,
+    update_overtime_personnel,
     utc_now,
     verify_password,
+    get_connection,
 )
 
 
@@ -132,16 +141,6 @@ def require_edit_access(start_response: Callable, user: dict, resource_key: str)
     return False
 
 
-def require_bot_token(environ: dict, start_response: Callable) -> bool:
-    headers = {
-        "X-PLIRM34-Bot-Token": str(environ.get("HTTP_X_PLIRM34_BOT_TOKEN", "") or ""),
-    }
-    if core.verify_whatsapp_bot_token(headers):
-        return True
-    json_response(start_response, {"error": "Token bot tidak valid"}, status=HTTPStatus.UNAUTHORIZED)
-    return False
-
-
 def serve_file(start_response: Callable, candidate: Path, *, cache_control: str, head_only: bool = False):
     content_type, _ = mimetypes.guess_type(str(candidate))
     body = b"" if head_only else candidate.read_bytes()
@@ -208,12 +207,37 @@ def app(environ: dict, start_response: Callable):
         user = require_user(environ, start_response)
         if not user:
             return []
+        return json_response(
+            start_response,
+            {
+                "user": user,
+                "data": get_state_snapshot(),
+                "users": list_users() if user["role"] == "admin" else [],
+            },
+        )
+
+    if path == "/api/overtime" and method == "GET":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        query_values = parse_qs(query or "")
+        params = {key: str(values[0] if values else "") for key, values in query_values.items()}
+        try:
+            return json_response(start_response, list_overtime(get_connection, params))
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+
+    if path == "/api/overtime/personnel" and method == "GET":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
         params = parse_qs(query or "")
-        requested_scope = str(params.get("scope", ["full"])[0] or "full").strip().lower()
-        user_agent = str(environ.get("HTTP_USER_AGENT", "") or "")
-        if "scope" not in params and "PLIRM34-Native-Android" in user_agent:
-            return json_response(start_response, core.build_native_legacy_bootstrap_payload(user))
-        return json_response(start_response, core.build_bootstrap_payload(user, requested_scope))
+        year = str(params.get("year", [""])[0] or "").strip()
+        period = str(params.get("period", [""])[0] or "").strip() or None
+        try:
+            return json_response(start_response, list_overtime_personnel(get_connection, year, period))
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
 
     if path == "/api/masters" and method == "GET":
         user = require_user(environ, start_response)
@@ -228,7 +252,6 @@ def app(environ: dict, start_response: Callable):
                 "areas": list_areas(),
                 "inspectionTemplates": list_inspection_templates(),
                 "equipmentReferences": list_equipment_references(source_group),
-                "sparepartReferences": core.list_sparepart_references(),
                 "appSettings": list_app_settings(),
             },
         )
@@ -238,20 +261,6 @@ def app(environ: dict, start_response: Callable):
         if not user:
             return []
         resource_key = path.rsplit("/", 1)[-1]
-        if resource_key == "inspection-calendar":
-            params = parse_qs(query or "")
-            start_date = str(params.get("start", [""])[0] or "").strip()
-            end_date = str(params.get("end", [""])[0] or "").strip()
-            try:
-                excel_text = core.export_inspection_calendar_excel(start_date, end_date)
-            except ValueError as error:
-                return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-            return text_response(
-                start_response,
-                excel_text,
-                content_type="application/vnd.ms-excel; charset=utf-8",
-                headers=[("Content-Disposition", f'attachment; filename="inspeksi-plirm34-{start_date}-sd-{end_date}.xls"')],
-            )
         if resource_key not in RESOURCE_TABLES:
             return json_response(start_response, {"error": "Resource export tidak dikenal"}, status=HTTPStatus.NOT_FOUND)
         return text_response(
@@ -266,83 +275,6 @@ def app(environ: dict, start_response: Callable):
         if not user:
             return []
         return json_response(start_response, build_service_summary())
-
-    if path == "/api/inspection-schedule/realizations" and method == "GET":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        params = parse_qs(query or "")
-        try:
-            items = core.list_inspection_schedule_realizations(
-                str(params.get("start", [""])[0] or "").strip() or None,
-                str(params.get("end", [""])[0] or "").strip() or None,
-            )
-        except ValueError as error:
-            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-        return json_response(start_response, {"items": items})
-
-    if path == "/api/carbon-brush-stock" and method == "GET":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        params = parse_qs(query or "")
-        try:
-            log_limit = int(params.get("limit", ["50"])[0] or 50)
-        except ValueError:
-            log_limit = 50
-        try:
-            alert_limit = int(params.get("alertLimit", ["10"])[0] or 10)
-        except ValueError:
-            alert_limit = 10
-        return json_response(start_response, {
-            "items": core.list_carbon_brush_stock_items(),
-            "logs": core.list_carbon_brush_stock_logs(log_limit),
-            "alerts": core.list_carbon_brush_alert_summary(alert_limit),
-            "botAlerts": core.list_carbon_brush_alert_summary(alert_limit, bot_only=True),
-            "alertSettings": core.get_carbon_brush_alert_settings(),
-        })
-
-    if path == "/api/admin/whatsapp-bot" and method == "GET":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        if not can_edit_resource(user["role"], "users"):
-            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
-        setting = core.get_whatsapp_bot_setting()
-        core.write_whatsapp_bot_runtime_config(setting)
-        return json_response(start_response, {
-            "settings": core.public_whatsapp_bot_setting(setting),
-            "status": core.read_whatsapp_bot_status(),
-        })
-
-    if path == "/api/bot/whatsapp/negatif-list/open" and method == "GET":
-        if not require_bot_token(environ, start_response):
-            return []
-        params = parse_qs(query or "")
-        try:
-            limit = int(params.get("limit", ["20"])[0])
-        except ValueError:
-            limit = 20
-        return json_response(start_response, {"items": core.list_open_negatif_items_for_bot(limit)})
-
-    if path == "/api/bot/whatsapp/inspection-today" and method == "GET":
-        if not require_bot_token(environ, start_response):
-            return []
-        return json_response(start_response, {"items": core.get_today_inspection_schedule_for_bot()})
-
-    if path == "/api/bot/whatsapp/carbon-brush-alerts" and method == "GET":
-        if not require_bot_token(environ, start_response):
-            return []
-        params = parse_qs(query or "")
-        try:
-            limit = int(params.get("limit", ["10"])[0])
-        except ValueError:
-            limit = 10
-        alert_settings = core.get_carbon_brush_alert_settings()
-        return json_response(start_response, {
-            "items": core.list_carbon_brush_alerts_for_bot(limit),
-            "thresholdDays": int(alert_settings.get("criticalDays", 7)),
-        })
 
     if path == "/api/admin/backup" and method == "GET":
         user = require_user(environ, start_response)
@@ -445,190 +377,6 @@ def app(environ: dict, start_response: Callable):
             )
         return json_response(start_response, {"ok": True}, headers=[("Set-Cookie", clear_session_cookie())])
 
-    if path == "/api/inspection-schedule/realization" and method == "POST":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        payload = parse_json_body(environ)
-        if payload is None:
-            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
-        try:
-            item = core.save_inspection_schedule_realization(payload, user)
-        except ValueError as error:
-            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-        log_activity(
-            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
-            action="save-realization", resource="inspection-schedule", target_id=item["scheduleKey"],
-            target_label=item["plannedTitle"], detail={"plannedDate": item["plannedDate"], "realizedDate": item["realizedDate"]},
-        )
-        return json_response(start_response, {"item": item})
-
-    if path == "/api/carbon-brush-stock/movement" and method == "POST":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        if not require_edit_access(start_response, user, "service"):
-            return []
-        payload = parse_json_body(environ)
-        if payload is None:
-            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
-        try:
-            movement = core.save_manual_carbon_brush_stock_movement(payload, user)
-        except ValueError as error:
-            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-        if not movement.get("noOp"):
-            log_activity(
-                actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
-                action="stock-movement", resource="carbon-brush-stock",
-                target_id=str(payload.get("stockKey", "")), target_label=str(payload.get("stockKey", "")), detail=movement,
-            )
-        return json_response(start_response, {
-            "ok": True,
-            "movement": movement,
-            "items": core.list_carbon_brush_stock_items(),
-            "logs": core.list_carbon_brush_stock_logs(50),
-            "alerts": core.list_carbon_brush_alert_summary(10),
-            "botAlerts": core.list_carbon_brush_alert_summary(10, bot_only=True),
-            "alertSettings": core.get_carbon_brush_alert_settings(),
-        }, status=HTTPStatus.CREATED)
-
-    if path in {"/api/admin/whatsapp-bot", "/api/admin/whatsapp-bot/reset-token"} and method == "POST":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        if not can_edit_resource(user["role"], "users"):
-            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
-        if path.endswith("/reset-token"):
-            setting = core.reset_whatsapp_bot_token()
-            action = "reset-token"
-        else:
-            payload = parse_json_body(environ)
-            if payload is None:
-                return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
-            try:
-                setting = core.save_whatsapp_bot_setting(payload)
-            except ValueError as error:
-                return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-            action = "save"
-        log_activity(
-            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
-            action=action, resource="whatsapp-bot", target_label="Setting WhatsApp Bot",
-        )
-        response = {"ok": True, "settings": core.public_whatsapp_bot_setting(setting)}
-        if not path.endswith("/reset-token"):
-            response["status"] = core.read_whatsapp_bot_status()
-        return json_response(start_response, response)
-
-    if path in {"/api/bot/whatsapp/negatif-list", "/api/bot/whatsapp/negatif-list/close"} and method == "POST":
-        if not require_bot_token(environ, start_response):
-            return []
-        payload = parse_json_body(environ)
-        if payload is None:
-            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
-        try:
-            if path.endswith("/close"):
-                item, duplicate = core.close_negatif_item_from_bot(payload)
-            else:
-                item, duplicate = core.create_negatif_item_from_bot(payload)
-        except ValueError as error:
-            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-        return json_response(
-            start_response,
-            {"ok": True, "item": item, "duplicate": duplicate},
-            status=HTTPStatus.OK if duplicate else HTTPStatus.CREATED,
-        )
-
-    if path == "/api/admin/import-sparepart-master" and method == "POST":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        if not can_edit_resource(user["role"], "users"):
-            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
-        payload = parse_json_body(environ)
-        if payload is None:
-            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
-        source_url = str(payload.get("sourceUrl", "") or "").strip()
-        try:
-            result = core.import_sparepart_references_from_url(source_url)
-        except ValueError as error:
-            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-        except Exception:
-            return json_response(start_response, {"error": "Gagal mengambil CSV Master Sparepart dari link sumber"}, status=HTTPStatus.BAD_GATEWAY)
-        log_activity(
-            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
-            action="import", resource="master:sparepart-references", target_label="Import Master Sparepart",
-            detail={"imported": result.get("imported", 0), "skipped": result.get("skipped", 0), "sourceUrl": source_url},
-        )
-        return json_response(start_response, {"ok": True, **result}, status=HTTPStatus.CREATED)
-
-    if path in {
-        "/api/admin/import-mso-motor-latest",
-        "/api/admin/upload-mso-motor",
-        "/api/admin/import-mso-motor-scrape",
-        "/api/admin/reset-mso-motor",
-    } and method == "POST":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        if not can_edit_resource(user["role"], "users"):
-            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
-        payload = parse_json_body(environ)
-        if payload is None:
-            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
-        try:
-            if path.endswith("/import-mso-motor-latest"):
-                result = core.import_mso_motor_from_latest_file(int(user["id"]))
-                action = "import"
-                target_label = "Import MSO Motor"
-            elif path.endswith("/upload-mso-motor"):
-                file_name = str(payload.get("fileName", "") or "").strip()
-                file_data = str(payload.get("fileData", "") or "")
-                if not file_name or not file_data:
-                    raise ValueError("Nama dan isi file CSV wajib diisi")
-                try:
-                    file_bytes = base64.b64decode(file_data.encode("ascii"), validate=True)
-                except Exception as error:
-                    raise ValueError("Format upload CSV tidak valid") from error
-                result = core.save_uploaded_mso_motor_file(file_name, file_bytes)
-                action = "upload"
-                target_label = "Upload CSV MSO Motor"
-            elif path.endswith("/import-mso-motor-scrape"):
-                rows = payload.get("items")
-                source_name = str(payload.get("sourceName", "MSO Browser Sync") or "MSO Browser Sync").strip()
-                if not isinstance(rows, list) or not rows:
-                    raise ValueError("Data scrape MSO kosong")
-                items = core.build_mso_motor_import_items_from_rows(rows, source_name)
-                result = core.import_mso_motor_items(items, int(user["id"]))
-                sync_settings = core.get_app_setting_value("mso_motor_sync", core.DEFAULT_APP_SETTINGS["mso_motor_sync"])
-                core.save_app_setting_value("mso_motor_sync", {
-                    **sync_settings,
-                    "lastImportedFile": source_name,
-                    "lastImportedAt": utc_now().isoformat(),
-                    "lastImportedCount": result["imported"],
-                })
-                result = {**result, "sourceName": source_name}
-                action = "import"
-                target_label = "Import MSO Motor browser sync"
-            else:
-                result = core.reset_mso_motor_items()
-                sync_settings = core.get_app_setting_value("mso_motor_sync", core.DEFAULT_APP_SETTINGS["mso_motor_sync"])
-                core.save_app_setting_value("mso_motor_sync", {
-                    **sync_settings,
-                    "lastImportedFile": "",
-                    "lastImportedAt": "",
-                    "lastImportedCount": 0,
-                })
-                action = "delete"
-                target_label = "Reset data Motor MSO"
-        except ValueError as error:
-            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
-        log_activity(
-            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
-            action=action, resource="service", target_label=target_label, detail=result,
-        )
-        response_status = HTTPStatus.OK if path.endswith("/reset-mso-motor") else HTTPStatus.CREATED
-        return json_response(start_response, {"ok": True, **result}, status=response_status)
-
     if path == "/api/admin/restore" and method == "POST":
         user = require_user(environ, start_response)
         if not user:
@@ -644,6 +392,104 @@ def app(environ: dict, start_response: Callable):
         restore_backup_payload(backup)
         log_activity(actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]), action="restore", resource="backup", target_label="Restore backup aplikasi")
         return json_response(start_response, {"ok": True})
+
+    if path == "/api/admin/overtime/import" and method == "POST":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        try:
+            content_length = int(environ.get("CONTENT_LENGTH") or "0")
+        except ValueError:
+            content_length = 0
+        if content_length > MAX_OVERTIME_UPLOAD_BODY_BYTES:
+            return json_response(start_response, {"error": "Upload lembur .xls melebihi batas 18 MB"}, status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            if payload.get("previewOnly") is True:
+                return json_response(start_response, {"ok": True, **preview_overtime_xls(payload, MAX_OVERTIME_FILE_BYTES, get_connection)})
+            result = import_overtime_xls(get_connection, payload, user, utc_now().isoformat(), MAX_OVERTIME_FILE_BYTES)
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="import", resource="overtime", target_id=str(result.get("batchId", "")),
+            target_label=f"Import lembur {', '.join(result.get('periods') or [str(result.get('period', '') or '')])}",
+            detail={"fileName": result.get("fileName", ""), "periods": result.get("periods", []), "imported": result.get("imported", 0), "replaced": result.get("replaced", 0), "noOp": bool(result.get("noOp"))},
+        )
+        return json_response(start_response, {"ok": True, **result}, status=HTTPStatus.OK if result.get("noOp") else HTTPStatus.CREATED)
+
+    if path == "/api/admin/overtime/schedule/import" and method == "POST":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        try:
+            content_length = int(environ.get("CONTENT_LENGTH") or "0")
+        except ValueError:
+            content_length = 0
+        if content_length > MAX_OVERTIME_UPLOAD_BODY_BYTES:
+            return json_response(start_response, {"error": "Upload jadwal kerja .xlsx melebihi batas 18 MB"}, status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            if payload.get("previewOnly") is True:
+                return json_response(start_response, {"ok": True, **preview_overtime_schedule_xlsx(payload, MAX_OVERTIME_FILE_BYTES)})
+            result = import_overtime_schedule_xlsx(get_connection, payload, user, utc_now().isoformat(), MAX_OVERTIME_FILE_BYTES)
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="import", resource="overtime-schedule", target_id=str(result.get("batchId", "")),
+            target_label="Import jadwal kerja lembur",
+            detail={"fileName": result.get("fileName", ""), "imported": result.get("imported", 0), "noOp": bool(result.get("noOp"))},
+        )
+        return json_response(start_response, {"ok": True, **result}, status=HTTPStatus.OK if result.get("noOp") else HTTPStatus.CREATED)
+
+    if path == "/api/admin/overtime/day-types" and method == "PUT":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            result = update_overtime_day_types(get_connection, payload.get("classifications"), int(user["id"]), utc_now().isoformat())
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="classify", resource="overtime", target_label="Klasifikasi hari lembur", detail={"updated": result["updated"]},
+        )
+        return json_response(start_response, {"ok": True, **result})
+
+    if path.startswith("/api/admin/overtime/personnel/") and method == "PUT":
+        user = require_user(environ, start_response)
+        if not user:
+            return []
+        if user["role"] != "admin":
+            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
+        employee_no = unquote(path.removeprefix("/api/admin/overtime/personnel/").strip("/"))
+        payload = parse_json_body(environ)
+        if payload is None:
+            return json_response(start_response, {"error": "Body JSON tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            item = update_overtime_personnel(get_connection, employee_no, str(payload.get("groupType") or ""), int(user["id"]), utc_now().isoformat())
+        except ValueError as error:
+            return json_response(start_response, {"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+        log_activity(
+            actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
+            action="update", resource="overtime-personnel", target_id=employee_no,
+            target_label=str(item.get("employeeName") or employee_no), detail={"groupType": item["groupType"]},
+        )
+        return json_response(start_response, {"ok": True, "item": item})
 
     if path.startswith("/api/admin/masters/"):
         user = require_user(environ, start_response)
@@ -768,28 +614,6 @@ def app(environ: dict, start_response: Callable):
                 if not item:
                     return json_response(start_response, {"error": "Item tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
                 return json_response(start_response, {"item": item})
-            params = parse_qs(query or "")
-            if resource_key == "service":
-                compact = str(params.get("compact", [""])[0] or "").strip().lower() in {"1", "true", "yes"}
-                try:
-                    requested_limit = int(params.get("limit", ["0"])[0] or 0)
-                except ValueError:
-                    requested_limit = 0
-                if compact or requested_limit > 0:
-                    limit = min(requested_limit, 1000) if requested_limit > 0 else None
-                    return json_response(start_response, {"items": core.list_service_items_compact(limit=limit)})
-            if resource_key == "negatif-list":
-                status = str(params.get("status", [""])[0] or "").strip()
-                compact = str(params.get("compact", [""])[0] or "").strip().lower() in {"1", "true", "yes"}
-                try:
-                    requested_limit = int(params.get("limit", ["0"])[0] or 0)
-                except ValueError:
-                    requested_limit = 0
-                if status or compact or requested_limit > 0:
-                    limit = min(requested_limit, 1000) if requested_limit > 0 else None
-                    return json_response(start_response, {
-                        "items": core.list_negatif_list_items_filtered(status=status, limit=limit, compact=compact),
-                    })
             return json_response(start_response, {"items": list_items(resource_key)})
         if method == "POST":
             if item_id:
@@ -849,25 +673,15 @@ def app(environ: dict, start_response: Callable):
                 return json_response(start_response, {"error": "Endpoint hapus item tidak valid"}, status=HTTPStatus.NOT_FOUND)
             if not require_edit_access(start_response, user, resource_key):
                 return []
-            if resource_key == "service" and str(user["role"]) == "team":
-                return json_response(start_response, {"error": "Role team tidak diizinkan menghapus data service"}, status=HTTPStatus.FORBIDDEN)
-            carbon_brush_stock_result = None
-            if resource_key == "service":
-                existing_item, carbon_brush_stock_result = core.delete_service_item_atomic(item_id, user)
-                deleted = existing_item is not None
-            else:
-                existing_item = get_item_by_id(resource_key, item_id)
-                deleted = delete_item(resource_key, item_id)
+            existing_item = get_item_by_id(resource_key, item_id)
+            deleted = delete_item(resource_key, item_id)
             if not deleted:
                 return json_response(start_response, {"error": "Item tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
             label = ""
             if existing_item:
                 label = existing_item.get("equipment") or existing_item.get("equipmentName") or existing_item.get("name") or existing_item.get("materialDescription") or existing_item.get("code") or item_id
             log_activity(actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]), action="delete", resource=resource_key, target_id=str(item_id), target_label=str(label or item_id))
-            response = {"ok": True, "id": item_id}
-            if carbon_brush_stock_result:
-                response["carbonBrushStock"] = carbon_brush_stock_result
-            return json_response(start_response, response)
+            return json_response(start_response, {"ok": True, "id": item_id})
 
     if path.startswith("/api/sync/") and method == "PUT":
         user = require_user(environ, start_response)
@@ -912,29 +726,6 @@ def app(environ: dict, start_response: Callable):
         if updated_user:
             log_activity(actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]), action="change-role", resource="users", target_id=str(updated_user["id"]), target_label=f"{updated_user['username']} -> {updated_user['role']}")
         return json_response(start_response, {"ok": True, "user": updated_user, "users": list_users()})
-
-    if path.startswith("/api/users/") and method == "DELETE":
-        user = require_user(environ, start_response)
-        if not user:
-            return []
-        if not can_edit_resource(user["role"], "users"):
-            return json_response(start_response, {"error": "Akses admin diperlukan"}, status=HTTPStatus.FORBIDDEN)
-        username = unquote(path.removeprefix("/api/users/")).strip("/")
-        if not username:
-            return json_response(start_response, {"error": "Username tidak valid"}, status=HTTPStatus.BAD_REQUEST)
-        target_user = get_user_by_username(username)
-        if not target_user:
-            return json_response(start_response, {"error": "User tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
-        if target_user["role"] == "admin" and count_admin_users() <= 1:
-            return json_response(start_response, {"error": "Minimal harus ada satu akun admin aktif"}, status=HTTPStatus.BAD_REQUEST)
-        deleted_user = core.delete_user_account(username)
-        if deleted_user:
-            log_activity(
-                actor_user_id=int(user["id"]), actor_username=str(user["username"]), actor_role=str(user["role"]),
-                action="delete-user", resource="users", target_id=str(deleted_user["id"]),
-                target_label=str(deleted_user["username"]),
-            )
-        return json_response(start_response, {"ok": True, "user": deleted_user, "users": list_users()})
 
     return json_response(start_response, {"error": "Endpoint tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
 

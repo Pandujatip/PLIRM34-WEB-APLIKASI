@@ -610,9 +610,9 @@ const roleAccessSummary = {
 };
 
 const roleSections = {
-  admin: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "user-management", "activity-log"],
-  organik: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb"],
-  team: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb"],
+  admin: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "overtime", "user-management", "activity-log"],
+  organik: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "overtime"],
+  team: ["dashboard", "negatif-list", "sparepart", "service", "bom", "spb", "overtime"],
 };
 
 const roleEditable = {
@@ -2879,6 +2879,7 @@ function applyRoleAccess(role) {
 
   accessSummary.textContent = roleAccessSummary[role] || roleAccessSummary.admin;
   renderUserManagementTable();
+  window.OvertimeModule?.onRoleChange(role);
 }
 
 function saveSession(username, role) {
@@ -6943,12 +6944,9 @@ async function deleteItemFromBackend(resourceKey, itemId) {
     return true;
   }
 
-  const result = await apiRequest(`/items/${resourceKey}/${encodeURIComponent(itemId)}`, {
+  await apiRequest(`/items/${resourceKey}/${encodeURIComponent(itemId)}`, {
     method: "DELETE",
   });
-  if (resourceKey === "service" && result.carbonBrushStock) {
-    void refreshCarbonBrushStockData({ force: true }).catch(() => {});
-  }
   return true;
 }
 
@@ -9088,6 +9086,10 @@ function renderActiveSectionVisuals(sectionName) {
   }
   if (sectionName === "spb") {
     applySpbFilter();
+    return;
+  }
+  if (sectionName === "overtime") {
+    window.OvertimeModule?.render();
   }
 }
 

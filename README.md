@@ -30,6 +30,7 @@ Alur kerja yang disarankan:
 - role `admin`, `organik`, dan `team`
 - manajemen role user oleh admin
 - modul `Dashboard`, `Negatif List`, `Sparepart`, `Service`, `BOM`, `SPB`
+- modul `Lembur Outsourching` untuk impor `.xls`, klasifikasi hari, dan monitoring kuota jam hidup
 - backend CRUD item-level untuk semua modul utama
 - backup, restore, export CSV, dan master management dari panel admin
 - audit trail atau log aktivitas user
@@ -145,6 +146,11 @@ Saat startup pertama setelah upgrade, file runtime legacy di root proyek dipinda
 - `GET /api/masters`
 - `GET /api/reports/export/<resource>`
 - `GET /api/reports/service-summary`
+- `GET /api/overtime`
+- `GET /api/overtime/personnel`
+- `POST /api/admin/overtime/import`
+- `PUT /api/admin/overtime/personnel/<employeeNo>`
+- `PUT /api/admin/overtime/day-types`
 - `GET /api/admin/backup`
 - `POST /api/admin/restore`
 - `GET /api/admin/activity-logs`

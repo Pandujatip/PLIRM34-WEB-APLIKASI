@@ -1,27 +1,13 @@
-const CACHE_NAME = "plirm34-pwa-v20260719-01";
+﻿const CACHE_NAME = "plirm34-pwa-v20260831-01";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260711-02",
-  "/app.bootstrap.js?v=20260711-02",
-  "/app.auth.js?v=20260711-02",
-  "/app.carbon-brush.js?v=20260711-02",
-  "/app.service.js?v=20260711-02",
-  "/app.mso.js?v=20260711-02",
-  "/app.dashboard.js?v=20260711-02",
-  "/app.admin.js?v=20260711-02",
-  "/app.js?v=20260711-02",
+  "/styles.css?v=20260831-01",
+  "/app.bootstrap.js?v=20260831-01",
   "/manifest.webmanifest",
   "/pwa-icons/icon-192.png",
   "/pwa-icons/icon-512.png",
   "/pwa-icons/icon-maskable-512.png"
-];
-
-const AUTHENTICATED_MEDIA_PREFIXES = [
-  "/bom-images/",
-  "/bom-motor-images/",
-  "/service-mcc-images/",
-  "/slideshow-images/",
 ];
 
 self.addEventListener("install", (event) => {
@@ -50,10 +36,15 @@ function isCacheableRequest(request) {
   if (url.origin !== self.location.origin) {
     return false;
   }
-  if (AUTHENTICATED_MEDIA_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
-    return false;
-  }
-  if (url.pathname.startsWith("/api/")) {
+  if (url.pathname.startsWith("/items")
+    || url.pathname.startsWith("/bootstrap")
+    || url.pathname.startsWith("/login")
+    || url.pathname.startsWith("/logout")
+    || url.pathname.startsWith("/session")
+    || url.pathname.startsWith("/masters")
+    || url.pathname.startsWith("/activity-logs")
+    || url.pathname.startsWith("/admin")
+    || url.pathname.startsWith("/overtime")) {
     return false;
   }
   return request.destination === "document"
