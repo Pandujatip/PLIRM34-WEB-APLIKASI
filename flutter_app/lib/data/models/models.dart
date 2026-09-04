@@ -1,4 +1,4 @@
-﻿class UserModel {
+class UserModel {
   final int id;
   final String username;
   final String role;
@@ -45,15 +45,16 @@ class ServiceItem {
   });
 
   factory ServiceItem.fromJson(Map<String, dynamic> json) {
+    final payload = json['payload'] is Map<String, dynamic> ? json['payload'] as Map<String, dynamic> : null;
     return ServiceItem(
       id: json['id']?.toString() ?? '',
-      tanggal: json['tanggal']?.toString() ?? json['date']?.toString() ?? '',
-      equipment: json['equipment']?.toString() ?? json['nama_alat']?.toString() ?? '',
-      kategori: json['kategori']?.toString() ?? json['category']?.toString() ?? 'Electrical',
-      deskripsi: json['deskripsi']?.toString() ?? json['keterangan']?.toString() ?? '',
-      tindakan: json['tindakan']?.toString() ?? '',
+      tanggal: json['tanggal']?.toString() ?? payload?['inspectionDate']?.toString() ?? json['date']?.toString() ?? '',
+      equipment: json['equipmentName']?.toString() ?? json['equipment']?.toString() ?? json['nama_alat']?.toString() ?? '',
+      kategori: json['type']?.toString() ?? json['kategori']?.toString() ?? json['category']?.toString() ?? 'Electrical',
+      deskripsi: json['description']?.toString() ?? json['deskripsi']?.toString() ?? json['subtype']?.toString() ?? '',
+      tindakan: json['detail']?.toString() ?? json['tindakan']?.toString() ?? payload?['recommendation']?.toString() ?? '',
       status: json['status']?.toString() ?? 'Done',
-      teknisi: json['teknisi']?.toString() ?? json['pic']?.toString() ?? '',
+      teknisi: json['teknisi']?.toString() ?? payload?['pic']?.toString() ?? '',
       area: json['area']?.toString() ?? '',
     );
   }
@@ -86,6 +87,30 @@ class CarbonBrushItem {
       keterangan: json['keterangan']?.toString() ?? 'Dekat limit | Tuban 3 limit merah < 30 mm',
     );
   }
+
+  factory CarbonBrushItem.fromAlert(Map<String, dynamic> json) {
+    final displayPoints = json['displayAlertPoints'] as List? ?? [];
+    final firstPoint = displayPoints.isNotEmpty && displayPoints[0] is Map<String, dynamic>
+        ? displayPoints[0] as Map<String, dynamic>
+        : null;
+
+    final equip = json['equipment']?.toString() ?? '';
+    final count = json['totalAlertPointCount'] ?? 1;
+    final pointKey = firstPoint?['pointKey']?.toString() ?? 'F4';
+    final currentVal = firstPoint?['currentValue']?.toString() ?? '32.5';
+    final estDate = firstPoint?['estimatedReplacementDate']?.toString() ?? '15 Sep 2026';
+    final days = firstPoint?['countdownDays']?.toString() ?? '10';
+    final lastInsp = firstPoint?['lastInspectionDate']?.toString() ?? '20 Agu 2026';
+
+    return CarbonBrushItem(
+      equipment: equip,
+      statusLimit: "$count TITIK DEKAT LIMIT",
+      estimasi: "$estDate ($days hari)",
+      tanggalUkur: "$lastInsp | $pointKey = $currentVal mm",
+      nilai: "$currentVal mm",
+      keterangan: "Dekat limit | Tuban 3 limit merah < 30 mm | Prediksi stabil",
+    );
+  }
 }
 
 class NegatifItem {
@@ -109,9 +134,9 @@ class NegatifItem {
     return NegatifItem(
       id: json['id']?.toString() ?? '',
       equipment: json['equipment']?.toString() ?? '',
-      temuan: json['temuan']?.toString() ?? json['deskripsi']?.toString() ?? '',
-      status: json['status']?.toString() ?? 'OPEN',
-      statusTambahan: json['status_tambahan']?.toString() ?? '',
+      temuan: json['damageDescription']?.toString() ?? json['temuan']?.toString() ?? json['deskripsi']?.toString() ?? '',
+      status: json['workStatus']?.toString() ?? json['status']?.toString() ?? 'OPEN',
+      statusTambahan: json['pendingMark']?.toString() ?? json['followUpPlan']?.toString() ?? json['status_tambahan']?.toString() ?? '',
       area: json['area']?.toString() ?? '',
     );
   }

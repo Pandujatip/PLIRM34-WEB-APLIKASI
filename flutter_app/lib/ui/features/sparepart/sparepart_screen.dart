@@ -19,12 +19,24 @@ class SparepartScreen extends StatefulWidget {
 
 class _SparepartScreenState extends State<SparepartScreen> {
   final _searchCtrl = TextEditingController();
-  final List<SparepartItem> _items = [
-    SparepartItem(id: "1", kode: "CB-634-SIEMENS", nama: "Carbon Brush SIEMENS 32x50x80", stok: 24, satuan: "PCS", lokasi: "Gudang Listrik Rak A-02"),
-    SparepartItem(id: "2", kode: "SW-DRIFT-323", nama: "Drift Switch Conveyor Omron Heavy Duty", stok: 6, satuan: "UNIT", lokasi: "Gudang Instrument Rak C-01"),
-    SparepartItem(id: "3", kode: "MOD-PROFIBUS-DP", nama: "Siemens ET200M IM153-1 Profibus Module", stok: 2, satuan: "UNIT", lokasi: "Ruang Server DCS"),
-    SparepartItem(id: "4", kode: "PULL-CORD-KAP", nama: "Pull Cord Switch With Emergency Lock", stok: 12, satuan: "UNIT", lokasi: "Gudang Listrik Rak B-05"),
-  ];
+  List<SparepartItem> _items = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    final items = await widget.apiService.fetchSpareparts();
+    if (mounted) {
+      setState(() {
+        _items = items;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,10 +67,14 @@ class _SparepartScreenState extends State<SparepartScreen> {
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 90),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppTheme.teal),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 90),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
                 final item = filtered[index];
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),

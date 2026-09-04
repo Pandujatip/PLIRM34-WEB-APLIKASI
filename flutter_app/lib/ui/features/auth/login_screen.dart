@@ -6,7 +6,7 @@ import "../../../data/services/api_service.dart";
 
 class LoginScreen extends StatefulWidget {
   final ApiService apiService;
-  final VoidCallback onLoginSuccess;
+  final Function(String? token) onLoginSuccess;
 
   const LoginScreen({
     super.key,
@@ -20,7 +20,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameCtrl = TextEditingController(text: "admin.plirm34");
-  final _passwordCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController(text: "admin123");
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
@@ -39,8 +39,8 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await widget.apiService.login(username, password);
-      if (mounted) widget.onLoginSuccess();
+      final user = await widget.apiService.login(username, password);
+      if (mounted) widget.onLoginSuccess(user.token);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -307,7 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // Offline Button
                     OutlinedButton(
-                      onPressed: widget.onLoginSuccess,
+                      onPressed: () => widget.onLoginSuccess(null),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.textMuted,
                         minimumSize: const Size.fromHeight(48),

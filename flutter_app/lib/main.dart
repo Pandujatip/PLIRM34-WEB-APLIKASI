@@ -1,4 +1,4 @@
-﻿import "package:flutter/material.dart";
+import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 import "package:shared_preferences/shared_preferences.dart";
 import "core/constants/app_constants.dart";
@@ -54,6 +54,7 @@ class AppRoot extends StatefulWidget {
 }
 
 class _AppRootState extends State<AppRoot> {
+  static const MethodChannel _authChannel = MethodChannel("id.plirm34/auth");
   final ApiService _apiService = ApiService();
   bool _isLoggedIn = false;
   String _selectedArea = "Semua Area";
@@ -65,19 +66,45 @@ class _AppRootState extends State<AppRoot> {
       _apiService.setSessionToken(widget.initialToken);
       _isLoggedIn = true;
     }
+    _setupDeepLinkChannel();
   }
 
-  void _onLoginSuccess() async {
+  void _setupDeepLinkChannel() {
+    try {
+      _authChannel.invokeMethod<String>("getInitialToken").then((token) {
+        if (token != null && token.isNotEmpty) {
+          _onLoginSuccess(token);
+        }
+      });
+    } catch (_) {}
+
+    _authChannel.setMethodCallHandler((call) async {
+      if (call.method == "onTokenReceived") {
+        final token = call.arguments as String?;
+        if (token != null && token.isNotEmpty) {
+          _onLoginSuccess(token);
+        }
+      }
+    });
+  }
+
+  void _onLoginSuccess([String? token]) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(AppConstants.prefToken, "logged_in_session");
-    setState(() => _isLoggedIn = true);
+    final effectiveToken = (token != null && token.isNotEmpty) ? token : "logged_in_session";
+    await prefs.setString(AppConstants.prefToken, effectiveToken);
+    _apiService.setSessionToken(effectiveToken);
+    if (mounted) {
+      setState(() => _isLoggedIn = true);
+    }
   }
 
   void _onLogout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstants.prefToken);
     _apiService.setSessionToken(null);
-    setState(() => _isLoggedIn = false);
+    if (mounted) {
+      setState(() => _isLoggedIn = false);
+    }
   }
 
   void _onAreaChanged(String newArea) {

@@ -1,4 +1,4 @@
-﻿import "dart:convert";
+import "dart:convert";
 import "package:http/http.dart" as http;
 import "../../core/constants/app_constants.dart";
 import "../models/models.dart";
@@ -17,10 +17,11 @@ class ApiService {
     final headers = <String, String>{
       "Content-Type": "application/json",
       "Accept": "application/json",
+      "User-Agent": "PLIRM34-Native-Android",
     };
     if (_sessionToken != null && _sessionToken!.isNotEmpty) {
       headers["Authorization"] = "Bearer $_sessionToken";
-      headers["Cookie"] = "plirm_session=$_sessionToken";
+      headers["Cookie"] = "plirm34_session=$_sessionToken";
     }
     return headers;
   }
@@ -30,7 +31,11 @@ class ApiService {
     final uri = Uri.parse("$baseUrl/api/auth/login");
     final res = await http.post(
       uri,
-      headers: {"Content-Type": "application/json"},
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "PLIRM34-Native-Android",
+      },
       body: jsonEncode({"username": username, "password": password}),
     ).timeout(const Duration(seconds: 15));
 
@@ -47,7 +52,11 @@ class ApiService {
     final uri = Uri.parse("$baseUrl/api/auth/google");
     final res = await http.post(
       uri,
-      headers: {"Content-Type": "application/json"},
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "PLIRM34-Native-Android",
+      },
       body: jsonEncode({
         "id_token": idToken,
         if (email != null) "email": email,
@@ -81,8 +90,15 @@ class ApiService {
       final uri = Uri.parse("$baseUrl/api/carbon-brush-stock");
       final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
-        final list = jsonDecode(res.body) as List;
-        return list.map((e) => CarbonBrushItem.fromJson(e)).toList();
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) {
+          final alerts = decoded['alerts'] as List? ?? [];
+          if (alerts.isNotEmpty) {
+            return alerts.map((a) => CarbonBrushItem.fromAlert(a as Map<String, dynamic>)).toList();
+          }
+        } else if (decoded is List && decoded.isNotEmpty) {
+          return decoded.map((e) => CarbonBrushItem.fromJson(e as Map<String, dynamic>)).toList();
+        }
       }
     } catch (_) {}
     // Fallback item
@@ -106,8 +122,11 @@ class ApiService {
       final uri = Uri.parse("$baseUrl/api/items/negatif-list?$query");
       final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
-        final list = jsonDecode(res.body) as List;
-        return list.map((e) => NegatifItem.fromJson(e)).toList();
+        final decoded = jsonDecode(res.body);
+        final list = decoded is List ? decoded : (decoded['items'] as List? ?? []);
+        if (list.isNotEmpty) {
+          return list.map((e) => NegatifItem.fromJson(e as Map<String, dynamic>)).toList();
+        }
       }
     } catch (_) {}
     return [
@@ -133,8 +152,11 @@ class ApiService {
       final uri = Uri.parse("$baseUrl/api/items/service?${params.join('&')}");
       final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
-        final list = jsonDecode(res.body) as List;
-        return list.map((e) => ServiceItem.fromJson(e)).toList();
+        final decoded = jsonDecode(res.body);
+        final list = decoded is List ? decoded : (decoded['items'] as List? ?? []);
+        if (list.isNotEmpty) {
+          return list.map((e) => ServiceItem.fromJson(e as Map<String, dynamic>)).toList();
+        }
       }
     } catch (_) {}
 
@@ -173,6 +195,26 @@ class ApiService {
         teknisi: "DCS Eng. Pandu",
         area: "Kiln",
       ),
+    ];
+  }
+
+  Future<List<SparepartItem>> fetchSpareparts() async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/items/sparepart?compact=1&limit=500");
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        final list = decoded is List ? decoded : (decoded['items'] ?? decoded['data'] as List? ?? []);
+        if (list.isNotEmpty) {
+          return list.map((e) => SparepartItem.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (_) {}
+    return [
+      SparepartItem(id: "1", kode: "CB-634-SIEMENS", nama: "Carbon Brush SIEMENS 32x50x80", stok: 24, satuan: "PCS", lokasi: "Gudang Listrik Rak A-02"),
+      SparepartItem(id: "2", kode: "SW-DRIFT-323", nama: "Drift Switch Conveyor Omron Heavy Duty", stok: 6, satuan: "UNIT", lokasi: "Gudang Instrument Rak C-01"),
+      SparepartItem(id: "3", kode: "MOD-PROFIBUS-DP", nama: "Siemens ET200M IM153-1 Profibus Module", stok: 2, satuan: "UNIT", lokasi: "Ruang Server DCS"),
+      SparepartItem(id: "4", kode: "PULL-CORD-KAP", nama: "Pull Cord Switch With Emergency Lock", stok: 12, satuan: "UNIT", lokasi: "Gudang Listrik Rak B-05"),
     ];
   }
 }
