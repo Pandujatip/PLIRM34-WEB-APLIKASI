@@ -6594,22 +6594,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             if status or limit or compact:
                 self._send_json({"items": list_negatif_list_items_filtered(status=status, limit=limit, compact=compact)})
                 return
-        
-        # Add pagination support for all resources
-        pagination = parse_pagination_params(query or "", default_limit=50, max_limit=200)
-        all_items = list_items(resource_key)
-        total = len(all_items)
-        
-        # Apply pagination
-        start = pagination['offset']
-        end = start + pagination['limit']
-        paginated_items = all_items[start:end]
-        
-        # Return paginated response
-        response = create_paginated_response(paginated_items, total, pagination['page'], pagination['limit'])
-        
-        # Add cache headers for GET requests
-        self._send_json_cached(response, max_age=300, status=HTTPStatus.OK, public=False)
+        self._send_json({"items": list_items(resource_key)})
 
     def _handle_items_post(self, path: str):
         user = self._require_user()
