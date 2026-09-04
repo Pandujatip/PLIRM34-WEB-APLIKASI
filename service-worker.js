@@ -5,9 +5,9 @@ const APP_SHELL = [
   "/styles.css?v=20260711-02",
   "/app.bootstrap.js?v=20260711-02",
   "/manifest.webmanifest",
-  "/pwa-icons/icon-192.png",
-  "/pwa-icons/icon-512.png",
-  "/pwa-icons/icon-maskable-512.png"
+  "/pwa-icons/icon-192.webp",
+  "/pwa-icons/icon-512.webp",
+  "/pwa-icons/icon-maskable-512.webp"
 ];
 
 self.addEventListener("install", (event) => {

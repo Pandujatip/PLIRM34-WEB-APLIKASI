@@ -1,15 +1,26 @@
 (function bootstrapPlirm34Login() {
   "use strict";
 
-  const FULL_APP_SCRIPTS = [
-    "/app.auth.js?v=20260711-02",
-    "/app.carbon-brush.js?v=20260711-02",
-    "/app.service.js?v=20260711-02",
-    "/app.mso.js?v=20260711-02",
-    "/app.dashboard.js?v=20260711-02",
-    "/app.admin.js?v=20260711-02",
-    "/app.js?v=20260711-02",
-  ];
+
+  // Client-Side Error Tracking
+  window.addEventListener("error", (e) => {
+    fetch("/api/monitor/error-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: e.message, url: e.filename, line: e.lineno })
+    }).catch(() => {});
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    fetch("/api/monitor/error-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Unhandled Promise Rejection: " + e.reason, url: window.location.href, line: 0 })
+    }).catch(() => {});
+  });
+
+  const loadModules = async () => {
+    await import('./combined.js');
+  };
 
   const loginForm = document.getElementById("login-form");
   const signupButton = document.getElementById("signup-button");
@@ -65,17 +76,6 @@
     return payload;
   }
 
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = src;
-      script.async = false;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error(`Gagal memuat ${src}`));
-      document.body.append(script);
-    });
-  }
-
   function materializeWorkspace() {
     if (document.getElementById("workspace")) return;
     const template = document.getElementById("workspace-template");
@@ -89,9 +89,7 @@
     if (fullAppPromise) return fullAppPromise;
     fullAppPromise = (async () => {
       materializeWorkspace();
-      for (const src of FULL_APP_SCRIPTS) {
-        await loadScript(src);
-      }
+      await loadModules();
       fullAppReady = true;
     })().catch((error) => {
       fullAppPromise = null;

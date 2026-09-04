@@ -3872,15 +3872,15 @@
                     <input type="number" step="0.01" name="tuban4High" required>
                   </label>
                   <label>
-                    Prepare jika <= hari
+                    Prepare jika &lt;= hari
                     <input type="number" step="1" name="prepareDays" required>
                   </label>
                   <label>
-                    Urgent jika <= hari
+                    Urgent jika &lt;= hari
                     <input type="number" step="1" name="urgentDays" required>
                   </label>
                   <label>
-                    Critical jika <= hari
+                    Critical jika &lt;= hari
                     <input type="number" step="1" name="criticalDays" required>
                   </label>
                 </div>
@@ -4253,8 +4253,8 @@
 
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.bootstrap.js?v=20260711-02"></script>
-  <script>
+  <script type="module" src="/app.bootstrap.js"></script>
+  <script type="module">
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         const registerPwaWorker = () => {

@@ -1,3 +1,1356 @@
+/* --- app.auth.js --- */
+const defaultAuthUsers = [
+  { username: "admin.plirm34", password: "admin123", role: "admin" },
+  { username: "organik.plirm34", password: "organik123", role: "organik" },
+  { username: "team.plirm34", password: "team123", role: "team" },
+];
+
+function getStoredUsers() {
+  const storedUsers = readStorage(storageKeys.users);
+  if (Array.isArray(storedUsers) && storedUsers.length > 0) {
+    return storedUsers;
+  }
+  writeStorage(storageKeys.users, defaultAuthUsers);
+  return [...defaultAuthUsers];
+}
+
+function findUserByUsername(username) {
+  return getStoredUsers().find((user) => user.username.toLowerCase() === username.toLowerCase());
+}
+
+function loginWithUser(user) {
+  applyRoleAccess(user.role);
+  currentUser.textContent = user.username;
+  currentRole.textContent = roleLabels[user.role] || "Team";
+  if (playerAvatar) {
+    const initials = String(user.username || "PL")
+      .split(/[.\s_-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("")
+      .slice(0, 2) || "PL";
+    playerAvatar.textContent = initials;
+  }
+  saveSession(user.username, user.role);
+  loginScreen.classList.add("hidden");
+  workspace.classList.remove("hidden");
+  sidebar?.classList.remove("menu-open");
+  if (typeof initializeAuthenticatedWorkspace === "function") {
+    void initializeAuthenticatedWorkspace();
+  }
+  renderUserManagementTable();
+  openSection("dashboard");
+  if (typeof syncDashboardSlideshowState === "function") {
+    syncDashboardSlideshowState();
+  }
+  resetIdleLogoutTimer();
+}
+
+
+/* --- app.carbon-brush.js --- */
+function getCarbonBrushPointHistory(item, pointKey) {
+  const targetEquipmentKey = normalizeCarbonBrushEquipmentForType(item.equipmentName || "");
+  return getServiceItemsFromDom()
+    .filter((entry) =>
+      entry.formType === "service-motor-mv-carbon-brush"
+      && normalizeCarbonBrushEquipmentForType(entry.equipmentName || "") === targetEquipmentKey)
+    .map((entry) => {
+      const payload = entry.payload || {};
+      const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
+      const rawValue = String(payload.measurements?.[pointKey] || "").trim();
+      const numericValue = parseCarbonBrushNumericValue(rawValue);
+      const bucket = classifyCarbonBrushValue(rawValue, entry.equipmentName || "", payload.plant || "");
+      const replacementValue = parseCarbonBrushNumericValue(payload.replacement);
+      const replacedConfirmed = normalizeCarbonBrushReplacedPoints(payload.replacedPoints).includes(pointKey);
+      return {
+        id: entry.id,
+        inspectionDate,
+        inspectionDateLabel: formatInspectionDate(payload.inspectionDate),
+        rawValue,
+        numericValue,
+        bucket,
+        replacementValue,
+        replacedConfirmed,
+        pic: payload.pic || "-",
+      };
+    })
+    .filter((entry) => entry.inspectionDate)
+    .sort((left, right) => left.inspectionDate - right.inspectionDate);
+}
+
+function getCarbonBrushMeggerHistory(item) {
+  const targetEquipmentKey = normalizeCarbonBrushEquipmentForType(item.equipmentName || "");
+  return getServiceItemsFromDom()
+    .filter((entry) =>
+      entry.formType === "service-motor-mv-carbon-brush"
+      && normalizeCarbonBrushEquipmentForType(entry.equipmentName || "") === targetEquipmentKey)
+    .map((entry) => {
+      const payload = entry.payload || {};
+      const inspectionDate = parseInspectionDateValue(payload.inspectionDate);
+      const rawValue = String(payload.megger || "").trim();
+      const numericValue = parseCarbonBrushNumericValue(rawValue);
+      return {
+        id: entry.id,
+        inspectionDate,
+        inspectionDateLabel: formatInspectionDate(payload.inspectionDate),
+        rawValue,
+        numericValue,
+        pic: payload.pic || "-",
+      };
+    })
+    .filter((entry) => entry.inspectionDate)
+    .sort((left, right) => left.inspectionDate - right.inspectionDate);
+}
+
+function getMedianValue(values) {
+  const numericValues = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right);
+  if (!numericValues.length) {
+    return null;
+  }
+  const middleIndex = Math.floor(numericValues.length / 2);
+  if (numericValues.length % 2 === 1) {
+    return numericValues[middleIndex];
+  }
+  return (numericValues[middleIndex - 1] + numericValues[middleIndex]) / 2;
+}
+
+function getCarbonBrushElapsedDaysSince(inspectionDate) {
+  if (!(inspectionDate instanceof Date) || Number.isNaN(inspectionDate.getTime())) {
+    return 0;
+  }
+  const startDate = new Date(inspectionDate.getFullYear(), inspectionDate.getMonth(), inspectionDate.getDate());
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const elapsedDays = getDaysBetweenDates(startDate, todayStart);
+  return Math.max(0, elapsedDays || 0);
+}
+
+function classifyCarbonBrushPredictionQuality(recentIntervals) {
+  if (!Array.isArray(recentIntervals) || recentIntervals.length < 3) {
+    return {
+      key: "insufficient",
+      label: "Belum cukup histori",
+      className: "is-monitor",
+      note: "Butuh minimal 3 interval valid agar prediksi laju aus layak dipakai.",
+    };
+  }
+  const gapDays = recentIntervals
+    .map((entry) => Number(entry?.gapDays))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const wearRates = recentIntervals
+    .map((entry) => Number(entry?.wearRatePerDay))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (gapDays.length < 3 || wearRates.length < 3) {
+    return {
+      key: "insufficient",
+      label: "Belum cukup histori",
+      className: "is-monitor",
+      note: "Butuh minimal 3 interval valid agar prediksi laju aus layak dipakai.",
+    };
+  }
+
+  const maxGap = Math.max(...gapDays);
+  const minGap = Math.min(...gapDays);
+  const gapSpread = maxGap - minGap;
+  const maxWearRate = Math.max(...wearRates);
+  const minWearRate = Math.min(...wearRates);
+  const wearRatio = minWearRate > 0 ? maxWearRate / minWearRate : Number.POSITIVE_INFINITY;
+
+  if (maxGap > 75 || gapSpread > 45 || wearRatio > 3.5) {
+    return {
+      key: "low",
+      label: "Prediksi lemah",
+      className: "is-critical",
+      note: "Jarak histori terlalu panjang atau laju aus terlalu melonjak, jadi countdown perlu dibaca hati-hati.",
+    };
+  }
+  if (maxGap > 45 || gapSpread > 28 || wearRatio > 2.25) {
+    return {
+      key: "medium",
+      label: "Prediksi cukup",
+      className: "is-prepare",
+      note: "Countdown sudah bisa dibaca, tetapi histori masih cukup fluktuatif dan perlu verifikasi rutin.",
+    };
+  }
+  return {
+    key: "high",
+    label: "Prediksi stabil",
+    className: "is-monitor",
+    note: "Laju aus 3 interval terakhir cukup rapat dan konsisten untuk dijadikan countdown operasional.",
+  };
+}
+
+function classifyCarbonBrushActualStatus(currentValue, thresholdLow, thresholdHigh) {
+  if (currentValue === null) {
+    return {
+      label: "Belum ada angka",
+      className: "is-monitor",
+      actionLabel: "Lengkapi pengukuran aktual titik ini",
+      severity: 0,
+    };
+  }
+  if (currentValue < thresholdLow) {
+    return {
+      label: "Melewati limit",
+      className: "is-critical",
+      actionLabel: "Titik ini sudah prioritas aktual untuk rawmill off",
+      severity: 3,
+    };
+  }
+  if (currentValue < thresholdHigh) {
+    return {
+      label: "Dekat limit",
+      className: "is-prepare",
+      actionLabel: "Persiapkan sparepart berdasarkan titik yang masuk range planning",
+      severity: 2,
+    };
+  }
+  return {
+    label: "Masih aman",
+    className: "is-monitor",
+    actionLabel: "Tetap monitor sambil lihat arah countdown",
+    severity: 0,
+  };
+}
+
+function isCarbonBrushPredictionUsable(analysis) {
+  const qualityKey = analysis?.predictionQuality?.key || "insufficient";
+  return qualityKey === "high" || qualityKey === "medium";
+}
+
+function getCarbonBrushAlertPriority(analysis) {
+  if (analysis?.latestReplacedConfirmed) {
+    return {
+      actualSeverity: 0,
+      predictionSeverity: 0,
+      hasAlert: false,
+    };
+  }
+  const actualSeverity = analysis?.actualStatus?.severity ?? 0;
+  const predictionSeverity = isCarbonBrushPredictionUsable(analysis)
+    ? (analysis?.predictionStatus?.severity ?? 0)
+    : 0;
+  return {
+    actualSeverity,
+    predictionSeverity,
+    hasAlert: actualSeverity > 0 || predictionSeverity > 0,
+  };
+}
+
+function getCarbonBrushDisplayStatus(analysis) {
+  const priority = getCarbonBrushAlertPriority(analysis);
+  if (priority.predictionSeverity > priority.actualSeverity) {
+    return {
+      ...(analysis.predictionStatus || {}),
+      label: `Prediksi ${analysis.predictionStatus?.label || "Monitor"}`,
+      source: "prediction",
+      sourceLabel: "Prediksi",
+    };
+  }
+  if (priority.actualSeverity > 0) {
+    return {
+      ...(analysis.actualStatus || {}),
+      source: "actual",
+      sourceLabel: "Aktual",
+    };
+  }
+  if (priority.predictionSeverity > 0) {
+    return {
+      ...(analysis.predictionStatus || {}),
+      label: `Prediksi ${analysis.predictionStatus?.label || "Monitor"}`,
+      source: "prediction",
+      sourceLabel: "Prediksi",
+    };
+  }
+  return {
+    ...(analysis.actualStatus || {}),
+    source: "monitor",
+    sourceLabel: "Monitor",
+  };
+}
+
+function compareCarbonBrushActualThinness(left, right) {
+  const leftRemaining = left?.remainingMm ?? Number.MAX_SAFE_INTEGER;
+  const rightRemaining = right?.remainingMm ?? Number.MAX_SAFE_INTEGER;
+  if (leftRemaining !== rightRemaining) {
+    return leftRemaining - rightRemaining;
+  }
+  const leftValue = left?.currentValue ?? Number.MAX_SAFE_INTEGER;
+  const rightValue = right?.currentValue ?? Number.MAX_SAFE_INTEGER;
+  if (leftValue !== rightValue) {
+    return leftValue - rightValue;
+  }
+  return String(left?.pointKey || "").localeCompare(String(right?.pointKey || ""), "id");
+}
+
+function isCarbonBrushPredictionPlanningPoint(analysis) {
+  const config = getCarbonBrushAlertConfig();
+  return !analysis?.latestReplacedConfirmed
+    && isCarbonBrushPredictionUsable(analysis)
+    && analysis.countdownDays !== null
+    && analysis.countdownDays <= config.prepareDays;
+}
+
+function isCarbonBrushPlanningPoint(analysis) {
+  if (!analysis || analysis.latestReplacedConfirmed || analysis.currentValue === null) {
+    return false;
+  }
+  return (analysis.actualStatus?.severity ?? 0) > 0
+    || isCarbonBrushPredictionPlanningPoint(analysis);
+}
+
+function compareCarbonBrushPlanningPriority(left, right) {
+  const leftPriority = getCarbonBrushAlertPriority(left);
+  const rightPriority = getCarbonBrushAlertPriority(right);
+  if (rightPriority.actualSeverity !== leftPriority.actualSeverity) {
+    return rightPriority.actualSeverity - leftPriority.actualSeverity;
+  }
+  if (rightPriority.predictionSeverity !== leftPriority.predictionSeverity) {
+    return rightPriority.predictionSeverity - leftPriority.predictionSeverity;
+  }
+  if ((left.countdownDays ?? Number.MAX_SAFE_INTEGER) !== (right.countdownDays ?? Number.MAX_SAFE_INTEGER)) {
+    return (left.countdownDays ?? Number.MAX_SAFE_INTEGER) - (right.countdownDays ?? Number.MAX_SAFE_INTEGER);
+  }
+  return compareCarbonBrushActualThinness(left, right);
+}
+
+function getCarbonBrushPlanningPoints(pointAnalyses, worstPoint) {
+  return (Array.isArray(pointAnalyses) ? pointAnalyses : [])
+    .filter((analysis) => analysis.pointKey !== worstPoint?.pointKey)
+    .filter(isCarbonBrushPlanningPoint)
+    .sort(compareCarbonBrushPlanningPriority);
+}
+
+function getCarbonBrushCycleResetReason(previous, current, threshold) {
+  if (current?.replacedConfirmed) {
+    return "Titik ditandai diganti";
+  }
+  if (!previous || previous.numericValue === null || current?.numericValue === null) {
+    return "";
+  }
+
+  const valueIncrease = current.numericValue - previous.numericValue;
+
+  if (valueIncrease >= 3) {
+    return "Indikasi nilai titik naik setelah penggantian";
+  }
+  return "";
+}
+
+function analyzeCarbonBrushPointWear(item, pointKey) {
+  const itemInspectionDate = parseInspectionDateValue(item.payload?.inspectionDate);
+  const itemInspectionTime = itemInspectionDate instanceof Date && !Number.isNaN(itemInspectionDate.getTime())
+    ? itemInspectionDate.getTime()
+    : null;
+  const history = getCarbonBrushPointHistory(item, pointKey)
+    .filter((entry) => entry.numericValue !== null)
+    .filter((entry) => {
+      if (String(entry.id || "") === String(item.id || "")) {
+        return true;
+      }
+      if (itemInspectionTime === null || !(entry.inspectionDate instanceof Date)) {
+        return true;
+      }
+      return entry.inspectionDate.getTime() <= itemInspectionTime;
+    });
+  const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
+  const currentRawValue = String(item.payload?.measurements?.[pointKey] || "").trim();
+  const currentValue = parseCarbonBrushNumericValue(currentRawValue);
+  const latestReplacedConfirmed = normalizeCarbonBrushReplacedPoints(item.payload?.replacedPoints).includes(pointKey);
+  const remainingMm = currentValue === null ? null : currentValue - threshold.low;
+  const actualStatus = latestReplacedConfirmed
+    ? {
+      label: "Sudah ditandai diganti",
+      className: "is-monitor",
+      actionLabel: "Alert titik ini direset dari inspeksi terbaru",
+      severity: 0,
+    }
+    : classifyCarbonBrushActualStatus(currentValue, threshold.low, threshold.high);
+  if (history.length < 4) {
+    return {
+      pointKey,
+      history,
+      validIntervals: [],
+      recentIntervals: [],
+      cycleResetEvents: [],
+      medianWearRate: null,
+      currentValue,
+      remainingMm,
+      countdownDays: null,
+      thresholdLow: threshold.low,
+      thresholdHigh: threshold.high,
+      thresholdPlantLabel: threshold.plantLabel,
+      thresholdPlantKey: threshold.plantKey,
+      thresholdLegend: threshold.legend,
+      thresholdSource: threshold.thresholdSource,
+      hasEnoughHistory: false,
+      latestReplacedConfirmed,
+      currentBucket: currentValue === null ? "" : classifyCarbonBrushValue(String(currentValue), item.equipmentName || "", item.payload?.plant || ""),
+      actualStatus,
+      predictionQuality: classifyCarbonBrushPredictionQuality([]),
+      predictionStatus: classifyCarbonBrushCountdownStatus(null),
+    };
+  }
+
+  let currentCycleHistory = history.length ? [history[0]] : [];
+  let currentCycleIntervals = [];
+  let cycleResetEvents = [];
+  for (let index = 1; index < history.length; index += 1) {
+    const previous = history[index - 1];
+    const current = history[index];
+    const resetReason = getCarbonBrushCycleResetReason(previous, current, threshold);
+    if (resetReason) {
+      cycleResetEvents.push({
+        date: current.inspectionDate,
+        dateLabel: current.inspectionDateLabel,
+        pointKey,
+        previousValue: previous.numericValue,
+        currentValue: current.numericValue,
+        increase: current.numericValue - previous.numericValue,
+        confirmed: Boolean(current.replacedConfirmed),
+        reason: resetReason,
+      });
+      currentCycleHistory = [current];
+      currentCycleIntervals = [];
+      continue;
+    }
+    const gapDays = getDaysBetweenDates(previous.inspectionDate, current.inspectionDate);
+    const wearMm = previous.numericValue - current.numericValue;
+    currentCycleHistory.push(current);
+    if (!gapDays || gapDays <= 0 || wearMm <= 0) {
+      continue;
+    }
+    currentCycleIntervals.push({
+      from: previous,
+      to: current,
+      gapDays,
+      wearMm,
+      wearRatePerDay: wearMm / gapDays,
+    });
+  }
+
+  const recentIntervals = currentCycleIntervals.slice(-3);
+  const latestCycleValue = currentValue;
+  const medianWearRate = recentIntervals.length >= 3 ? getMedianValue(recentIntervals.map((entry) => entry.wearRatePerDay)) : null;
+  const latestRemainingMm = latestCycleValue === null ? null : latestCycleValue - threshold.low;
+  const latestInspectionDate = history[history.length - 1]?.inspectionDate || null;
+  const daysSinceLatestInspection = getCarbonBrushElapsedDaysSince(latestInspectionDate);
+  const predictionQuality = classifyCarbonBrushPredictionQuality(recentIntervals);
+  const baselineCountdownDays = latestReplacedConfirmed || latestRemainingMm === null
+    ? null
+    : latestRemainingMm <= 0
+      ? 0
+      : medianWearRate && medianWearRate > 0
+        ? Math.max(0, Math.ceil(latestRemainingMm / medianWearRate))
+        : null;
+  const countdownDays = baselineCountdownDays === null
+    ? null
+    : Math.max(0, baselineCountdownDays - daysSinceLatestInspection);
+  const projectedRemainingMm = medianWearRate && latestRemainingMm !== null
+    ? Math.max(0, latestRemainingMm - (medianWearRate * daysSinceLatestInspection))
+    : latestRemainingMm;
+  const predictionStatus = classifyCarbonBrushCountdownStatus(countdownDays, predictionQuality.key);
+
+  return {
+    pointKey,
+    history: currentCycleHistory,
+    validIntervals: currentCycleIntervals,
+    recentIntervals,
+    cycleResetEvents,
+    medianWearRate,
+    currentValue: latestCycleValue,
+    remainingMm: latestRemainingMm,
+    projectedRemainingMm,
+    baselineCountdownDays,
+    countdownDays,
+    daysSinceLatestInspection,
+    latestInspectionDate,
+    thresholdLow: threshold.low,
+    thresholdHigh: threshold.high,
+    thresholdPlantLabel: threshold.plantLabel,
+    thresholdPlantKey: threshold.plantKey,
+    thresholdLegend: threshold.legend,
+    thresholdSource: threshold.thresholdSource,
+    hasEnoughHistory: recentIntervals.length >= 3,
+    latestReplacedConfirmed,
+    currentBucket: latestCycleValue === null ? "" : classifyCarbonBrushValue(String(latestCycleValue), item.equipmentName || "", item.payload?.plant || ""),
+    actualStatus,
+    predictionQuality,
+    predictionStatus,
+  };
+}
+
+function classifyCarbonBrushCountdownStatus(countdownDays, qualityKey = "insufficient") {
+  const config = getCarbonBrushAlertConfig();
+  if (countdownDays === null || qualityKey === "insufficient") {
+    return {
+      label: "Belum cukup histori",
+      className: "is-monitor",
+      actionLabel: "Lengkapi histori titik",
+      severity: 0,
+    };
+  }
+  if (countdownDays <= config.criticalDays) {
+    return {
+      label: "Critical",
+      className: "is-critical",
+      actionLabel: "Prioritaskan rawmill off terdekat",
+      severity: 3,
+    };
+  }
+  if (countdownDays <= config.urgentDays) {
+    return {
+      label: "Urgent",
+      className: "is-urgent",
+      actionLabel: "Koordinasikan window off mulai sekarang",
+      severity: 2,
+    };
+  }
+  if (countdownDays <= config.prepareDays) {
+    return {
+      label: "Prepare",
+      className: "is-prepare",
+      actionLabel: "Persiapkan sparepart berdasarkan titik yang masuk range planning",
+      severity: 1,
+    };
+  }
+  return {
+    label: "Monitor",
+    className: "is-monitor",
+    actionLabel: "Lanjutkan monitoring periodik",
+    severity: 0,
+  };
+}
+
+function getCarbonBrushAlertMeasurementKeys(item) {
+  if (typeof carbonBrushMeasurementKeys !== "undefined" && Array.isArray(carbonBrushMeasurementKeys) && carbonBrushMeasurementKeys.length) {
+    return carbonBrushMeasurementKeys;
+  }
+  const measurements = item?.payload?.measurements;
+  if (!measurements || typeof measurements !== "object") {
+    return [];
+  }
+  return Object.keys(measurements)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, "id", { numeric: true }));
+}
+
+function buildCarbonBrushAlertSummary(serviceItems) {
+  const latestByEquipment = new Map();
+  serviceItems
+    .filter((item) => item.formType === "service-motor-mv-carbon-brush")
+    .forEach((item) => {
+      const key = normalizeCarbonBrushEquipmentForType(item.equipmentName || "");
+      if (!key) {
+        return;
+      }
+      const currentTime = new Date(item.payload?.inspectionDate || 0).getTime() || 0;
+      const existing = latestByEquipment.get(key);
+      const existingTime = new Date(existing?.payload?.inspectionDate || 0).getTime() || 0;
+      if (!existing || currentTime >= existingTime) {
+        latestByEquipment.set(key, item);
+      }
+    });
+
+  const latestEquipmentItems = [...latestByEquipment.values()]
+    .sort((left, right) => {
+      const leftTime = new Date(left?.payload?.inspectionDate || 0).getTime() || 0;
+      const rightTime = new Date(right?.payload?.inspectionDate || 0).getTime() || 0;
+      return rightTime - leftTime;
+    });
+
+  return latestEquipmentItems
+    .map((item) => {
+      const threshold = getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "");
+      const pointAnalyses = getCarbonBrushAlertMeasurementKeys(item)
+        .map((pointKey) => analyzeCarbonBrushPointWear(item, pointKey))
+        .filter((analysis) => analysis.currentValue !== null);
+      if (!pointAnalyses.length) {
+        return null;
+      }
+      const activePointAnalyses = pointAnalyses.filter((analysis) => !analysis.latestReplacedConfirmed);
+      if (!activePointAnalyses.length) {
+        return null;
+      }
+      const sortedPoints = [...activePointAnalyses].sort(compareCarbonBrushActualThinness);
+      const worstPoint = sortedPoints[0];
+      const planningPoints = getCarbonBrushPlanningPoints(sortedPoints, worstPoint).slice(0, 5);
+      const secondaryAlertPoints = planningPoints.slice(0, 5);
+      const worstPointIsPlanning = isCarbonBrushPlanningPoint(worstPoint);
+      return {
+        item,
+        threshold,
+        worstPoint,
+        status: worstPoint.actualStatus,
+        displayStatus: getCarbonBrushDisplayStatus(worstPoint),
+        predictionStatus: worstPoint.predictionStatus,
+        predictionQuality: worstPoint.predictionQuality,
+        planningPoints,
+        secondaryAlertPoints,
+        totalAlertPointCount: planningPoints.length + (worstPointIsPlanning ? 1 : 0),
+        companionPointCount: planningPoints.length,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const leftTime = new Date(left?.item?.payload?.inspectionDate || 0).getTime() || 0;
+      const rightTime = new Date(right?.item?.payload?.inspectionDate || 0).getTime() || 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 5)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+}
+
+
+/* --- app.service.js --- */
+function renderServiceCard(item) {
+  serviceItemCache.set(item.id, {
+    ...item,
+    payload: item.payload || {},
+  });
+  const isMsoMotorItem = (item.formType === "service-motor-mv" || item.formType === "service-motor-mso") && String(item.payload?.source || "").toUpperCase() === "MSO";
+  const canDeleteService = activeRole !== "team";
+  const card = document.createElement("article");
+  card.className = "service-list-item";
+  card.dataset.openable = "true";
+  card.tabIndex = 0;
+  card.dataset.id = item.id;
+  card.dataset.type = item.type;
+  card.dataset.subtype = item.subtype || item.type;
+  card.dataset.formType = item.formType || "";
+  card.dataset.equipmentName = item.equipmentName || "";
+  card.dataset.description = item.description || "";
+  card.dataset.detail = item.detail || "";
+
+  const carbonBrushStatsPayload = item.formType === "service-motor-mv-carbon-brush"
+    ? computeCarbonBrushStats(item.payload?.measurements || {}, item.equipmentName || "", item.payload?.plant || "")
+    : null;
+  const inspectionDate = formatInspectionDate(item.payload?.inspectionDate);
+  const msoMaxVibration = isMsoMotorItem
+    ? [
+      item.payload?.vibrasiDsVertBefore,
+      item.payload?.vibrasiDsHorBefore,
+      item.payload?.vibrasiDsAxialBefore,
+      item.payload?.vibrasiNdsVertBefore,
+      item.payload?.vibrasiNdsHorBefore,
+      item.payload?.vibrasiNdsAxialBefore,
+    ]
+      .map((value) => Number.parseFloat(String(value || "").replace(",", ".")))
+      .filter((value) => Number.isFinite(value))
+      .sort((left, right) => right - left)[0]
+    : null;
+  const summaryText = item.formType === "service-motor-mv-carbon-brush"
+    ? `Merah ${carbonBrushStatsPayload?.low || 0} | Kuning ${carbonBrushStatsPayload?.medium || 0} | Hijau ${carbonBrushStatsPayload?.high || 0}`
+    : (isMsoMotorItem
+      ? `Condition ${item.payload?.condition || "-"} | Temp DS ${item.payload?.temperaturDs || "-"} | Temp NDS ${item.payload?.temperaturNds || "-"} | Vib max ${msoMaxVibration ?? "-"}`
+      : (item.detail || "-"));
+
+  card.innerHTML = `
+    <div class="service-list-main">
+      <div class="service-list-top">
+        <span class="tag ${getServiceTag(item.type)}">${item.subtype || item.type}</span>
+        <small>${inspectionDate}</small>
+      </div>
+      <strong>${item.equipmentName}</strong>
+      <div class="service-list-meta">
+        <span>${summaryText}</span>
+      </div>
+    </div>
+    <div class="service-list-actions">
+      <button class="table-action compact" data-action="send-service" type="button">Kirim</button>
+      ${isMsoMotorItem ? '<span class="table-action compact muted-action" title="Data sinkron dari MSO">MSO</span>' : '<button class="table-action compact" data-action="edit-service" type="button">Edit</button>'}
+      ${canDeleteService && !isMsoMotorItem ? '<button class="table-action compact danger" data-action="delete-service" type="button">Hapus</button>' : ""}
+    </div>
+  `;
+  return card;
+}
+
+function getSortedServiceItems(items) {
+  return [...items].sort((left, right) => {
+    const leftTime = new Date(left?.payload?.inspectionDate || left?.inspectionDate || 0).getTime() || 0;
+    const rightTime = new Date(right?.payload?.inspectionDate || right?.inspectionDate || 0).getTime() || 0;
+    return rightTime - leftTime;
+  });
+}
+
+function syncServiceItemCache(items) {
+  serviceItemCache.clear();
+  items.forEach((item) => {
+    if (!item?.id) {
+      return;
+    }
+    serviceItemCache.set(item.id, {
+      ...item,
+      payload: item.payload || {},
+    });
+  });
+}
+
+function renderServiceBoard(items, options = {}) {
+  if (!serviceCardList) {
+    return;
+  }
+  const previewLimit = Number.isFinite(options.previewLimit) ? options.previewLimit : 20;
+  const syncCache = options.syncCache !== false;
+
+  serviceCardList.innerHTML = "";
+  serviceCardList.classList.add("service-board-timeline");
+  if (syncCache) {
+    syncServiceItemCache(items);
+  }
+
+  const visibleItems = getSortedServiceItems(items.filter((item) => shouldDisplayServiceItem(item)));
+  const previewItems = visibleItems.slice(0, previewLimit);
+  const column = document.createElement("section");
+  column.className = "service-column service-timeline-column";
+  column.dataset.serviceGroup = "all";
+  column.innerHTML = `
+    <div class="service-column-head">
+      <div class="service-column-title">
+        <strong>Riwayat Service Terbaru</strong>
+        <span>${visibleItems.length} item, urut tanggal terbaru</span>
+      </div>
+      <button class="table-action compact" data-action="detail-service-group" data-service-group="all" type="button">Detail</button>
+    </div>
+    <div class="service-list-body service-timeline-body" data-service-type="all"></div>
+  `;
+  const body = column.querySelector(".service-list-body");
+  if (previewItems.length) {
+    previewItems.forEach((entry) => body.append(renderServiceCard(entry)));
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "service-list-empty";
+    empty.textContent = "Belum ada hasil inspeksi.";
+    body.append(empty);
+  }
+  serviceCardList.append(column);
+
+  renderMsoMotorReferenceOptions();
+  renderMccReferenceOptions();
+}
+
+
+/* --- app.mso.js --- */
+async function importLatestMsoMotorFile() {
+  return apiRequest("/admin/import-mso-motor-latest", {
+    method: "POST",
+    body: {},
+  });
+}
+
+async function uploadMsoMotorCsvFile(file) {
+  if (!(file instanceof File)) {
+    throw new Error("File CSV belum dipilih");
+  }
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  const fileData = btoa(binary);
+  return apiRequest("/admin/upload-mso-motor", {
+    method: "POST",
+    body: {
+      fileName: file.name,
+      fileData,
+    },
+  });
+}
+
+async function importMsoMotorScrapeItems(items, sourceName, options = {}) {
+  if (!Array.isArray(items) || !items.length) {
+    throw new Error("Data scrape MSO kosong.");
+  }
+  const safeSourceName = String(sourceName || "MSO Browser Sync").trim() || "MSO Browser Sync";
+  const batchSize = Math.max(50, Number(options.batchSize || MSO_MOTOR_IMPORT_BATCH_SIZE));
+  const totalBatches = Math.max(1, Math.ceil(items.length / batchSize));
+  const handleProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+  const aggregate = {
+    imported: 0,
+    created: 0,
+    updated: 0,
+    mode: "append",
+    totalBatches,
+    sourceName: safeSourceName,
+  };
+
+  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex += 1) {
+    const offset = batchIndex * batchSize;
+    const batchItems = items.slice(offset, offset + batchSize);
+    if (handleProgress) {
+      handleProgress({
+        phase: "uploading",
+        batchIndex: batchIndex + 1,
+        totalBatches,
+        batchSize: batchItems.length,
+        importedSoFar: aggregate.imported,
+        totalItems: items.length,
+      });
+    }
+    const result = await apiRequest("/admin/import-mso-motor-scrape", {
+      method: "POST",
+      body: {
+        items: batchItems,
+        sourceName: safeSourceName,
+        batchIndex: batchIndex + 1,
+        batchTotal: totalBatches,
+      },
+    });
+    aggregate.imported += Number(result.imported || batchItems.length);
+    aggregate.created += Number(result.created || 0);
+    aggregate.updated += Number(result.updated || 0);
+  }
+
+  return aggregate;
+}
+
+async function resetMsoMotorItems() {
+  return apiRequest("/admin/reset-mso-motor", {
+    method: "POST",
+    body: {},
+  });
+}
+
+function renderMsoMotorSyncSettings() {
+  const settings = getAppSetting("mso_motor_sync") || {};
+  if (adminMsoMotorDirectory instanceof HTMLInputElement) {
+    adminMsoMotorDirectory.value = String(settings.directory || "/opt/plirm34/imports/mso-motor");
+  }
+  if (adminMsoMotorPattern instanceof HTMLInputElement) {
+    adminMsoMotorPattern.value = String(settings.pattern || "mso-motor-inspections-*.csv");
+  }
+  if (adminMsoMotorStatus) {
+    const lastImportedFile = String(settings.lastImportedFile || "").trim();
+    const lastImportedCount = Number(settings.lastImportedCount || 0);
+    const lastImportedAt = String(settings.lastImportedAt || "").trim();
+    const lastUploadedFile = String(settings.lastUploadedFile || "").trim();
+    const lastUploadedAt = String(settings.lastUploadedAt || "").trim();
+    const lastUploadedSize = Number(settings.lastUploadedSize || 0);
+    if (lastImportedFile) {
+      adminMsoMotorStatus.textContent = `File import terakhir: ${lastImportedFile} | ${lastImportedCount} item | sinkron ${formatActivityLogDate(lastImportedAt)}`;
+    } else if (lastUploadedFile) {
+      adminMsoMotorStatus.textContent = `File upload terakhir: ${lastUploadedFile} | ${formatBytes(lastUploadedSize)} | upload ${formatActivityLogDate(lastUploadedAt)}`;
+    } else {
+      adminMsoMotorStatus.textContent = "Belum ada sinkronisasi MSO motor. Pilih CSV mingguan lalu upload langsung dari web atau letakkan file di folder server.";
+    }
+  }
+}
+
+function getMsoMotorSyncControls() {
+  return [
+    adminMsoMotorSaveButton,
+    adminMsoMotorUploadButton,
+    adminMsoMotorUploadImportButton,
+    adminMsoMotorImportButton,
+    adminMsoMotorResetButton,
+    adminMsoMotorCopyScriptButton,
+    adminMsoMotorCopyScrapeOnlyButton,
+    adminMsoMotorImportJsonButton,
+  ];
+}
+
+let msoMotorProgressTimer = null;
+let msoMotorProgressStartedAt = 0;
+let msoMotorProgressMessage = "";
+let msoMotorProgressDetailText = "";
+
+function formatElapsedSeconds(milliseconds) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  if (totalSeconds < 60) {
+    return `${totalSeconds} detik`;
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes} menit ${seconds} detik`;
+}
+
+function setMsoMotorControlsBusy(isBusy) {
+  getMsoMotorSyncControls().forEach((control) => {
+    if (control instanceof HTMLButtonElement) {
+      control.disabled = Boolean(isBusy);
+    }
+  });
+  if (adminMsoMotorJsonInput instanceof HTMLInputElement) {
+    adminMsoMotorJsonInput.disabled = Boolean(isBusy);
+  }
+}
+
+function renderMsoMotorProgress() {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  const elapsedLabel = msoMotorProgressStartedAt ? formatElapsedSeconds(Date.now() - msoMotorProgressStartedAt) : "0 detik";
+  if (adminMsoMotorProgressTitle) {
+    adminMsoMotorProgressTitle.textContent = msoMotorProgressMessage || "Memproses sinkronisasi MSO Motor...";
+  }
+  if (adminMsoMotorProgressDetail) {
+    const detailParts = [msoMotorProgressDetailText, `Durasi proses: ${elapsedLabel}`].filter(Boolean);
+    adminMsoMotorProgressDetail.textContent = detailParts.join(" | ");
+  }
+}
+
+function showMsoMotorProgress(message, detail = "") {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  msoMotorProgressStartedAt = Date.now();
+  msoMotorProgressMessage = String(message || "Memproses sinkronisasi MSO Motor...");
+  msoMotorProgressDetailText = String(detail || "").trim();
+  adminMsoMotorProgress.classList.remove("hidden", "is-success", "is-error");
+  adminMsoMotorProgress.classList.add("is-busy");
+  if (adminMsoMotorProgressBadge) {
+    adminMsoMotorProgressBadge.textContent = "Berjalan";
+  }
+  setMsoMotorControlsBusy(true);
+  if (msoMotorProgressTimer) {
+    window.clearInterval(msoMotorProgressTimer);
+  }
+  renderMsoMotorProgress();
+  msoMotorProgressTimer = window.setInterval(renderMsoMotorProgress, 1000);
+}
+
+function updateMsoMotorProgress(message, detail = "") {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  if (!msoMotorProgressStartedAt) {
+    msoMotorProgressStartedAt = Date.now();
+  }
+  msoMotorProgressMessage = String(message || msoMotorProgressMessage || "Memproses sinkronisasi MSO Motor...");
+  msoMotorProgressDetailText = String(detail || "").trim();
+  adminMsoMotorProgress.classList.remove("hidden", "is-success", "is-error");
+  adminMsoMotorProgress.classList.add("is-busy");
+  if (adminMsoMotorProgressBadge) {
+    adminMsoMotorProgressBadge.textContent = "Berjalan";
+  }
+  renderMsoMotorProgress();
+}
+
+function finishMsoMotorProgress(message, detail = "", tone = "success") {
+  if (!(adminMsoMotorProgress instanceof HTMLElement)) {
+    return;
+  }
+  if (msoMotorProgressTimer) {
+    window.clearInterval(msoMotorProgressTimer);
+    msoMotorProgressTimer = null;
+  }
+  msoMotorProgressMessage = String(message || "Sinkronisasi selesai");
+  msoMotorProgressDetailText = String(detail || "").trim();
+  adminMsoMotorProgress.classList.remove("hidden", "is-busy", "is-success", "is-error");
+  adminMsoMotorProgress.classList.add(tone === "error" ? "is-error" : "is-success");
+  if (adminMsoMotorProgressBadge) {
+    adminMsoMotorProgressBadge.textContent = tone === "error" ? "Gagal" : "Selesai";
+  }
+  renderMsoMotorProgress();
+  setMsoMotorControlsBusy(false);
+  msoMotorProgressStartedAt = 0;
+}
+
+
+/* --- app.dashboard.js --- */
+function syncCarbonBrushAlertBannerDots(activeIndex, totalItems) {
+  if (!dashboardCarbonBrushBannerDots) {
+    return;
+  }
+  dashboardCarbonBrushBannerDots.innerHTML = Array.from({ length: totalItems }, (_, index) => `
+    <button class="carbon-brush-alert-dot ${index === activeIndex ? "is-active" : ""}" type="button" data-carbon-brush-alert-dot="${index}" aria-label="Tampilkan alert ${index + 1}"></button>
+  `).join("");
+}
+
+function showCarbonBrushAlertSlide(activeIndex) {
+  if (!dashboardCarbonBrushBannerViewport) {
+    return;
+  }
+  const slides = [...dashboardCarbonBrushBannerViewport.querySelectorAll(".carbon-brush-alert-slide")];
+  if (!slides.length) {
+    return;
+  }
+  const normalizedIndex = ((activeIndex % slides.length) + slides.length) % slides.length;
+  dashboardCarbonBrushAlertIndex = normalizedIndex;
+  slides.forEach((slide, index) => {
+    slide.classList.toggle("is-active", index === normalizedIndex);
+    slide.setAttribute("aria-hidden", index === normalizedIndex ? "false" : "true");
+  });
+  syncCarbonBrushAlertBannerDots(normalizedIndex, slides.length);
+}
+
+function startCarbonBrushAlertRotation(totalItems) {
+  if (dashboardCarbonBrushAlertTimer) {
+    window.clearInterval(dashboardCarbonBrushAlertTimer);
+    dashboardCarbonBrushAlertTimer = null;
+  }
+  if (totalItems <= 1) {
+    return;
+  }
+  dashboardCarbonBrushAlertTimer = window.setInterval(() => {
+    showCarbonBrushAlertSlide(dashboardCarbonBrushAlertIndex + 1);
+  }, 4200);
+}
+
+function getCarbonBrushPlanningActionText(activeStatus, planningPoints) {
+  if (!Array.isArray(planningPoints) || !planningPoints.length) {
+    return activeStatus.actionLabel || "Belum ada titik lain yang perlu diganti bersamaan pada service terdekat.";
+  }
+  const pointText = planningPoints
+    .map((point) => `${point.pointKey} (${point.currentValue ?? "-"} mm)`)
+    .join(", ");
+  return `Persiapkan sparepart dan sekalian ganti titik: ${pointText}`;
+}
+
+function renderCarbonBrushCompanionPoints(planningPoints) {
+  if (!Array.isArray(planningPoints) || !planningPoints.length) {
+    return `
+      <div class="carbon-brush-alert-companions is-empty">
+        <span class="carbon-brush-alert-companion-empty">Belum ada titik pendamping yang masuk range planning.</span>
+      </div>
+    `;
+  }
+  const visiblePoints = planningPoints.slice(0, 5);
+  const overflowCount = Math.max(0, planningPoints.length - visiblePoints.length);
+  return `
+    <div class="carbon-brush-alert-companions">
+      ${visiblePoints.map((point) => `
+        <span class="carbon-brush-alert-companion-pill">
+          <strong>${escapeHtml(point.pointKey)}</strong>
+          <small>${escapeHtml(point.currentValue ?? "-")} mm${point.countdownDays !== null ? ` | ${escapeHtml(point.countdownDays)} hari` : " | histori kurang"}</small>
+        </span>
+      `).join("")}
+      ${overflowCount ? `<span class="carbon-brush-alert-companion-more">+${overflowCount} titik lain</span>` : ""}
+    </div>
+  `;
+}
+
+function parseCarbonBrushBannerNumericValue(value) {
+  const normalized = String(value || "").trim().replace(",", ".");
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
+    return null;
+  }
+  return Number(normalized);
+}
+
+function getCarbonBrushBannerReplacedPoints(item) {
+  const rawPoints = item?.payload?.replacedPoints;
+  const points = typeof normalizeCarbonBrushReplacedPoints === "function"
+    ? normalizeCarbonBrushReplacedPoints(rawPoints)
+    : Array.isArray(rawPoints)
+      ? rawPoints
+      : String(rawPoints || "").split(/[;,\s]+/);
+  return new Set(points.map((point) => String(point || "").trim().toUpperCase()).filter(Boolean));
+}
+
+function buildCarbonBrushBannerFallbackSummary(serviceItems) {
+  const latestByEquipment = new Map();
+  (Array.isArray(serviceItems) ? serviceItems : [])
+    .filter((item) => item?.formType === "service-motor-mv-carbon-brush")
+    .forEach((item) => {
+      const equipmentName = String(item.equipmentName || "").trim();
+      if (!equipmentName) {
+        return;
+      }
+      const currentTime = new Date(item.payload?.inspectionDate || 0).getTime() || 0;
+      const existing = latestByEquipment.get(equipmentName.toUpperCase());
+      const existingTime = new Date(existing?.payload?.inspectionDate || 0).getTime() || 0;
+      if (!existing || currentTime >= existingTime) {
+        latestByEquipment.set(equipmentName.toUpperCase(), item);
+      }
+    });
+
+  return [...latestByEquipment.values()]
+    .map((item) => {
+      const threshold = typeof getCarbonBrushThresholdConfig === "function"
+        ? getCarbonBrushThresholdConfig(item.equipmentName || "", item.payload?.plant || "")
+        : { low: 30, high: 34, plantLabel: "-", legend: "Merah < 30 | Hijau >= 34" };
+      const measurements = item.payload?.measurements && typeof item.payload.measurements === "object"
+        ? item.payload.measurements
+        : {};
+      const replacedPoints = getCarbonBrushBannerReplacedPoints(item);
+      const points = Object.entries(measurements)
+        .filter(([pointKey]) => !replacedPoints.has(String(pointKey || "").trim().toUpperCase()))
+        .map(([pointKey, rawValue]) => ({
+          pointKey,
+          currentValue: parseCarbonBrushBannerNumericValue(rawValue),
+        }))
+        .filter((point) => point.currentValue !== null)
+        .sort((left, right) => {
+          if (left.currentValue !== right.currentValue) {
+            return left.currentValue - right.currentValue;
+          }
+          return left.pointKey.localeCompare(right.pointKey, "id", { numeric: true });
+        });
+      const worstPoint = points[0];
+      if (!worstPoint) {
+        return null;
+      }
+      const remainingMm = worstPoint.currentValue - threshold.low;
+      const status = worstPoint.currentValue < threshold.low
+        ? { label: "Melewati limit", className: "is-critical", actionLabel: "Prioritaskan rawmill off terdekat" }
+        : worstPoint.currentValue < threshold.high
+          ? { label: "Dekat limit", className: "is-prepare", actionLabel: "Persiapkan sparepart dan jadwal penggantian" }
+          : { label: "Monitor", className: "is-monitor", actionLabel: "Lanjutkan monitoring periodik" };
+      return {
+        item,
+        threshold,
+        worstPoint: {
+          ...worstPoint,
+          remainingMm,
+          projectedRemainingMm: remainingMm,
+          countdownDays: null,
+          daysSinceLatestInspection: 0,
+          thresholdLow: threshold.low,
+          thresholdHigh: threshold.high,
+          thresholdPlantLabel: threshold.plantLabel,
+          thresholdLegend: threshold.legend,
+          medianWearRate: null,
+        },
+        status,
+        displayStatus: status,
+        predictionStatus: { label: "Belum cukup histori" },
+        predictionQuality: { label: "Fallback data", note: "Banner memakai measurement terbaru karena perhitungan prediksi tidak tersedia." },
+        planningPoints: [],
+        secondaryAlertPoints: points.slice(1, 6).map((point) => ({ ...point, countdownDays: null })),
+        totalAlertPointCount: Math.max(0, points.length - 1),
+        companionPointCount: 0,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const leftTime = new Date(left?.item?.payload?.inspectionDate || 0).getTime() || 0;
+      const rightTime = new Date(right?.item?.payload?.inspectionDate || 0).getTime() || 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 5)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+}
+
+function normalizeCarbonBrushBackendStatus(status = {}) {
+  const key = String(status.key || status.label || "").toLowerCase();
+  const className = key.includes("critical") || key.includes("melewati")
+    ? "is-critical"
+    : key.includes("urgent")
+      ? "is-urgent"
+      : key.includes("prepare") || key.includes("dekat")
+        ? "is-prepare"
+        : "is-monitor";
+  return {
+    ...status,
+    className: status.className || className,
+    label: status.label || "Monitor",
+    actionLabel: status.actionLabel || "Lanjutkan monitoring periodik",
+  };
+}
+
+function normalizeCarbonBrushBackendAlerts(alertItems) {
+  if (!Array.isArray(alertItems) || !alertItems.length) {
+    return [];
+  }
+  return alertItems
+    .map((alert, index) => {
+      if (!alert || typeof alert !== "object") {
+        return null;
+      }
+      const worstPointSource = alert.worstPoint && typeof alert.worstPoint === "object" ? alert.worstPoint : {};
+      const threshold = {
+        low: alert.thresholdLow ?? worstPointSource.thresholdLow,
+        high: alert.thresholdHigh ?? worstPointSource.thresholdHigh,
+        plantLabel: alert.thresholdPlantLabel || alert.thresholdPlant || worstPointSource.thresholdPlantLabel || worstPointSource.thresholdPlant || "-",
+        legend: alert.thresholdLegend || worstPointSource.thresholdLegend || "",
+      };
+      const worstPoint = {
+        ...worstPointSource,
+        pointKey: alert.pointKey || worstPointSource.pointKey || "-",
+        currentValue: alert.currentValue ?? alert.lastMeasurementMm ?? worstPointSource.currentValue ?? null,
+        remainingMm: alert.remainingMm ?? worstPointSource.remainingMm ?? null,
+        projectedRemainingMm: alert.projectedRemainingMm ?? worstPointSource.projectedRemainingMm ?? null,
+        countdownDays: alert.countdownDays ?? worstPointSource.countdownDays ?? null,
+        daysSinceLatestInspection: alert.daysSinceLatestInspection ?? worstPointSource.daysSinceLatestInspection ?? 0,
+        thresholdLow: threshold.low,
+        thresholdHigh: threshold.high,
+        thresholdPlantLabel: threshold.plantLabel,
+        thresholdLegend: threshold.legend,
+        medianWearRate: alert.medianWearRate ?? alert.medianWearRateMmPerDay ?? worstPointSource.medianWearRate ?? null,
+      };
+      return {
+        item: {
+          id: alert.serviceId || "",
+          equipmentName: alert.equipment || "-",
+          payload: {
+            inspectionDate: alert.lastInspectionDate || "",
+            plant: threshold.plantLabel,
+          },
+        },
+        threshold,
+        worstPoint,
+        status: normalizeCarbonBrushBackendStatus(alert.status || alert.actualStatus || {}),
+        displayStatus: normalizeCarbonBrushBackendStatus(alert.displayStatus || alert.status || alert.actualStatus || {}),
+        predictionStatus: normalizeCarbonBrushBackendStatus(alert.predictionStatus || {}),
+        predictionQuality: alert.predictionQuality || { label: "Belum cukup histori" },
+        planningPoints: Array.isArray(alert.secondaryPoints) ? alert.secondaryPoints : [],
+        secondaryAlertPoints: Array.isArray(alert.secondaryAlertPoints)
+          ? alert.secondaryAlertPoints
+          : Array.isArray(alert.secondaryPoints)
+            ? alert.secondaryPoints
+            : [],
+        totalAlertPointCount: Number(alert.totalAlertPointCount || 0),
+        companionPointCount: Number(alert.companionPointCount || 0),
+        rank: index + 1,
+      };
+    })
+    .filter(Boolean);
+}
+
+function getCarbonBrushDashboardAlerts(serviceItems) {
+  const backendAlerts = normalizeCarbonBrushBackendAlerts(window.plirm34CarbonBrushDashboardAlerts);
+  if (backendAlerts.length) {
+    return backendAlerts;
+  }
+  const fallbackAlerts = buildCarbonBrushBannerFallbackSummary(serviceItems);
+  try {
+    const detailedAlerts = typeof buildCarbonBrushAlertSummary === "function"
+      ? buildCarbonBrushAlertSummary(serviceItems)
+      : [];
+    return Array.isArray(detailedAlerts) && detailedAlerts.length ? detailedAlerts : fallbackAlerts;
+  } catch (error) {
+    console.error("Gagal menghitung Carbon Brush Early Warning:", error);
+    return fallbackAlerts;
+  }
+}
+
+function formatCarbonBrushAlertNumber(value, digits = 2) {
+  if (value === null || value === undefined || String(value).trim() === "") {
+    return "-";
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue.toFixed(digits) : "-";
+}
+
+function renderCarbonBrushAlertBanner(serviceItems) {
+  if (!dashboardCarbonBrushBanner || !dashboardCarbonBrushBannerViewport) {
+    return;
+  }
+  const alerts = getCarbonBrushDashboardAlerts(serviceItems);
+  if (!alerts.length) {
+    dashboardCarbonBrushBanner.classList.add("hidden");
+    dashboardCarbonBrushBannerViewport.innerHTML = "";
+    if (dashboardCarbonBrushBannerDots) {
+      dashboardCarbonBrushBannerDots.innerHTML = "";
+    }
+    if (dashboardCarbonBrushAlertTimer) {
+      window.clearInterval(dashboardCarbonBrushAlertTimer);
+      dashboardCarbonBrushAlertTimer = null;
+    }
+    return;
+  }
+
+  dashboardCarbonBrushBanner.classList.remove("hidden");
+  if (dashboardCarbonBrushBannerSummary) {
+    dashboardCarbonBrushBannerSummary.textContent = `${alerts.length} equipment inspeksi terbaru`;
+  }
+  dashboardCarbonBrushBannerViewport.innerHTML = alerts.map(({ item, threshold, status, displayStatus, predictionStatus, predictionQuality, planningPoints, rank, secondaryAlertPoints = [], companionPointCount = 0, totalAlertPointCount = 0, worstPoint }) => {
+    const activeStatus = displayStatus || status || { label: "Monitor", className: "is-monitor", actionLabel: "Lanjutkan monitoring periodik" };
+    const countdownText = worstPoint.countdownDays != null ? `${worstPoint.countdownDays} hari` : "histori kurang";
+    const actionText = getCarbonBrushPlanningActionText(activeStatus, planningPoints);
+    const thresholdPlantLabel = worstPoint.thresholdPlantLabel || threshold?.plantLabel || item.payload?.plant || "-";
+    const thresholdLegend = worstPoint.thresholdLegend || threshold?.legend || `Merah < ${worstPoint.thresholdLow} | Hijau >= ${worstPoint.thresholdHigh}`;
+    const statusBasisText = "Urutan banner memakai ketebalan aktual titik terbaru. Countdown dipakai sebagai indikator tambahan, bukan dasar ranking utama.";
+    const secondarySummary = secondaryAlertPoints.length
+      ? secondaryAlertPoints.map((point) => `${point.pointKey} ${point.currentValue ?? "-"} mm${point.countdownDays !== null ? ` (${point.countdownDays} hari)` : ""}`).join(", ")
+      : "Belum ada titik lain yang lebih dekat dari titik utama.";
+    const companionSummaryText = companionPointCount > 0
+      ? `${companionPointCount} titik berikutnya layak dipertimbangkan untuk diganti sekalian.`
+      : "Belum ada titik pendamping yang perlu disiapkan bersamaan.";
+    return `
+    <article class="carbon-brush-alert-slide ${activeStatus.className}" data-service-id="${escapeHtml(item.id || "")}" tabindex="0" aria-hidden="true">
+      <div class="carbon-brush-alert-rank">#${rank}</div>
+      <div class="carbon-brush-alert-copy">
+        <div class="carbon-brush-alert-line">
+          <span class="carbon-brush-alert-status ${activeStatus.className}">${escapeHtml(activeStatus.label)}</span>
+          <span class="carbon-brush-alert-days">${escapeHtml(countdownText)}</span>
+        </div>
+        <strong>${escapeHtml(item.equipmentName || "-")}</strong>
+        <p>Titik utama <strong>${escapeHtml(worstPoint.pointKey)}</strong> sekarang berada di <strong>${escapeHtml(worstPoint.currentValue ?? "-")} mm</strong>. Area threshold <strong>${escapeHtml(thresholdPlantLabel)}</strong>, limit merah <strong>&lt; ${escapeHtml(worstPoint.thresholdLow)} mm</strong>. ${escapeHtml(statusBasisText)}</p>
+        <div class="carbon-brush-alert-metrics">
+          <span>${escapeHtml(thresholdLegend)}</span>
+          <span>Nilai sekarang ${escapeHtml(worstPoint.currentValue ?? "-")} mm</span>
+          <span>Sisa saat inspeksi ${escapeHtml(formatCarbonBrushAlertNumber(worstPoint.remainingMm, 2))} mm</span>
+          <span>Estimasi sisa hari ini ${escapeHtml(formatCarbonBrushAlertNumber(worstPoint.projectedRemainingMm, 2))} mm</span>
+          <span>Hari berjalan ${escapeHtml(worstPoint.daysSinceLatestInspection ?? 0)} hari sejak inspeksi terakhir</span>
+          <span>Prediksi ${escapeHtml(predictionStatus?.label || "Belum cukup histori")} | ${escapeHtml(predictionQuality?.label || "Belum cukup histori")}</span>
+          <span>Median aus ${escapeHtml(formatCarbonBrushAlertNumber(worstPoint.medianWearRate, 3))} mm/hari</span>
+        </div>
+        <div class="carbon-brush-alert-secondary">
+          <div class="carbon-brush-alert-secondary-head">
+            <span>Titik lain untuk service yang sama</span>
+            <strong>${escapeHtml(totalAlertPointCount)}</strong>
+          </div>
+          <p>${escapeHtml(secondarySummary)}</p>
+        </div>
+      </div>
+      <div class="carbon-brush-alert-action">
+        <div class="carbon-brush-alert-action-panel">
+          <strong>Titik pendamping untuk planning</strong>
+          <p>${escapeHtml(companionSummaryText)}</p>
+          ${renderCarbonBrushCompanionPoints(planningPoints)}
+        </div>
+        <span>${escapeHtml(actionText)}</span>
+        <small>${escapeHtml(predictionQuality?.note || "Countdown menunggu histori yang cukup.")}</small>
+        <small>Klik untuk buka detail equipment</small>
+      </div>
+    </article>
+  `;
+  }).join("");
+  showCarbonBrushAlertSlide(0);
+  startCarbonBrushAlertRotation(alerts.length);
+}
+
+
+/* --- app.admin.js --- */
+async function refreshAdminMasters() {
+  if (!backendState.available || !backendState.sessionActive || activeRole !== "admin") {
+    return;
+  }
+  try {
+    const [areas, equipmentReferences, sparepartReferences, templates, appSettings] = await Promise.all([
+      fetchAdminMaster("areas"),
+      fetchAdminMaster("equipment-references"),
+      fetchAdminMaster("sparepart-references"),
+      fetchAdminMaster("inspection-templates"),
+      fetchAdminMaster("app-settings"),
+    ]);
+    backendState.masters.areas = areas;
+    backendState.masters.equipmentReferences = equipmentReferences;
+    backendState.masters.sparepartReferences = sparepartReferences;
+    backendState.masters.inspectionTemplates = templates;
+    backendState.masters.appSettings = appSettings;
+    renderAdminAreasTable(areas);
+    renderAdminElectricalRoomTable();
+    renderAdminEquipmentSourceFilter(equipmentReferences);
+    applyAdminEquipmentFilter();
+    applyAdminSparepartMasterFilter();
+    renderAdminTemplatesTable(templates);
+    hydrateCarbonBrushThresholdForm();
+    hydrateElectricalRoomThresholdForm();
+    renderMsoMotorSyncSettings();
+    renderElectricalRoomReferenceOptions();
+    renderMccReferenceOptions();
+  } catch (error) {
+    console.error("Gagal memuat master admin:", error);
+  }
+}
+
+
+/* --- app.js --- */
 const loginForm = document.getElementById("login-form");
 const signupButton = document.getElementById("signup-button");
 const forgotPasswordButton = document.getElementById("forgot-password-button");

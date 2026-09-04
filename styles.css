@@ -8327,3 +8327,19 @@ h3,
     width: 100%;
   }
 }
+
+/* Phase 3 Accessibility Enhancements */
+:focus-visible {
+  outline: 2px solid var(--accent, #ff6a00) !important;
+  outline-offset: 3px !important;
+}
+
+/* Smooth transitions and interaction enhancements */
+html { scroll-behavior: smooth; }
+.bom-card, .service-card, .dashboard-area-tile {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+}
+.bom-card:hover, .service-card:hover, .dashboard-area-tile:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-soft);
+}

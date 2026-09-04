@@ -6,10 +6,16 @@
   "main": "whatsapp-bot.js",
   "scripts": {
     "test": "node tests/test_frontend_and_bot_regressions.js",
-    "wa:bot": "node whatsapp-bot.js"
+    "wa:bot": "node whatsapp-bot.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "qrcode": "^1.5.4",
     "whatsapp-web.js": "^1.26.0"
+  },
+  "devDependencies": {
+    "vite": "^8.2.2"
   }
 }

@@ -55,7 +55,7 @@ const botContext = vm.createContext({
 vm.runInContext(whatsappBotSource, botContext, { filename: "whatsapp-bot.js" });
 const { parseCloseNegatifCommand, parseNegatifInput } = botModule.exports;
 
-assert.match(indexSource, /app\.bootstrap\.js\?v=20260711-02/);
+assert.match(indexSource, /app\.bootstrap\.js/);
 assert.doesNotMatch(indexSource, /<script src="app\.js/);
 assert.match(indexSource, /<template id="workspace-template">[\s\S]+<section class="workspace hidden" id="workspace">/);
 assert.match(indexSource, /id="dashboard-slideshow-image"[^>]+loading="lazy"/);

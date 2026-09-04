@@ -612,8 +612,24 @@ def normalize_static_request_path(request_path: str) -> str | None:
 
 def resolve_public_static_path(request_path: str) -> Path | None:
     relative = normalize_static_request_path(request_path)
+    if relative is None:
+        return None
+    
+    dist_dir = ROOT_DIR / "dist"
+    if dist_dir.exists():
+        candidate = (dist_dir / relative).resolve()
+        try:
+            candidate.relative_to(dist_dir)
+            if candidate.is_file():
+                return candidate
+        except ValueError:
+            pass
+    
+    # Keamanan ketat: Jika tidak dilayani dari dist, pastikan file ada di whitelist
     if relative not in PUBLIC_STATIC_FILES:
         return None
+        
+    # Fallback for dev mode
     candidate = (ROOT_DIR / relative).resolve()
     try:
         candidate.relative_to(ROOT_DIR)
@@ -1077,9 +1093,41 @@ def ensure_private_data_directory() -> None:
     PRIVATE_DATA_READY = True
 
 
+
+class PLIRMCursor(sqlite3.Cursor):
+    def execute(self, *args, **kwargs):
+        import time
+        start = time.time()
+        res = super().execute(*args, **kwargs)
+        duration = time.time() - start
+        if duration > 0.1:
+            print(f"SLOW QUERY ({duration*1000:.2f}ms): {args[0][:200]}...")
+        return res
+        
+    def executemany(self, *args, **kwargs):
+        import time
+        start = time.time()
+        res = super().executemany(*args, **kwargs)
+        duration = time.time() - start
+        if duration > 0.1:
+            print(f"SLOW BATCH QUERY ({duration*1000:.2f}ms): {args[0][:200]}...")
+        return res
+
+class PLIRMConnection(sqlite3.Connection):
+    def cursor(self, factory=PLIRMCursor):
+        return super().cursor(factory=factory)
+        
+    def execute(self, *args, **kwargs):
+        cursor = self.cursor()
+        return cursor.execute(*args, **kwargs)
+        
+    def executemany(self, *args, **kwargs):
+        cursor = self.cursor()
+        return cursor.executemany(*args, **kwargs)
+
 def get_connection() -> sqlite3.Connection:
     ensure_private_data_directory()
-    connection = sqlite3.connect(DB_PATH)
+    connection = sqlite3.connect(DB_PATH, factory=PLIRMConnection)
     connection.row_factory = sqlite3.Row
     return connection
 
@@ -5519,10 +5567,28 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT_DIR), **kwargs)
 
+    def translate_path(self, path):
+        # Always resolve to dist/ if the static file resolver says it's public
+        resolved = resolve_public_static_path(path)
+        if resolved:
+            return str(resolved)
+        return super().translate_path(path)
+
+    def handle_one_request(self):
+        import time
+        self._request_start_time = time.time()
+        super().handle_one_request()
+
     def end_headers(self):
         cache_control = getattr(self, "_public_static_cache_control", "")
         if cache_control:
             self.send_header("Cache-Control", cache_control)
+        
+        if hasattr(self, '_request_start_time'):
+            import time
+            duration_ms = int((time.time() - self._request_start_time) * 1000)
+            self.send_header("X-Response-Time", f"{duration_ms}ms")
+            
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -5644,6 +5710,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/monitor/error-log":
+            self._handle_monitor_error_log()
+            return
+
         if parsed.path == "/api/admin/restore":
             self._handle_restore_post()
             return
@@ -5758,6 +5828,16 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Endpoint tidak ditemukan")
 
+
+    def _handle_monitor_error_log(self):
+        try:
+            payload = self._parse_json_body()
+            import logging
+            logging.basicConfig(filename='client_errors.log', level=logging.ERROR, format='%(asctime)s - %(message)s')
+            logging.error(f"Client Error: {payload.get('message')} | URL: {payload.get('url')} | Line: {payload.get('line')}")
+            self._send_json({"ok": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, status=400)
     def log_message(self, format: str, *args):
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] {self.address_string()} - {format % args}")
