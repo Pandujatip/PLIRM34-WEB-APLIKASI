@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "164055402853",
+    "project_id": "portable-tool-inspection",
+    "storage_bucket": "portable-tool-inspection.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:164055402853:android:22857fbad0c128e0d7798c",
+        "android_client_info": {
+          "package_name": "plirm34tuban.id"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "164055402853-jl4hp3av4lndda0oiks1knrca4vqka7o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSd1hhJe0cYlg2PKNSRxIeFXZf54OoCIA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "164055402853-jl4hp3av4lndda0oiks1knrca4vqka7o.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -24,3 +24,6 @@ service-mcc-images/
 service-mcc-source.csv
 slideshow-images/
 .firebase/
+*.apk
+flutter_app/build/
+flutter_app/.dart_tool/
