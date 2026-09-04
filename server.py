@@ -5612,13 +5612,30 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             import time
             duration_ms = int((time.time() - self._request_start_time) * 1000)
             self.send_header("X-Response-Time", f"{duration_ms}ms")
+
+        origin = self.headers.get("Origin") if hasattr(self, "headers") and self.headers else None
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Cache-Control")
+        else:
+            self.send_header("Access-Control-Allow-Origin", "*")
             
         super().end_headers()
 
     def do_OPTIONS(self):
         self.send_response(HTTPStatus.NO_CONTENT)
-        self._send_json_headers()
-        self.end_headers()
+        origin = self.headers.get("Origin") if self.headers else None
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Cache-Control")
+        else:
+            self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
