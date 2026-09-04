@@ -5745,6 +5745,13 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
     def do_HEAD(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/auth/google/login":
+            sso_path = Path("native-android-sso.html")
+            if sso_path.exists():
+                self._send_file(sso_path, cache_control="no-store", head_only=True)
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND, "Halaman login SSO tidak ditemukan")
+            return
         media_path = resolve_authenticated_media_path(parsed.path)
         if media_path:
             user = self._require_user()
