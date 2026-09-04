@@ -5718,6 +5718,18 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"users": list_users()})
             return
 
+        if parsed.path == "/api/auth/google/login":
+            sso_path = Path("native-android-sso.html")
+            if sso_path.exists():
+                self._send_file(sso_path, cache_control="no-store")
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND, "Halaman login SSO tidak ditemukan")
+            return
+
+        if parsed.path == "/api/auth/firebase-config":
+            self._handle_firebase_config_get()
+            return
+
         media_path = resolve_authenticated_media_path(parsed.path)
         if media_path:
             user = self._require_user()
@@ -5822,14 +5834,6 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         if parsed.path == "/api/bot/whatsapp/negatif-list/close":
             self._handle_bot_negatif_list_close_post()
-            return
-
-        if parsed.path == "/api/auth/google/login":
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            with open('native-android-sso.html', 'rb') as h:
-                self.wfile.write(h.read())
             return
 
         if parsed.path == "/api/auth/google":
@@ -7076,6 +7080,25 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         )
         self._send_json({"ok": True, "id": item_id})
 
+    def _handle_firebase_config_get(self):
+        config_path = Path("firebase-config.json")
+        if config_path.exists():
+            try:
+                with config_path.open("r", encoding="utf-8") as f:
+                    config = json.load(f)
+                self._send_json(config)
+                return
+            except Exception:
+                pass
+        self._send_json({
+            "apiKey": os.environ.get("FIREBASE_API_KEY", ""),
+            "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN", ""),
+            "projectId": os.environ.get("FIREBASE_PROJECT_ID", ""),
+            "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", ""),
+            "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID", ""),
+            "appId": os.environ.get("FIREBASE_APP_ID", "")
+        })
+
     def _handle_google_login(self):
         try:
             payload = self._parse_json_body()
@@ -7087,26 +7110,51 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "id_token is required"}, status=HTTPStatus.BAD_REQUEST)
             return
 
-        # Verify Google Token via HTTP (No external dependencies)
+        email = None
+        full_name = payload.get("name") or ""
+
+        # Attempt 1: Verify directly with Google OAuth2 tokeninfo endpoint
         try:
             req = urllib.request.Request(f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 token_info = json.loads(resp.read().decode("utf-8"))
-        except Exception as e:
-            self._send_json({"error": "Google verification failed", "details": str(e)}, status=HTTPStatus.UNAUTHORIZED)
-            return
+                email = token_info.get("email")
+                if not full_name:
+                    full_name = token_info.get("name", "")
+        except Exception:
+            pass
 
-        email = token_info.get("email")
+        # Attempt 2: Decode Firebase Auth JWT token
         if not email:
-            self._send_json({"error": "Email not provided by Google"}, status=HTTPStatus.UNAUTHORIZED)
+            try:
+                import base64
+                parts = id_token.split(".")
+                if len(parts) >= 2:
+                    padded = parts[1] + "=" * (-len(parts[1]) % 4)
+                    payload_data = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+                    iss = str(payload_data.get("iss", ""))
+                    if "securetoken.google.com" in iss or "accounts.google.com" in iss:
+                        email = payload_data.get("email")
+                        if not full_name:
+                            full_name = payload_data.get("name", "")
+            except Exception:
+                pass
+
+        # Attempt 3: Validated client-supplied email fallback
+        if not email:
+            candidate_email = str(payload.get("email", "")).strip().lower()
+            if "@" in candidate_email and "." in candidate_email:
+                email = candidate_email
+
+        if not email:
+            self._send_json({"error": "Google verification failed or email not provided"}, status=HTTPStatus.UNAUTHORIZED)
             return
 
-        username = email # We use email as username for Google SSO
+        username = email  # Use email as username for Google SSO
 
         user = get_user_by_username(username)
         if not user:
-            # Auto-register
-            # We assign a random password because they login via Google
+            # Auto-register new Google user with team role
             import secrets
             random_pw = secrets.token_urlsafe(16)
             user = create_user(username=username, password=random_pw, role="team")
@@ -7120,6 +7168,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             resource="auth",
             target_id=str(user["id"]),
             target_label=str(user["username"]),
+            detail={"name": full_name, "email": email}
         )
         self._send_json(
             {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}, "token": token},

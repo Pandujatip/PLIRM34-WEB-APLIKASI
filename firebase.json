@@ -1,0 +1,14 @@
+{
+  "auth": {
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Portable Inspection Tool",
+        "supportEmail": "admin@plirm34tuban.id",
+        "authorizedRedirectUris": [
+          "https://plirm34tuban.id",
+          "http://localhost"
+        ]
+      }
+    }
+  }
+}
