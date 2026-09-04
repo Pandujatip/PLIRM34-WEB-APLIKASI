@@ -69,15 +69,15 @@ import java.net.URLEncoder;
 public class MainActivity extends Activity {
     private static final String DEFAULT_BASE_URL = "https://plirm34tuban.id";
 
-    private static final int BG = Color.rgb(5, 10, 12);
-    private static final int SURFACE = Color.rgb(12, 20, 24);
-    private static final int SURFACE_HIGH = Color.rgb(18, 29, 34);
+    private static final int BG = Color.parseColor("#0a192f"); // Navy Blue
+    private static final int SURFACE = Color.parseColor("#112240");
+    private static final int SURFACE_HIGH = Color.parseColor("#1d3a6c");
     private static final int SURFACE_FLOAT = Color.rgb(23, 37, 43);
     private static final int BORDER = Color.rgb(45, 63, 70);
     private static final int BORDER_SOFT = Color.rgb(63, 84, 92);
     private static final int TEXT = Color.rgb(241, 247, 248);
     private static final int MUTED = Color.rgb(150, 168, 176);
-    private static final int TEAL = Color.rgb(33, 201, 181);
+    private static final int TEAL = Color.parseColor("#64FFDA"); // Neon Cyan
     private static final int RED = Color.rgb(238, 84, 84);
     private static final int AMBER = Color.rgb(244, 177, 65);
     private static final int GREEN = Color.rgb(69, 203, 141);
@@ -90,7 +90,7 @@ public class MainActivity extends Activity {
     private static final int AUTH_SURFACE = SURFACE_HIGH;
     private static final int AUTH_INK = TEXT;
     private static final int AUTH_MUTED = MUTED;
-    private static final int AUTH_BLUE = BLUE;
+    private static final int AUTH_BLUE = TEAL;
     private static final int AUTH_YELLOW = AMBER;
 
     private FrameLayout root;
@@ -166,7 +166,28 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleDeepLink(intent);
+    }
+
+    private void handleDeepLink(Intent intent) {
+        Uri data = intent.getData();
+        if (data != null && "plirm34".equals(data.getScheme()) && "auth".equals(data.getHost())) {
+            String token = data.getQueryParameter("token");
+            if (token != null && !token.isEmpty()) {
+                PlirmApiClient.setToken(token);
+                // Fetch me to finalize login
+                checkSession();
+            }
+        }
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
+        handleDeepLink(getIntent());
         super.onCreate(savedInstanceState);
         Window window = getWindow();
         window.setStatusBarColor(AUTH_BG);
@@ -232,6 +253,17 @@ public class MainActivity extends Activity {
             page.addView(hero, topMargin(-1, dp(22)));
             LinearLayout form = authPanel(18);
             page.addView(form, topMargin(-1, dp(18)));
+
+            TextView googleBtn = authGoogleButton();
+            form.addView(googleBtn, topMargin(-1, dp(18)));
+            
+            TextView orText = new TextView(this);
+            orText.setText("ATAU");
+            orText.setTextColor(AUTH_MUTED);
+            orText.setGravity(Gravity.CENTER);
+            orText.setTextSize(12);
+            form.addView(orText, topMargin(-1, dp(14)));
+
             usernameInput = authInput("USERNAME", "admin.plirm34", false, true);
             form.addView(usernameInput);
             LinearLayout passwordField = authPasswordField("PASSWORD", "Kata sandi", true);
