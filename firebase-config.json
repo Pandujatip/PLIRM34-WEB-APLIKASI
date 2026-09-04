@@ -1,8 +1,9 @@
 {
-  "apiKey": "",
-  "authDomain": "",
-  "projectId": "",
-  "storageBucket": "",
-  "messagingSenderId": "",
-  "appId": ""
+  "apiKey": "AIzaSyCSd1hhJe0cYlg2PKNSRxIeFXZf54OoCIA",
+  "authDomain": "portable-tool-inspection.firebaseapp.com",
+  "projectId": "portable-tool-inspection",
+  "storageBucket": "portable-tool-inspection.firebasestorage.app",
+  "messagingSenderId": "164055402853",
+  "appId": "1:164055402853:android:22857fbad0c128e0d7798c",
+  "clientId": "164055402853-jl4hp3av4lndda0oiks1knrca4vqka7o.apps.googleusercontent.com"
 }
