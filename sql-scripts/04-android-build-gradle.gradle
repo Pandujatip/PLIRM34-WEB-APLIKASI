@@ -1,0 +1,17 @@
+// PLIRM34 Android build.gradle Dependency Addition
+// Add to: native-android/app/build.gradle
+
+dependencies {
+    // ... existing dependencies ...
+    
+    // OkHttp for async HTTP, connection pooling, and certificate pinning
+    implementation 'com.squareup.okhttp3:okhttp:4.11.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.11.0'
+    
+    // JSON processing (if not already included)
+    implementation 'org.json:json:20230227'
+}
+
+// Note: OkHttp handles all compression, certificate pinning, and connection reuse
+// automatically, providing major performance and security improvements over 
+// raw HttpURLConnection
