@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Sign-In</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { background: #0a192f; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="g_id_onload"
+       data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+       data-context="signin"
+       data-ux_mode="popup"
+       data-callback="handleCredentialResponse"
+       data-auto_prompt="false">
+  </div>
+  <div class="g_id_signin"
+       data-type="standard"
+       data-shape="rectangular"
+       data-theme="filled_blue"
+       data-text="continue_with"
+       data-size="large"
+       data-logo_alignment="left">
+  </div>
+
+  <script>
+    function handleCredentialResponse(response) {
+      fetch('/api/auth/google', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id_token: response.credential})
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          // Redirect back to Android app using Deep Link
+          // We extract token from cookie or response
+          // Wait, server needs to return the token in JSON for the native app!
+          window.location.href = "plirm34://auth?token=" + encodeURIComponent(data.token);
+        } else {
+          alert('Login gagal: ' + data.error);
+        }
+      });
+    }
+  </script>
+</body>
+</html>

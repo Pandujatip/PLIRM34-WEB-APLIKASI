@@ -5812,6 +5812,14 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_bot_negatif_list_close_post()
             return
 
+        if parsed.path == "/api/auth/google/login":
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            with open('native-android-sso.html', 'rb') as h:
+                self.wfile.write(h.read())
+            return
+
         if parsed.path == "/api/auth/google":
             self._handle_google_login()
             return
