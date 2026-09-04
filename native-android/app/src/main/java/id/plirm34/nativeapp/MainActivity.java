@@ -2,9 +2,12 @@ package id.plirm34.nativeapp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.widget.DatePicker;
+import java.util.Calendar;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -132,6 +135,10 @@ public class MainActivity extends Activity {
     private String selectedServiceFormType = "service-motor-mv-carbon-brush";
     private String serviceSearchQuery = "";
     private String serviceFilterStatus = "Semua";
+    private String selectedDashboardArea = "Semua";
+    private String selectedServiceMainTab = "Electrical";
+    private String serviceStartDate = "";
+    private String serviceEndDate = "";
     private String bomSearchQuery = "";
     private String bomFilterStatus = "Semua";
     private String sparepartSearchQuery = "";
@@ -166,21 +173,43 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    
-    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleDeepLink(intent);
     }
 
     private void handleDeepLink(Intent intent) {
+        if (intent == null) return;
         Uri data = intent.getData();
         if (data != null && "plirm34".equals(data.getScheme()) && "auth".equals(data.getHost())) {
-            String token = data.getQueryParameter("token");
+            final String token = data.getQueryParameter("token");
             if (token != null && !token.isEmpty()) {
-                PlirmApiClient.setToken(token);
-                // Fetch me to finalize login
-                checkSession();
+                if (apiClient == null) {
+                    apiClient = new PlirmApiClient(DEFAULT_BASE_URL);
+                }
+                apiClient.setSessionToken(token);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            fetchLiveData();
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(MainActivity.this, "Login Google berhasil", Toast.LENGTH_SHORT).show();
+                                    showApp();
+                                }
+                            });
+                        } catch (Exception e) {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    showApp();
+                                }
+                            });
+                        }
+                    }
+                }).start();
             }
         }
     }
@@ -589,11 +618,21 @@ public class MainActivity extends Activity {
         // Overview Header
         content.addView(dashboardHero());
 
-        // === Stat Cards Row 1 (Clickable) ===
-        content.addView(sectionTitle("Status Equipment"));
+        // === Area Selector ===
+        content.addView(sectionTitle("Dashboard Area"));
+        content.addView(filterChips(selectedDashboardArea, new String[]{"Semua Area", "Crusher (2)", "Rawmill (3)", "Coalmill (7)", "Kiln (4)", "Finishmill (5)", "Packer (6)"}, new FilterCallback() {
+            @Override
+            public void onSelected(String value) {
+                selectedDashboardArea = value;
+                renderSelected();
+            }
+        }));
+
+        // === Stat Cards Row 1 (Clickable, Area-filtered) ===
+        content.addView(sectionTitle("Status Equipment - " + selectedDashboardArea));
         LinearLayout statsTop = row(8);
         LinearLayout serviceCard = wrapClickableStatCard(
-            statCard("Total Service", String.valueOf(serviceItems.length()), TEAL),
+            statCard("Total Service", String.valueOf(countServiceByArea(selectedDashboardArea)), TEAL),
             new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -616,10 +655,10 @@ public class MainActivity extends Activity {
         statsTop.addView(scheduleCard, new LinearLayout.LayoutParams(0, -2, 1));
         content.addView(statsTop);
 
-        // === Stat Cards Row 2 (Clickable) ===
+        // === Stat Cards Row 2 (Clickable, Area-filtered) ===
         LinearLayout statsBottom = row(8);
         LinearLayout negatifCard = wrapClickableStatCard(
-            statCard("Negatif Open", String.valueOf(countOpenNegatif()), countOpenNegatif() > 0 ? AMBER : GREEN),
+            statCard("Negatif Open", String.valueOf(countOpenNegatifByArea(selectedDashboardArea)), countOpenNegatifByArea(selectedDashboardArea) > 0 ? AMBER : GREEN),
             new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -643,10 +682,16 @@ public class MainActivity extends Activity {
         content.addView(statsBottom);
 
         // === Carbon Brush Early Warning ===
-        List<JSONObject> alerts = buildCarbonAlerts();
+        List<JSONObject> allAlerts = buildCarbonAlerts();
+        List<JSONObject> alerts = new ArrayList<JSONObject>();
+        for (JSONObject alert : allAlerts) {
+            if (matchesEquipmentArea(alert.optString("equipment", ""), selectedDashboardArea)) {
+                alerts.add(alert);
+            }
+        }
         content.addView(sectionTitle("Carbon Brush Early Warning"));
         if (alerts.isEmpty()) {
-            LinearLayout empty = emptyCard("Belum ada early warning", "Data muncul setelah service Carbon Brush memiliki measurement.");
+            LinearLayout empty = emptyCard("Belum ada early warning" + ("Semua Area".equals(selectedDashboardArea) ? "" : " di " + selectedDashboardArea), "Data muncul setelah service Carbon Brush memiliki measurement.");
             empty.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -683,9 +728,15 @@ public class MainActivity extends Activity {
             }
         }
 
-        // === Negatif List Open ===
-        content.addView(sectionTitle("Negatif List Open"));
-        List<JSONObject> openNegatif = buildOpenNegatifList();
+        // === Negatif List Open (Area Filtered) ===
+        content.addView(sectionTitle("Negatif List Open" + ("Semua Area".equals(selectedDashboardArea) ? "" : " (" + selectedDashboardArea + ")")));
+        List<JSONObject> rawOpenNegatif = buildOpenNegatifList();
+        List<JSONObject> openNegatif = new ArrayList<JSONObject>();
+        for (JSONObject item : rawOpenNegatif) {
+            if (matchesEquipmentArea(item.optString("equipment", ""), selectedDashboardArea)) {
+                openNegatif.add(item);
+            }
+        }
         if (openNegatif.isEmpty()) {
             content.addView(emptyCard("Tidak ada negatif list open", "Semua temuan sudah close atau belum sinkron."));
         } else {
@@ -694,9 +745,15 @@ public class MainActivity extends Activity {
             }
         }
 
-        // === Hasil Service Terakhir ===
-        content.addView(sectionTitle("Hasil Service Terakhir"));
-        List<JSONObject> latestServices = sortByInspectionDate(serviceItems, false);
+        // === Hasil Service Terakhir (Area Filtered) ===
+        content.addView(sectionTitle("Hasil Service Terakhir" + ("Semua Area".equals(selectedDashboardArea) ? "" : " (" + selectedDashboardArea + ")")));
+        List<JSONObject> rawServices = sortByInspectionDate(serviceItems, false);
+        List<JSONObject> latestServices = new ArrayList<JSONObject>();
+        for (JSONObject item : rawServices) {
+            if (matchesEquipmentArea(item.optString("equipmentName", ""), selectedDashboardArea)) {
+                latestServices.add(item);
+            }
+        }
         if (latestServices.isEmpty()) {
             content.addView(emptyCard("Belum ada service", "Data service akan tampil setelah sinkron backend."));
         } else {
@@ -736,7 +793,7 @@ public class MainActivity extends Activity {
     private void showOpenNegatifDetail() {
         List<JSONObject> openNegatif = buildOpenNegatifList();
         if (!openNegatif.isEmpty()) {
-            showItemDetail("negatif-list", openNegatif.get(0));
+            showNegatifDetail(openNegatif.get(0));
         }
     }
 
@@ -811,8 +868,32 @@ public class MainActivity extends Activity {
     }
 
     private void renderService() {
-        content.addView(sectionTitle("Service"));
-        content.addView(searchField("Cari equipment, kategori, tanggal, temuan", serviceSearchQuery, new SearchCallback() {
+        content.addView(sectionTitle("Service & Inspeksi"));
+
+        // Main Category Tabs (Electrical, Instrumentasi, DCS) - Matching Web
+        content.addView(filterChips(selectedServiceMainTab, new String[]{"Electrical", "Instrumentasi", "DCS"}, new FilterCallback() {
+            @Override
+            public void onSelected(String value) {
+                selectedServiceMainTab = value;
+                renderSelected();
+            }
+        }));
+
+        // Kategori Layanan Subcategories
+        content.addView(sectionTitle("Kategori " + selectedServiceMainTab));
+        String[] subFormTypes = formTypesForCategory(selectedServiceMainTab);
+        for (String formType : subFormTypes) {
+            content.addView(serviceSubcategoryCard(formType));
+        }
+
+        // Histori Service Section (Dibawahnya)
+        content.addView(sectionTitle("Histori Service (Terbaru di Atas)"));
+
+        // Date Range Picker
+        content.addView(serviceDateFilterBar());
+
+        // Search Field
+        content.addView(searchField("Cari equipment, catatan, atau tanggal...", serviceSearchQuery, new SearchCallback() {
             @Override
             public void onChanged(String value) {
                 if (value.equals(serviceSearchQuery)) {
@@ -822,51 +903,204 @@ public class MainActivity extends Activity {
                 renderSelected();
             }
         }));
-        content.addView(filterChips(serviceFilterStatus, new String[]{"Semua", "Hari Ini", "Carbon Brush", "Critical", "Dengan Temuan"}, new FilterCallback() {
-            @Override
-            public void onSelected(String value) {
-                serviceFilterStatus = value;
-                renderSelected();
-            }
-        }));
-        JSONObject details = serviceSummaryPayload.optJSONObject("details");
-        JSONObject carbonBrushSummary = details == null ? null : details.optJSONObject("carbonBrush");
-        LinearLayout stats = row(8);
-        stats.addView(statCard("TOTAL SERVICE", String.valueOf(serviceItems.length()), TEXT), new LinearLayout.LayoutParams(0, -2, 1));
-        stats.addView(statCard("CARBON BRUSH", String.valueOf(carbonBrushSummary == null ? countByFormType("service-motor-mv-carbon-brush") : carbonBrushSummary.optInt("total", countByFormType("service-motor-mv-carbon-brush"))), AMBER), new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(stats);
 
-        content.addView(sectionTitle("Kategori Layanan"));
-        content.addView(serviceCategoryDropdown());
-
-        TextView add = button("+ INPUT " + serviceTitleForFormType(selectedServiceFormType).toUpperCase(Locale.ROOT), false);
-        add.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showQuickServiceInput(selectedServiceFormType);
-            }
-        });
-        content.addView(add, topMargin(-1, dp(10)));
-
-        List<JSONObject> selectedItems = filterServiceItems(serviceItemsByFormType(selectedServiceFormType), serviceSearchQuery, serviceFilterStatus);
-        if (!selectedItems.isEmpty()) {
-            content.addView(sectionTitle("Terakhir " + serviceTitleForFormType(selectedServiceFormType)));
-            for (int i = 0; i < Math.min(3, selectedItems.size()); i++) {
-                final JSONObject item = selectedItems.get(i);
+        // Filtered History List
+        List<JSONObject> historyList = filterServiceHistoryItems();
+        if (historyList.isEmpty()) {
+            content.addView(emptyCard("Belum ada histori service", "Tidak ada data service yang cocok untuk " + selectedServiceMainTab + " dengan rentang tanggal dan pencarian ini."));
+        } else {
+            for (int i = 0; i < Math.min(25, historyList.size()); i++) {
+                final JSONObject item = historyList.get(i);
                 content.addView(serviceResult(item, false));
             }
         }
+    }
 
-        content.addView(sectionTitle("Hasil Service Terakhir"));
-        List<JSONObject> latest = filterServiceItems(sortByInspectionDate(serviceItems, false), serviceSearchQuery, serviceFilterStatus);
-        if (latest.isEmpty()) {
-            content.addView(emptyCard("Service tidak ditemukan", "Ubah kata kunci atau filter untuk melihat data lain."));
-            return;
+    private String[] formTypesForCategory(String category) {
+        if ("Instrumentasi".equalsIgnoreCase(category) || "Instrument".equalsIgnoreCase(category)) {
+            return new String[]{"service-instrument", "service-cems", "service-opacity-meter"};
         }
-        for (int i = 0; i < Math.min(8, latest.size()); i++) {
-            final JSONObject item = latest.get(i);
-            content.addView(serviceResult(item, false));
+        if ("DCS".equalsIgnoreCase(category) || "PLC".equalsIgnoreCase(category)) {
+            return new String[]{"service-dcs"};
         }
+        return new String[]{
+                "service-electrical-room",
+                "service-motor-mso",
+                "service-motor-mv",
+                "service-motor-mv-carbon-brush",
+                "service-mcc",
+                "service-ehca"
+        };
+    }
+
+    private LinearLayout serviceSubcategoryCard(final String formType) {
+        LinearLayout card = actionCard(10);
+        card.setOrientation(LinearLayout.VERTICAL);
+        String title = serviceTitleForFormType(formType);
+        String desc = serviceDescriptionForFormType(formType);
+        int count = countByFormType(formType);
+
+        card.addView(rowBetween(title, badge(count + " Data", count > 0 ? TEAL : MUTED)));
+        card.addView(label(desc, 12, MUTED, false), topMargin(-1, dp(4)));
+
+        LinearLayout bottomRow = row(8);
+        TextView inputBtn = smallActionButton("+ INPUT " + title.toUpperCase(Locale.ROOT), TEAL);
+        inputBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showQuickServiceInput(formType);
+            }
+        });
+        bottomRow.addView(inputBtn, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(bottomRow, topMargin(-1, dp(8)));
+        return card;
+    }
+
+    private LinearLayout serviceDateFilterBar() {
+        LinearLayout container = card(10);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.addView(label("Filter Rentang Tanggal Histori (Lintas Bulan & Tahun)", 12, MUTED, true));
+
+        LinearLayout rowDates = row(8);
+
+        String startText = serviceStartDate.isEmpty() ? "Dari: Semua" : "Dari: " + formatDate(serviceStartDate);
+        TextView btnStart = label(startText, 12, TEXT, true);
+        btnStart.setGravity(Gravity.CENTER);
+        btnStart.setPadding(dp(10), dp(10), dp(10), dp(10));
+        btnStart.setBackground(selectableBackground(SURFACE_FLOAT, serviceStartDate.isEmpty() ? BORDER_SOFT : TEAL, 12));
+        btnStart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDatePicker(true);
+            }
+        });
+        rowDates.addView(btnStart, new LinearLayout.LayoutParams(0, -2, 1));
+
+        String endText = serviceEndDate.isEmpty() ? "Sampai: Semua" : "Sampai: " + formatDate(serviceEndDate);
+        TextView btnEnd = label(endText, 12, TEXT, true);
+        btnEnd.setGravity(Gravity.CENTER);
+        btnEnd.setPadding(dp(10), dp(10), dp(10), dp(10));
+        btnEnd.setBackground(selectableBackground(SURFACE_FLOAT, serviceEndDate.isEmpty() ? BORDER_SOFT : TEAL, 12));
+        btnEnd.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDatePicker(false);
+            }
+        });
+        rowDates.addView(btnEnd, new LinearLayout.LayoutParams(0, -2, 1));
+
+        if (!serviceStartDate.isEmpty() || !serviceEndDate.isEmpty()) {
+            TextView btnReset = label("Reset", 12, RED, true);
+            btnReset.setGravity(Gravity.CENTER);
+            btnReset.setPadding(dp(10), dp(10), dp(10), dp(10));
+            btnReset.setBackground(selectableBackground(DANGER_SURFACE, RED, 12));
+            btnReset.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    serviceStartDate = "";
+                    serviceEndDate = "";
+                    renderSelected();
+                }
+            });
+            rowDates.addView(btnReset, new LinearLayout.LayoutParams(-2, -2));
+        }
+
+        container.addView(rowDates, topMargin(-1, dp(8)));
+        return container;
+    }
+
+    private void showDatePicker(final boolean isStart) {
+        Calendar cal = Calendar.getInstance();
+        int y = cal.get(Calendar.YEAR);
+        int m = cal.get(Calendar.MONTH);
+        int d = cal.get(Calendar.DAY_OF_MONTH);
+        String currentVal = isStart ? serviceStartDate : serviceEndDate;
+        if (currentVal != null && currentVal.length() >= 10) {
+            try {
+                String[] parts = currentVal.split("-");
+                y = Integer.parseInt(parts[0]);
+                m = Integer.parseInt(parts[1]) - 1;
+                d = Integer.parseInt(parts[2]);
+            } catch (Exception ignored) {
+            }
+        }
+        DatePickerDialog dialog = new DatePickerDialog(MainActivity.this, new DatePickerDialog.OnDateSetListener() {
+            @Override
+            public void onDateSet(DatePicker view, int year, int month, int dayOfMonth) {
+                String dateStr = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth);
+                if (isStart) {
+                    serviceStartDate = dateStr;
+                } else {
+                    serviceEndDate = dateStr;
+                }
+                renderSelected();
+            }
+        }, y, m, d);
+        dialog.show();
+    }
+
+    private List<JSONObject> filterServiceHistoryItems() {
+        List<JSONObject> list = toList(serviceItems);
+        List<JSONObject> result = new ArrayList<JSONObject>();
+        String query = serviceSearchQuery == null ? "" : serviceSearchQuery.trim().toLowerCase(Locale.ROOT);
+
+        for (JSONObject item : list) {
+            if (item == null) continue;
+            String formType = item.optString("formType", "");
+            String category = serviceTypeForFormType(formType);
+
+            if ("Instrumentasi".equalsIgnoreCase(selectedServiceMainTab)) {
+                if (!"Instrument".equalsIgnoreCase(category)) continue;
+            } else if ("DCS".equalsIgnoreCase(selectedServiceMainTab)) {
+                if (!"DCS".equalsIgnoreCase(category)) continue;
+            } else {
+                if (!"Electrical".equalsIgnoreCase(category)) continue;
+            }
+
+            if (!"Semua".equalsIgnoreCase(selectedDashboardArea) && !"Semua Area".equalsIgnoreCase(selectedDashboardArea)) {
+                if (!matchesEquipmentArea(item.optString("equipmentName", ""), selectedDashboardArea)) {
+                    continue;
+                }
+            }
+
+            JSONObject payload = item.optJSONObject("payload");
+            String inspectionDate = payload == null ? "" : payload.optString("inspectionDate", "");
+            if (inspectionDate.length() >= 10) {
+                inspectionDate = inspectionDate.substring(0, 10);
+            }
+            if (!serviceStartDate.isEmpty() && inspectionDate.length() >= 10) {
+                if (inspectionDate.compareTo(serviceStartDate) < 0) {
+                    continue;
+                }
+            }
+            if (!serviceEndDate.isEmpty() && inspectionDate.length() >= 10) {
+                if (inspectionDate.compareTo(serviceEndDate) > 0) {
+                    continue;
+                }
+            }
+
+            if (!query.isEmpty()) {
+                String eqName = item.optString("equipmentName", "").toLowerCase(Locale.ROOT);
+                String desc = item.optString("description", "").toLowerCase(Locale.ROOT);
+                String detail = item.optString("detail", "").toLowerCase(Locale.ROOT);
+                if (!eqName.contains(query) && !desc.contains(query) && !detail.contains(query) && !inspectionDate.contains(query)) {
+                    continue;
+                }
+            }
+
+            result.add(item);
+        }
+
+        Collections.sort(result, new Comparator<JSONObject>() {
+            @Override
+            public int compare(JSONObject left, JSONObject right) {
+                long leftTime = dateMillis(left.optJSONObject("payload") == null ? "" : left.optJSONObject("payload").optString("inspectionDate", ""));
+                long rightTime = dateMillis(right.optJSONObject("payload") == null ? "" : right.optJSONObject("payload").optString("inspectionDate", ""));
+                return Long.compare(rightTime, leftTime);
+            }
+        });
+
+        return result;
     }
 
     private void renderCarbonInputScreen() {
@@ -4604,6 +4838,29 @@ public class MainActivity extends Activity {
         return drawable;
     }
 
+    private TextView authGoogleButton() {
+        TextView button = label("Continue with Google", 15, Color.WHITE, true);
+        button.setGravity(Gravity.CENTER);
+        button.setMinHeight(dp(56));
+        button.setPadding(dp(14), 0, dp(14), 0);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor("#4285F4"));
+        bg.setCornerRadius(dp(16));
+        button.setBackground(bg);
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(DEFAULT_BASE_URL + "/api/auth/google/login"));
+                    startActivity(browserIntent);
+                } catch (Exception err) {
+                    Toast.makeText(MainActivity.this, "Gagal membuka browser untuk login Google.", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        return button;
+    }
+
     private TextView authButton(String text) {
         TextView button = label(text, 15, Color.rgb(3, 24, 27), true);
         button.setGravity(Gravity.CENTER);
@@ -5280,6 +5537,64 @@ public class MainActivity extends Activity {
 
     private int countOpenNegatif() {
         return buildOpenNegatifList().size();
+    }
+
+    private boolean matchesEquipmentArea(String code, String area) {
+        if (area == null || "Semua".equalsIgnoreCase(area) || "Semua Area".equalsIgnoreCase(area) || area.isEmpty()) {
+            return true;
+        }
+        if (code == null) {
+            return false;
+        }
+        String clean = code.trim().toUpperCase(Locale.ROOT);
+        if (clean.isEmpty()) {
+            return false;
+        }
+        String digitsOnly = clean.replaceAll("[^0-9]", "");
+
+        if (area.contains("Crusher")) {
+            return clean.startsWith("2") || digitsOnly.startsWith("2");
+        } else if (area.contains("Rawmill")) {
+            return clean.startsWith("3") || digitsOnly.startsWith("3");
+        } else if (area.contains("Coalmill")) {
+            if (digitsOnly.length() >= 3) {
+                return digitsOnly.charAt(1) == '7' || digitsOnly.contains("7");
+            }
+            return digitsOnly.contains("7");
+        } else if (area.contains("Kiln")) {
+            boolean isCoal = digitsOnly.length() >= 3 && digitsOnly.charAt(1) == '7';
+            return (clean.startsWith("4") || digitsOnly.startsWith("4")) && !isCoal;
+        } else if (area.contains("Finishmill")) {
+            return clean.startsWith("5") || digitsOnly.startsWith("5");
+        } else if (area.contains("Packer")) {
+            return clean.startsWith("6") || digitsOnly.startsWith("6");
+        }
+        return true;
+    }
+
+    private int countServiceByArea(String area) {
+        if ("Semua".equalsIgnoreCase(area) || "Semua Area".equalsIgnoreCase(area) || area == null || area.isEmpty()) {
+            return serviceItems.length();
+        }
+        int count = 0;
+        for (int i = 0; i < serviceItems.length(); i++) {
+            JSONObject item = serviceItems.optJSONObject(i);
+            if (item != null && matchesEquipmentArea(item.optString("equipmentName", ""), area)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private int countOpenNegatifByArea(String area) {
+        int count = 0;
+        List<JSONObject> list = buildOpenNegatifList();
+        for (JSONObject item : list) {
+            if (matchesEquipmentArea(item.optString("equipment", ""), area)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private int todayScheduleCount() {

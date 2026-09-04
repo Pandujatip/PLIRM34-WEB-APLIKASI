@@ -33,6 +33,12 @@ final class PlirmApiClient {
         return baseUrl;
     }
 
+    void setSessionToken(String token) {
+        if (token != null && token.length() > 0) {
+            this.sessionCookie = "plirm34_session=" + token;
+        }
+    }
+
     JSONObject login(String username, String password) throws IOException {
         JSONObject payload = new JSONObject();
         try {
