@@ -25,5 +25,12 @@ service-mcc-source.csv
 slideshow-images/
 .firebase/
 *.apk
+*.aab
+*.jks
+*.keystore
+key.properties
 flutter_app/build/
 flutter_app/.dart_tool/
+flutter_app/screen_*.png
+data.db
+

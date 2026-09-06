@@ -1,3 +1,5 @@
+export 'equipment_health_model.dart';
+
 class UserModel {
   final int id;
   final String username;
@@ -11,6 +13,21 @@ class UserModel {
     this.token,
   });
 
+  bool get isAdmin => role.toLowerCase() == 'admin';
+  bool get isOrganik => role.toLowerCase() == 'organik';
+  bool get isTeam => !isAdmin && !isOrganik;
+
+  String get roleBadgeLabel {
+    if (isAdmin) return 'ADMIN';
+    if (isOrganik) return 'ORGANIK';
+    return 'TIM TEKNISI';
+  }
+
+  bool get canCloseNegatifList => isAdmin || isOrganik;
+  bool get canEditService => isAdmin || isOrganik;
+  bool get canApproveOvertime => isAdmin;
+  bool get canManageSpareparts => isAdmin;
+
   factory UserModel.fromJson(Map<String, dynamic> json, {String? token}) {
     return UserModel(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
@@ -19,6 +36,13 @@ class UserModel {
       token: token ?? json['token']?.toString(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'username': username,
+    'role': role,
+    'token': token,
+  };
 }
 
 class ServiceItem {
@@ -31,6 +55,14 @@ class ServiceItem {
   final String status;
   final String teknisi;
   final String area;
+  final String subtype;
+  final String formType;
+  final String recommendation;
+  final String detail;
+  final Map<String, dynamic> measurements;
+  final Map<String, dynamic> stats;
+  final List<String> replacedPoints;
+  final Map<String, dynamic> payload;
 
   ServiceItem({
     required this.id,
@@ -42,20 +74,127 @@ class ServiceItem {
     required this.status,
     required this.teknisi,
     required this.area,
+    this.subtype = '',
+    this.formType = '',
+    this.recommendation = '',
+    this.detail = '',
+    this.measurements = const {},
+    this.stats = const {},
+    this.replacedPoints = const [],
+    this.payload = const {},
   });
 
   factory ServiceItem.fromJson(Map<String, dynamic> json) {
-    final payload = json['payload'] is Map<String, dynamic> ? json['payload'] as Map<String, dynamic> : null;
+    final payloadMap = json['payload'] is Map<String, dynamic> ? Map<String, dynamic>.from(json['payload'] as Map) : <String, dynamic>{};
+    final measurementsRaw = payloadMap['measurements'] is Map<String, dynamic> ? Map<String, dynamic>.from(payloadMap['measurements'] as Map) : <String, dynamic>{};
+    final statsRaw = payloadMap['stats'] is Map<String, dynamic> ? Map<String, dynamic>.from(payloadMap['stats'] as Map) : <String, dynamic>{};
+    final replacedRaw = payloadMap['replacedPoints'] is List ? (payloadMap['replacedPoints'] as List).map((e) => e.toString()).toList() : <String>[];
+
     return ServiceItem(
       id: json['id']?.toString() ?? '',
-      tanggal: json['tanggal']?.toString() ?? payload?['inspectionDate']?.toString() ?? json['date']?.toString() ?? '',
+      tanggal: json['tanggal']?.toString() ?? payloadMap['inspectionDate']?.toString() ?? json['date']?.toString() ?? '',
       equipment: json['equipmentName']?.toString() ?? json['equipment']?.toString() ?? json['nama_alat']?.toString() ?? '',
       kategori: json['type']?.toString() ?? json['kategori']?.toString() ?? json['category']?.toString() ?? 'Electrical',
       deskripsi: json['description']?.toString() ?? json['deskripsi']?.toString() ?? json['subtype']?.toString() ?? '',
-      tindakan: json['detail']?.toString() ?? json['tindakan']?.toString() ?? payload?['recommendation']?.toString() ?? '',
+      tindakan: json['detail']?.toString() ?? json['tindakan']?.toString() ?? payloadMap['recommendation']?.toString() ?? '',
       status: json['status']?.toString() ?? 'Done',
-      teknisi: json['teknisi']?.toString() ?? payload?['pic']?.toString() ?? '',
+      teknisi: json['teknisi']?.toString() ?? payloadMap['pic']?.toString() ?? '',
       area: json['area']?.toString() ?? '',
+      subtype: json['subtype']?.toString() ?? '',
+      formType: json['formType']?.toString() ?? '',
+      recommendation: payloadMap['recommendation']?.toString() ?? '',
+      detail: json['detail']?.toString() ?? '',
+      measurements: measurementsRaw,
+      stats: statsRaw,
+      replacedPoints: replacedRaw,
+      payload: payloadMap,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final fullPayload = Map<String, dynamic>.from(payload);
+    fullPayload['inspectionDate'] = tanggal;
+    fullPayload['pic'] = teknisi;
+    if (recommendation.isNotEmpty) fullPayload['recommendation'] = recommendation;
+    if (measurements.isNotEmpty) fullPayload['measurements'] = measurements;
+    if (stats.isNotEmpty) fullPayload['stats'] = stats;
+    if (replacedPoints.isNotEmpty) fullPayload['replacedPoints'] = replacedPoints;
+
+    return {
+      'id': id.isNotEmpty ? id : 'service-${DateTime.now().millisecondsSinceEpoch}',
+      'type': kategori,
+      'kategori': kategori,
+      'subtype': subtype,
+      'formType': formType,
+      'equipmentName': equipment,
+      'equipment': equipment,
+      'area': area,
+      'tanggal': tanggal,
+      'teknisi': teknisi,
+      'status': status,
+      'description': deskripsi,
+      'detail': tindakan,
+      'payload': fullPayload,
+    };
+  }
+}
+
+class CarbonBrushPoint {
+  final String pointKey;
+  final double currentValue;
+  final int countdownDays;
+  final String estimatedReplacementDate;
+  final String lastInspectionDate;
+  final double medianWearRate;
+  final double thresholdLow;
+  final double thresholdHigh;
+  final String actionLabel;
+  final String severity;
+
+  CarbonBrushPoint({
+    required this.pointKey,
+    required this.currentValue,
+    required this.countdownDays,
+    required this.estimatedReplacementDate,
+    required this.lastInspectionDate,
+    required this.medianWearRate,
+    this.thresholdLow = 30.0,
+    this.thresholdHigh = 34.0,
+    this.actionLabel = '',
+    this.severity = 'normal',
+  });
+
+  factory CarbonBrushPoint.fromJson(Map<String, dynamic> json) {
+    final curVal = (json['currentValue'] is num)
+        ? (json['currentValue'] as num).toDouble()
+        : double.tryParse(json['currentValue']?.toString() ?? '0') ?? 0.0;
+    final countdown = (json['countdownDays'] is num)
+        ? (json['countdownDays'] as num).toInt()
+        : int.tryParse(json['countdownDays']?.toString() ?? '0') ?? 0;
+    final wearRate = (json['medianWearRate'] is num)
+        ? (json['medianWearRate'] as num).toDouble()
+        : double.tryParse(json['medianWearRate']?.toString() ?? '0') ?? 0.0;
+    final tLow = (json['thresholdLow'] is num)
+        ? (json['thresholdLow'] as num).toDouble()
+        : 30.0;
+    final tHigh = (json['thresholdHigh'] is num)
+        ? (json['thresholdHigh'] as num).toDouble()
+        : 34.0;
+
+    final displayStatus = json['displayStatus'] is Map<String, dynamic> ? json['displayStatus'] as Map<String, dynamic> : {};
+    final action = displayStatus['actionLabel']?.toString() ?? json['actionLabel']?.toString() ?? '';
+
+    return CarbonBrushPoint(
+      pointKey: json['pointKey']?.toString() ?? '',
+      currentValue: curVal,
+      countdownDays: countdown,
+      estimatedReplacementDate: json['estimatedReplacementDate']?.toString() ?? '',
+      lastInspectionDate: json['lastInspectionDate']?.toString() ?? '',
+      medianWearRate: wearRate,
+      thresholdLow: tLow,
+      thresholdHigh: tHigh,
+      actionLabel: action,
+      severity: curVal < tLow ? 'urgent' : (curVal < tHigh ? 'warning' : 'normal'),
     );
   }
 }
@@ -67,6 +206,11 @@ class CarbonBrushItem {
   final String tanggalUkur;
   final String nilai;
   final String keterangan;
+  final List<CarbonBrushPoint> points;
+  final String equipmentKey;
+  final double thresholdLow;
+  final double thresholdHigh;
+  final String thresholdLegend;
 
   CarbonBrushItem({
     required this.equipment,
@@ -75,6 +219,11 @@ class CarbonBrushItem {
     required this.tanggalUkur,
     required this.nilai,
     required this.keterangan,
+    this.points = const [],
+    this.equipmentKey = '',
+    this.thresholdLow = 30.0,
+    this.thresholdHigh = 34.0,
+    this.thresholdLegend = 'Tuban 3: Merah < 30.0 | Kuning 30.0-33.99 | Hijau >= 34.0',
   });
 
   factory CarbonBrushItem.fromJson(Map<String, dynamic> json) {
@@ -89,26 +238,58 @@ class CarbonBrushItem {
   }
 
   factory CarbonBrushItem.fromAlert(Map<String, dynamic> json) {
-    final displayPoints = json['displayAlertPoints'] as List? ?? [];
-    final firstPoint = displayPoints.isNotEmpty && displayPoints[0] is Map<String, dynamic>
-        ? displayPoints[0] as Map<String, dynamic>
-        : null;
-
     final equip = json['equipment']?.toString() ?? '';
     final count = json['totalAlertPointCount'] ?? 1;
-    final pointKey = firstPoint?['pointKey']?.toString() ?? 'F4';
-    final currentVal = firstPoint?['currentValue']?.toString() ?? '32.5';
-    final estDate = firstPoint?['estimatedReplacementDate']?.toString() ?? '15 Sep 2026';
-    final days = firstPoint?['countdownDays']?.toString() ?? '10';
-    final lastInsp = firstPoint?['lastInspectionDate']?.toString() ?? '20 Agu 2026';
+    final tLow = (json['thresholdLow'] is num) ? (json['thresholdLow'] as num).toDouble() : 30.0;
+    final tHigh = (json['thresholdHigh'] is num) ? (json['thresholdHigh'] as num).toDouble() : 34.0;
+    final tLegend = json['thresholdLegend']?.toString() ?? 'Tuban 3: Merah < 30.0 | Kuning 30.0-33.99 | Hijau >= 34.0';
+
+    final pointsList = <CarbonBrushPoint>[];
+    if (json['displayAlertPoints'] is List) {
+      for (final p in json['displayAlertPoints']) {
+        if (p is Map<String, dynamic>) {
+          pointsList.add(CarbonBrushPoint.fromJson(p));
+        }
+      }
+    }
+    if (json['secondaryAlertPoints'] is List) {
+      for (final p in json['secondaryAlertPoints']) {
+        if (p is Map<String, dynamic>) {
+          if (!pointsList.any((e) => e.pointKey == p['pointKey']?.toString())) {
+            pointsList.add(CarbonBrushPoint.fromJson(p));
+          }
+        }
+      }
+    }
+
+    final first = pointsList.isNotEmpty ? pointsList.first : null;
+    final pointKey = first?.pointKey ?? json['pointKey']?.toString() ?? 'F4';
+    final currentVal = first != null
+        ? first.currentValue.toStringAsFixed(2)
+        : (json['currentValue'] != null ? (json['currentValue'] as num).toStringAsFixed(2) : '32.50');
+    final estDate = first?.estimatedReplacementDate ?? json['estimatedReplacementDate']?.toString() ?? '15 Sep 2026';
+    final days = first?.countdownDays.toString() ?? json['countdownDays']?.toString() ?? '10';
+    final lastInsp = first?.lastInspectionDate ?? json['lastInspectionDate']?.toString() ?? '20 Agu 2026';
+
+    final numVal = double.tryParse(currentVal) ?? 32.5;
+    final isCritical = numVal < tLow;
+    final statusText = isCritical ? "$count TITIK KRITIS" : "$count TITIK DEKAT LIMIT";
+    final ket = isCritical
+        ? "Kritis (< ${tLow.toStringAsFixed(0)} mm) | Segera lakukan penggantian"
+        : "Dekat limit | Ambang batas ${tLow.toStringAsFixed(0)}-${(tHigh - 0.01).toStringAsFixed(2)} mm";
 
     return CarbonBrushItem(
       equipment: equip,
-      statusLimit: "$count TITIK DEKAT LIMIT",
+      statusLimit: statusText,
       estimasi: "$estDate ($days hari)",
       tanggalUkur: "$lastInsp | $pointKey = $currentVal mm",
       nilai: "$currentVal mm",
-      keterangan: "Dekat limit | Tuban 3 limit merah < 30 mm | Prediksi stabil",
+      keterangan: ket,
+      points: pointsList,
+      equipmentKey: json['equipmentKey']?.toString() ?? '',
+      thresholdLow: tLow,
+      thresholdHigh: tHigh,
+      thresholdLegend: tLegend,
     );
   }
 }
@@ -120,6 +301,10 @@ class NegatifItem {
   final String status;
   final String statusTambahan;
   final String area;
+  final String followUpPlan;
+  final String foundDate;
+  final String pendingMark;
+  final String category;
 
   NegatifItem({
     required this.id,
@@ -128,7 +313,13 @@ class NegatifItem {
     required this.status,
     required this.statusTambahan,
     required this.area,
+    this.followUpPlan = '',
+    this.foundDate = '',
+    this.pendingMark = '',
+    this.category = '',
   });
+
+  bool get isOpen => status.toUpperCase() == 'OPEN';
 
   factory NegatifItem.fromJson(Map<String, dynamic> json) {
     return NegatifItem(
@@ -138,6 +329,10 @@ class NegatifItem {
       status: json['workStatus']?.toString() ?? json['status']?.toString() ?? 'OPEN',
       statusTambahan: json['pendingMark']?.toString() ?? json['followUpPlan']?.toString() ?? json['status_tambahan']?.toString() ?? '',
       area: json['area']?.toString() ?? '',
+      followUpPlan: json['followUpPlan']?.toString() ?? '',
+      foundDate: json['foundDate']?.toString() ?? '',
+      pendingMark: json['pendingMark']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
     );
   }
 }
@@ -168,5 +363,253 @@ class SparepartItem {
       satuan: json['satuan']?.toString() ?? 'PCS',
       lokasi: json['lokasi']?.toString() ?? '',
     );
+  }
+}
+
+class OvertimeItem {
+  final String employeeNo;
+  final String employeeName;
+  final String groupType;
+  final String companyName;
+  final double monthRawHours;
+  final double monthLiveHours;
+  final double contractLiveHours;
+  final double annualRemainingHours;
+  final double annualUsagePercent;
+  final String quotaStatus;
+  final String monthStatus;
+  final String workDate;
+  final String task;
+
+  OvertimeItem({
+    required this.employeeNo,
+    required this.employeeName,
+    required this.groupType,
+    required this.companyName,
+    required this.monthRawHours,
+    required this.monthLiveHours,
+    required this.contractLiveHours,
+    required this.annualRemainingHours,
+    required this.annualUsagePercent,
+    required this.quotaStatus,
+    required this.monthStatus,
+    this.workDate = '',
+    this.task = '',
+  });
+
+  factory OvertimeItem.fromJson(Map<String, dynamic> json) {
+    final mRaw = (json['monthRawHours'] is num) ? (json['monthRawHours'] as num).toDouble() : (double.tryParse(json['rawHours']?.toString() ?? '0') ?? 0.0);
+    final mLive = (json['monthLiveHours'] is num) ? (json['monthLiveHours'] as num).toDouble() : (double.tryParse(json['liveHours']?.toString() ?? '0') ?? 0.0);
+    final cLive = (json['contractLiveHours'] is num) ? (json['contractLiveHours'] as num).toDouble() : mLive;
+    final remaining = (json['annualRemainingHours'] is num) ? (json['annualRemainingHours'] as num).toDouble() : 0.0;
+    final usage = (json['annualUsagePercent'] is num) ? (json['annualUsagePercent'] as num).toDouble() : 0.0;
+
+    final qStatus = json['quotaStatus'] is Map ? (json['quotaStatus']['label']?.toString() ?? 'Normal') : (json['quotaStatus']?.toString() ?? 'Normal');
+    final mStatus = json['monthStatus'] is Map ? (json['monthStatus']['label']?.toString() ?? 'Normal') : (json['monthStatus']?.toString() ?? 'Normal');
+
+    return OvertimeItem(
+      employeeNo: json['employeeNo']?.toString() ?? '',
+      employeeName: json['employeeName']?.toString() ?? '',
+      groupType: json['groupType']?.toString() ?? 'Teknisi',
+      companyName: json['companyName']?.toString() ?? 'PT SBG',
+      monthRawHours: mRaw,
+      monthLiveHours: mLive,
+      contractLiveHours: cLive,
+      annualRemainingHours: remaining,
+      annualUsagePercent: usage,
+      quotaStatus: qStatus,
+      monthStatus: mStatus,
+      workDate: json['workDate']?.toString() ?? '',
+      task: json['task']?.toString() ?? '',
+    );
+  }
+}
+
+class CarbonBrushStockItem {
+  final String stockKey;
+  final String sapNo;
+  final String brushName;
+  final String useLabel;
+  final int currentStock;
+  final String updatedAt;
+
+  CarbonBrushStockItem({
+    required this.stockKey,
+    required this.sapNo,
+    required this.brushName,
+    required this.useLabel,
+    required this.currentStock,
+    this.updatedAt = '',
+  });
+
+  String get displayName => '$brushName ($sapNo)';
+  String get optionLabel => '$sapNo | $brushName | Stok: $currentStock pcs${useLabel.isNotEmpty ? ' | $useLabel' : ''}';
+
+  factory CarbonBrushStockItem.fromJson(Map<String, dynamic> json) {
+    return CarbonBrushStockItem(
+      stockKey: json['stockKey']?.toString() ?? '${json['sapNo']}|${json['brushName']}',
+      sapNo: json['sapNo']?.toString() ?? '',
+      brushName: json['brushName']?.toString() ?? json['name']?.toString() ?? '',
+      useLabel: json['useLabel']?.toString() ?? json['use']?.toString() ?? '',
+      currentStock: (json['currentStock'] is num)
+          ? (json['currentStock'] as num).toInt()
+          : int.tryParse(json['currentStock']?.toString() ?? '0') ?? 0,
+      updatedAt: json['updatedAt']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'stockKey': stockKey,
+      'sapNo': sapNo,
+      'brushName': brushName,
+      'useLabel': useLabel,
+      'currentStock': currentStock,
+      'updatedAt': updatedAt,
+    };
+  }
+
+  CarbonBrushStockItem copyWith({int? currentStock, String? updatedAt}) {
+    return CarbonBrushStockItem(
+      stockKey: stockKey,
+      sapNo: sapNo,
+      brushName: brushName,
+      useLabel: useLabel,
+      currentStock: currentStock ?? this.currentStock,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  static List<CarbonBrushStockItem> defaultItems() {
+    return [
+      CarbonBrushStockItem(
+        stockKey: 'SI00028389|RC53 50X32X25',
+        sapNo: 'SI00028389',
+        brushName: 'RC53 50X32X25',
+        useLabel: '344RM01M01 - ABB, 344FN03M01 - ABB',
+        currentStock: 36,
+      ),
+      CarbonBrushStockItem(
+        stockKey: 'SI00005550|RC73/MR7 50X32X25',
+        sapNo: 'SI00005550',
+        brushName: 'RC73/MR7 50X32X25',
+        useLabel: '343RM1M01 - SIEMENS, 343FN4M01 - SIEMENS, 343FN5M01 - SIEMENS',
+        currentStock: 24,
+      ),
+      CarbonBrushStockItem(
+        stockKey: 'SI00028394|RC67 50X32X25',
+        sapNo: 'SI00028394',
+        brushName: 'RC67 50X32X25',
+        useLabel: '344RM01M01',
+        currentStock: 18,
+      ),
+      CarbonBrushStockItem(
+        stockKey: 'SI00005549|RC73 50X32X20',
+        sapNo: 'SI00005549',
+        brushName: 'RC73 50X32X20',
+        useLabel: '343RM1M01 - ABB',
+        currentStock: 12,
+      ),
+    ];
+  }
+}
+
+class CarbonBrushStockLogItem {
+  final String id;
+  final String stockKey;
+  final String sapNo;
+  final String brushName;
+  final String movementType;
+  final int quantityDelta;
+  final int stockBefore;
+  final int stockAfter;
+  final String source;
+  final String serviceId;
+  final String equipmentName;
+  final List<String> pointKeys;
+  final String note;
+  final String actorUsername;
+  final String createdAt;
+
+  CarbonBrushStockLogItem({
+    required this.id,
+    required this.stockKey,
+    required this.sapNo,
+    required this.brushName,
+    required this.movementType,
+    required this.quantityDelta,
+    required this.stockBefore,
+    required this.stockAfter,
+    this.source = '',
+    this.serviceId = '',
+    this.equipmentName = '',
+    this.pointKeys = const [],
+    this.note = '',
+    this.actorUsername = '',
+    this.createdAt = '',
+  });
+
+  String get movementLabel {
+    switch (movementType.toLowerCase()) {
+      case 'in':
+        return 'Tambah';
+      case 'adjust':
+        return 'Koreksi';
+      case 'out':
+        return 'Service';
+      case 'return':
+        return 'Return';
+      default:
+        return movementType;
+    }
+  }
+
+  factory CarbonBrushStockLogItem.fromJson(Map<String, dynamic> json) {
+    final points = json['pointKeys'] is List
+        ? (json['pointKeys'] as List).map((e) => e.toString()).toList()
+        : <String>[];
+    return CarbonBrushStockLogItem(
+      id: json['id']?.toString() ?? '',
+      stockKey: json['stockKey']?.toString() ?? '',
+      sapNo: json['sapNo']?.toString() ?? '',
+      brushName: json['brushName']?.toString() ?? '',
+      movementType: json['movementType']?.toString() ?? 'in',
+      quantityDelta: (json['quantityDelta'] is num)
+          ? (json['quantityDelta'] as num).toInt()
+          : int.tryParse(json['quantityDelta']?.toString() ?? '0') ?? 0,
+      stockBefore: (json['stockBefore'] is num)
+          ? (json['stockBefore'] as num).toInt()
+          : int.tryParse(json['stockBefore']?.toString() ?? '0') ?? 0,
+      stockAfter: (json['stockAfter'] is num)
+          ? (json['stockAfter'] as num).toInt()
+          : int.tryParse(json['stockAfter']?.toString() ?? '0') ?? 0,
+      source: json['source']?.toString() ?? '',
+      serviceId: json['serviceId']?.toString() ?? '',
+      equipmentName: json['equipmentName']?.toString() ?? '',
+      pointKeys: points,
+      note: json['note']?.toString() ?? '',
+      actorUsername: json['actorUsername']?.toString() ?? '',
+      createdAt: json['createdAt']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'stockKey': stockKey,
+      'sapNo': sapNo,
+      'brushName': brushName,
+      'movementType': movementType,
+      'quantityDelta': quantityDelta,
+      'stockBefore': stockBefore,
+      'stockAfter': stockAfter,
+      'source': source,
+      'serviceId': serviceId,
+      'equipmentName': equipmentName,
+      'pointKeys': pointKeys,
+      'note': note,
+      'actorUsername': actorUsername,
+      'createdAt': createdAt,
+    };
   }
 }

@@ -14,7 +14,7 @@ void main() {
     await tester.pumpWidget(const PortableInspectionApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Portable Inspection Tool'), findsOneWidget);
+    expect(find.text('MASUK'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
   });
 }

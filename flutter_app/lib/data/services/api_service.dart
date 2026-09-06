@@ -73,6 +73,32 @@ class ApiService {
     }
   }
 
+  /// Verifies current or provided session token with the live server (/api/auth/me)
+  Future<UserModel?> fetchCurrentUser({String? token}) async {
+    final effectiveToken = token ?? _sessionToken;
+    if (effectiveToken == null || effectiveToken.isEmpty) return null;
+    try {
+      final uri = Uri.parse("$baseUrl/api/auth/me");
+      final res = await http.get(
+        uri,
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "PLIRM34-Native-Android",
+          "Cookie": "plirm34_session=$effectiveToken",
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data["user"] != null) {
+          final userMap = data["user"] as Map<String, dynamic>;
+          return UserModel.fromJson(userMap, token: effectiveToken);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // --- Inspection & Monitor APIs ---
   Future<Map<String, dynamic>> fetchOverview() async {
     try {
@@ -112,6 +138,88 @@ class ApiService {
         keterangan: "Dekat limit | Tuban 3 limit merah < 30 mm | Prediksi stabil",
       )
     ];
+  }
+
+  Future<List<CarbonBrushStockItem>> fetchCarbonBrushStockItems() async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/carbon-brush-stock");
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic> && decoded['items'] is List) {
+          final list = (decoded['items'] as List)
+              .map((e) => CarbonBrushStockItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    } catch (_) {}
+    return CarbonBrushStockItem.defaultItems();
+  }
+
+  Future<List<CarbonBrushStockLogItem>> fetchCarbonBrushStockLogs() async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/carbon-brush-stock?limit=50");
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic> && decoded['logs'] is List) {
+          return (decoded['logs'] as List)
+              .map((e) => CarbonBrushStockLogItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> saveCarbonBrushStockMovement({
+    required String stockKey,
+    required String movementType,
+    required int quantity,
+    String note = '',
+  }) async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/carbon-brush-stock/movement");
+      final payload = {
+        'stockKey': stockKey,
+        'movementType': movementType,
+        'quantity': quantity,
+        'note': note,
+      };
+      final res = await http.post(
+        uri,
+        headers: _headers(),
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 10));
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<String>> fetchEquipmentReferences({String? sourceGroup}) async {
+    try {
+      final q = sourceGroup != null && sourceGroup.isNotEmpty ? '?source_group=$sourceGroup' : '';
+      final uri = Uri.parse("$baseUrl/api/masters$q");
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        final refs = decoded is Map<String, dynamic>
+            ? (decoded['equipmentReferences'] as List? ?? [])
+            : (decoded is List ? decoded : []);
+        final list = refs
+            .map((e) => (e is Map ? (e['equipmentName'] ?? e['equipmentCode'] ?? '').toString() : e.toString()).trim())
+            .where((s) => s.isNotEmpty)
+            .toSet()
+            .toList();
+        if (list.isNotEmpty) {
+          list.sort();
+          return list;
+        }
+      }
+    } catch (_) {}
+    return [];
   }
 
   Future<List<NegatifItem>> fetchNegatifList({String? status, String? area}) async {
@@ -216,5 +324,169 @@ class ApiService {
       SparepartItem(id: "3", kode: "MOD-PROFIBUS-DP", nama: "Siemens ET200M IM153-1 Profibus Module", stok: 2, satuan: "UNIT", lokasi: "Ruang Server DCS"),
       SparepartItem(id: "4", kode: "PULL-CORD-KAP", nama: "Pull Cord Switch With Emergency Lock", stok: 12, satuan: "UNIT", lokasi: "Gudang Listrik Rak B-05"),
     ];
+  }
+
+  Future<bool> closeNegatifItem(NegatifItem item, {String? notes}) async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/items/negatif-list/${item.id}");
+      final res = await http.put(
+        uri,
+        headers: _headers(),
+        body: jsonEncode({
+          "item": {
+            "id": item.id,
+            "equipment": item.equipment,
+            "damageDescription": item.temuan,
+            "followUpPlan": notes != null && notes.isNotEmpty ? notes : (item.followUpPlan.isNotEmpty ? item.followUpPlan : "Sudah diselesaikan / Closed"),
+            "foundDate": item.foundDate,
+            "pendingMark": notes ?? item.pendingMark,
+            "workStatus": "Closed",
+            "category": item.category,
+            "area": item.area,
+          }
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> createServiceItem(ServiceItem item) async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/items/service");
+      final res = await http.post(
+        uri,
+        headers: _headers(),
+        body: jsonEncode({
+          "item": item.toJson(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> updateServiceItem(ServiceItem item) async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/items/service/${Uri.encodeComponent(item.id)}");
+      final res = await http.put(
+        uri,
+        headers: _headers(),
+        body: jsonEncode({
+          "item": item.toJson(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deleteServiceItem(String id) async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/items/service/${Uri.encodeComponent(id)}");
+      final res = await http.delete(
+        uri,
+        headers: _headers(),
+      ).timeout(const Duration(seconds: 15));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<OvertimeItem>> fetchOvertimeData({String? period}) async {
+    try {
+      final query = period != null && period.isNotEmpty ? "period=$period" : "period=2026-08";
+      final uri = Uri.parse("$baseUrl/api/overtime?$query");
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 12));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        final list = decoded is Map && decoded['ranking'] is List
+            ? decoded['ranking'] as List
+            : (decoded is Map && decoded['items'] is List
+                ? decoded['items'] as List
+                : (decoded is List ? decoded : []));
+        if (list.isNotEmpty) {
+          return list.map((e) => OvertimeItem.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (_) {}
+
+    return [
+      OvertimeItem(
+        employeeNo: "3401",
+        employeeName: "M. RIDWAN",
+        groupType: "Preventif",
+        companyName: "PT SBG",
+        monthRawHours: 32.5,
+        monthLiveHours: 42.0,
+        contractLiveHours: 42.0,
+        annualRemainingHours: 128.5,
+        annualUsagePercent: 68.0,
+        quotaStatus: "Aman",
+        monthStatus: "Sesuai Jadwal",
+        task: "PM Motor MV Kiln & Raw Mill",
+      ),
+      OvertimeItem(
+        employeeNo: "3402",
+        employeeName: "AHMAD SUKRI",
+        groupType: "Gangguan",
+        companyName: "PT SBG",
+        monthRawHours: 48.0,
+        monthLiveHours: 56.5,
+        contractLiveHours: 56.5,
+        annualRemainingHours: 42.0,
+        annualUsagePercent: 89.5,
+        quotaStatus: "Mendekati Limit",
+        monthStatus: "Tinggi",
+        task: "Troubleshooting Converter & Inverter",
+      ),
+      OvertimeItem(
+        employeeNo: "3403",
+        employeeName: "DWI PRASETYO",
+        groupType: "Preventif",
+        companyName: "PT SBG",
+        monthRawHours: 24.0,
+        monthLiveHours: 31.0,
+        contractLiveHours: 31.0,
+        annualRemainingHours: 165.0,
+        annualUsagePercent: 52.0,
+        quotaStatus: "Aman",
+        monthStatus: "Normal",
+        task: "Inspeksi Carbon Brush 343FN4M01",
+      ),
+    ];
+  }
+
+  // --- User Management APIs (Admin Only) ---
+  Future<List<UserModel>> fetchUsers() async {
+    try {
+      final uri = Uri.parse("$baseUrl/api/users");
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = (data["users"] ?? []) as List<dynamic>;
+        return list.map((e) => UserModel.fromJson(e as Map<String, dynamic>)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> updateUserRole(String username, String newRole) async {
+    try {
+      final encodedUser = Uri.encodeComponent(username);
+      final uri = Uri.parse("$baseUrl/api/users/$encodedUser/role");
+      final res = await http.put(
+        uri,
+        headers: _headers(),
+        body: jsonEncode({"role": newRole}),
+      ).timeout(const Duration(seconds: 10));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
   }
 }

@@ -2,15 +2,18 @@ import "package:flutter/material.dart";
 import "../../../core/theme/app_theme.dart";
 import "../../../data/models/models.dart";
 import "../../../data/services/api_service.dart";
+import "widgets/sparepart_detail_sheet.dart";
 
 class SparepartScreen extends StatefulWidget {
   final ApiService apiService;
   final String selectedArea;
+  final UserModel? currentUser;
 
   const SparepartScreen({
     super.key,
     required this.apiService,
     required this.selectedArea,
+    this.currentUser,
   });
 
   @override
@@ -78,75 +81,92 @@ class _SparepartScreenState extends State<SparepartScreen> {
                 final item = filtered[index];
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppTheme.border),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppTheme.surfaceFloat,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.teal.withValues(alpha: 0.3)),
-                        ),
-                        child: const Icon(Icons.inventory_2_outlined, color: AppTheme.teal),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        SparepartDetailSheet.show(
+                          context,
+                          item: item,
+                          currentUser: widget.currentUser,
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
                           children: [
-                            Text(
-                              item.kode,
-                              style: const TextStyle(color: AppTheme.teal, fontSize: 11, fontWeight: FontWeight.w700),
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: AppTheme.surfaceFloat,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppTheme.teal.withValues(alpha: 0.3)),
+                              ),
+                              child: const Icon(Icons.inventory_2_outlined, color: AppTheme.teal),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              item.nama,
-                              style: const TextStyle(color: AppTheme.text, fontSize: 15, fontWeight: FontWeight.w700),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.kode,
+                                    style: const TextStyle(color: AppTheme.teal, fontSize: 11, fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.nama,
+                                    style: const TextStyle(color: AppTheme.text, fontSize: 15, fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.lokasi,
+                                    style: const TextStyle(color: AppTheme.textSubtle, fontSize: 12),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              item.lokasi,
-                              style: const TextStyle(color: AppTheme.textSubtle, fontSize: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: item.stok <= 4 ? AppTheme.amberSurface : AppTheme.greenSurface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: item.stok <= 4 ? AppTheme.amber : AppTheme.green),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    "${item.stok}",
+                                    style: TextStyle(
+                                      color: item.stok <= 4 ? AppTheme.amber : AppTheme.green,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  Text(
+                                    item.satuan,
+                                    style: TextStyle(
+                                      color: item.stok <= 4 ? AppTheme.amber : AppTheme.green,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppTheme.textMuted),
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: item.stok <= 4 ? AppTheme.amberSurface : AppTheme.greenSurface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: item.stok <= 4 ? AppTheme.amber : AppTheme.green),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              "${item.stok}",
-                              style: TextStyle(
-                                color: item.stok <= 4 ? AppTheme.amber : AppTheme.green,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            Text(
-                              item.satuan,
-                              style: TextStyle(
-                                color: item.stok <= 4 ? AppTheme.amber : AppTheme.green,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 );
               },

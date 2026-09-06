@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8">
@@ -228,12 +228,41 @@
 
         const data = await res.json();
         if (data.token) {
-          setStatus("success", "Login Google berhasil! Membuka Portable Inspection Tool...");
-          const returnUrl = "plirm34://auth?token=" + encodeURIComponent(data.token);
+          setStatus("success", "Login Google berhasil! Mengalihkan ke Portable Inspection Tool...");
+
+          const params = new URLSearchParams();
+          params.set("token", data.token);
+          if (data.user && data.user.role) params.set("role", data.user.role);
+          if (data.user && data.user.username) params.set("username", data.user.username);
+
+          // Support custom return_url / redirect_uri (useful for web preview)
+          const currentUrlParams = new URLSearchParams(window.location.search);
+          const customReturn = currentUrlParams.get("return_url") || currentUrlParams.get("redirect_uri");
+
+          let returnUrl;
+          if (customReturn) {
+            const separator = customReturn.indexOf("?") !== -1 ? "&" : "?";
+            returnUrl = customReturn + separator + params.toString();
+          } else {
+            returnUrl = "plirm34://auth?" + params.toString();
+          }
+
+          // Notify window.opener if opened in popup
+          if (window.opener && window.opener !== window) {
+            try {
+              window.opener.postMessage({
+                type: "PLIRM34_AUTH_TOKEN",
+                token: data.token,
+                user: data.user
+              }, "*");
+            } catch (_) {}
+          }
+
           const btnManual = document.getElementById("btnManualReturn");
           if (btnManual) {
             btnManual.href = returnUrl;
             btnManual.style.display = "block";
+            btnManual.innerText = "Buka Portable Inspection Tool (" + (data.user?.username || "Google") + ")";
           }
           setTimeout(() => {
             window.location.href = returnUrl;
@@ -252,6 +281,17 @@
         handleAuthSuccess(response.credential);
       }
     };
+
+    // Auto-process direct Google OAuth redirect (#id_token=... or ?id_token=...)
+    window.addEventListener("DOMContentLoaded", () => {
+      const hash = window.location.hash.startsWith("#") ? window.location.hash.substring(1) : window.location.hash;
+      const hashParams = new URLSearchParams(hash);
+      const urlParams = new URLSearchParams(window.location.search);
+      const idToken = hashParams.get("id_token") || urlParams.get("id_token");
+      if (idToken) {
+        handleAuthSuccess(idToken);
+      }
+    });
   </script>
 
   <script type="module">

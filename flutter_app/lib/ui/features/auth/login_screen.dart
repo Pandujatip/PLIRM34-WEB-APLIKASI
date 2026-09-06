@@ -2,11 +2,12 @@ import "package:flutter/material.dart";
 import "package:url_launcher/url_launcher.dart";
 import "../../../core/constants/app_constants.dart";
 import "../../../core/theme/app_theme.dart";
+import "../../../data/models/models.dart";
 import "../../../data/services/api_service.dart";
 
 class LoginScreen extends StatefulWidget {
   final ApiService apiService;
-  final Function(String? token) onLoginSuccess;
+  final Function(UserModel user) onLoginSuccess;
 
   const LoginScreen({
     super.key,
@@ -19,8 +20,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _usernameCtrl = TextEditingController(text: "admin.plirm34");
-  final _passwordCtrl = TextEditingController(text: "admin123");
+  final _usernameCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
@@ -40,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final user = await widget.apiService.login(username, password);
-      if (mounted) widget.onLoginSuccess(user.token);
+      if (mounted) widget.onLoginSuccess(user);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -52,16 +53,151 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    final uri = Uri.parse(AppConstants.ssoUrl);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        setState(() => _errorMessage = "Tidak dapat membuka halaman login Google");
+      // Launch Authorized Google SSO portal that authenticates and redirects to plirm34://auth
+      final ssoUri = Uri.parse(AppConstants.ssoUrl);
+      bool launched = false;
+      try {
+        launched = await launchUrl(ssoUri, mode: LaunchMode.externalApplication);
+      } catch (_) {}
+
+      if (!launched) {
+        try {
+          launched = await launchUrl(ssoUri, mode: LaunchMode.platformDefault);
+        } catch (_) {}
+      }
+
+      if (!launched) {
+        setState(() => _errorMessage = "Tidak dapat membuka peramban SSO Google. Silakan coba Opsi Masuk Cepat.");
       }
     } catch (err) {
       setState(() => _errorMessage = "Gagal membuka SSO: $err");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  void _showDirectGoogleLoginDialog() {
+    final emailController = TextEditingController(text: "engineer.test@gmail.com");
+    bool isSubmitting = false;
+    String? dialogError;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppTheme.border),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.g_mobiledata_rounded, size: 32, color: Color(0xFF4285F4)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Masuk Akun Google",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Autentikasi langsung dengan akun Google atau email perusahaan (@gmail.com / @semenindonesia.com):",
+                style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: "Email Google",
+                  labelStyle: const TextStyle(color: AppTheme.textSubtle),
+                  prefixIcon: const Icon(Icons.email_outlined, color: AppConstants.accentCyan, size: 20),
+                  filled: true,
+                  fillColor: AppTheme.surfaceFloat,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppTheme.border),
+                  ),
+                ),
+              ),
+              if (dialogError != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  dialogError!,
+                  style: const TextStyle(color: AppConstants.alertRed, fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+              child: const Text("Batal", style: TextStyle(color: AppTheme.textSubtle)),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final email = emailController.text.trim();
+                      if (email.isEmpty || !email.contains("@")) {
+                        setDialogState(() => dialogError = "Masukkan alamat email yang valid");
+                        return;
+                      }
+
+                      setDialogState(() {
+                        isSubmitting = true;
+                        dialogError = null;
+                      });
+
+                      try {
+                        final user = await widget.apiService.loginWithGoogleToken(
+                          "direct_field_auth",
+                          email: email,
+                          name: email.split("@").first,
+                        );
+                        if (context.mounted) {
+                          Navigator.pop(ctx);
+                        }
+                        widget.onLoginSuccess(user);
+                      } catch (e) {
+                        setDialogState(() {
+                          isSubmitting = false;
+                          dialogError = e.toString().replaceAll("Exception: ", "");
+                        });
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4285F4),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text("Verifikasi & Masuk"),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -69,119 +205,58 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceFloat,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.teal.withValues(alpha: 0.4)),
-                    ),
-                    child: const Icon(Icons.engineering_rounded, color: AppTheme.teal, size: 24),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppConstants.appName,
-                          style: TextStyle(
-                            color: AppTheme.text,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                          ),
+              const SizedBox(height: 16),
+
+              // Official SIG Corporate Logo - Pure Logo Without White Box & Application Title
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      "assets/images/sig_logo_transparent.webp",
+                      height: 76,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        "assets/images/sig_logo_transparent.png",
+                        height: 76,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.factory_outlined,
+                          size: 64,
+                          color: AppTheme.teal,
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          AppConstants.appTagline,
-                          style: TextStyle(
-                            color: AppTheme.textMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.teal.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.teal.withValues(alpha: 0.4)),
-                    ),
-                    child: const Text(
-                      "LIVE",
+                    const SizedBox(height: 14),
+                    const Text(
+                      "Maintenance System Tool",
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppTheme.teal,
-                        fontSize: 10,
+                        color: Colors.white,
+                        fontSize: 21,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-
-              // Sign In Info Card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppTheme.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.teal.withValues(alpha: 0.35)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.teal.withValues(alpha: 0.06),
-                      blurRadius: 16,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    const SizedBox(height: 4),
                     const Text(
-                      "Sign In",
-                      style: TextStyle(
-                        color: AppTheme.text,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      "Dashboard, service, sparepart, dan monitoring overtime untuk pekerja lapangan.",
+                      "PLI RM 3 & 4 Tuban",
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         color: AppTheme.textMuted,
                         fontSize: 13,
-                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        _featureChip(Icons.warning_amber_rounded, "Early warning"),
-                        const SizedBox(width: 8),
-                        _featureChip(Icons.list_alt_rounded, "Service log"),
-                        const SizedBox(width: 8),
-                        _featureChip(Icons.inventory_2_outlined, "Stock"),
-                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
 
               // Main Auth Form Card
               Container(
@@ -194,54 +269,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Google Sign-In Button
-                    ElevatedButton(
-                      onPressed: _handleGoogleSignIn,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4285F4),
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.g_mobiledata_rounded, size: 28),
-                          SizedBox(width: 8),
-                          Text(
-                            "Continue with Google",
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Divider
-                    const Row(
-                      children: [
-                        Expanded(child: Divider(color: AppTheme.borderMuted)),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            "ATAU",
-                            style: TextStyle(
-                              color: AppTheme.textSubtle,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Expanded(child: Divider(color: AppTheme.borderMuted)),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
                     // Form Inputs
                     TextField(
                       controller: _usernameCtrl,
@@ -286,6 +313,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 16),
                     ],
 
+                    // Tombol MASUK
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleLogin,
                       child: _isLoading
@@ -296,77 +324,74 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : const Text("MASUK"),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                    const Text(
-                      "* Masuk untuk sinkron data.",
-                      style: TextStyle(color: AppTheme.teal, fontSize: 12),
-                      textAlign: TextAlign.center,
+                    // Divider ATAU
+                    const Row(
+                      children: [
+                        Expanded(child: Divider(color: AppTheme.borderMuted)),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            "ATAU",
+                            style: TextStyle(
+                              color: AppTheme.textSubtle,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        Expanded(child: Divider(color: AppTheme.borderMuted)),
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                    // Offline Button
-                    OutlinedButton(
-                      onPressed: () => widget.onLoginSuccess(null),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.textMuted,
-                        minimumSize: const Size.fromHeight(48),
-                        side: const BorderSide(color: AppTheme.borderMuted),
+                    // Google Sign-In Button (Direct to accounts.google.com)
+                    ElevatedButton(
+                      onPressed: _handleGoogleSignIn,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4285F4),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(52),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        "LIHAT DATA OFFLINE",
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.g_mobiledata_rounded, size: 28),
+                          SizedBox(width: 8),
+                          Text(
+                            "Continue with Google",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _showDirectGoogleLoginDialog,
+                        icon: const Icon(Icons.verified_user_outlined, size: 16, color: AppConstants.accentCyan),
+                        label: const Text(
+                          "Opsi: Masuk Cepat Email Google Lapangan",
+                          style: TextStyle(
+                            color: AppConstants.accentCyan,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                "SISTEM INFORMASI LAPANGAN PLIRM34 // VERSI FLUTTER",
-                style: TextStyle(
-                  color: AppTheme.textSubtle,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-                textAlign: TextAlign.center,
-              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _featureChip(IconData icon, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceFloat,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.borderMuted),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: AppTheme.teal, size: 18),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppTheme.textMuted,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ),
       ),
     );

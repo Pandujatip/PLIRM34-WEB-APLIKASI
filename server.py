@@ -135,6 +135,7 @@ PUBLIC_STATIC_FILES = frozenset({
     "pwa-icons/icon-maskable-512.png",
     "pwa-icons/plirm34tuban.png",
     "pwa-icons/plirm34tuban.jpg",
+    "privacy.html",
 })
 AUTHENTICATED_MEDIA_DIRECTORIES = frozenset({
     "bom-images",
@@ -622,6 +623,8 @@ def normalize_static_request_path(request_path: str) -> str | None:
     if any(part in {".", ".."} for part in parts):
         return None
     relative = "/".join(part for part in parts if part)
+    if relative in {"privacy", "privacy.html"}:
+        return "privacy.html"
     return relative or "index.html"
 
 
@@ -5754,6 +5757,14 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 self._send_file(media_path, cache_control="private, max-age=300")
             return
 
+        if parsed.path in {"/privacy", "/privacy.html"}:
+            privacy_path = (ROOT_DIR / "dist" / "privacy.html") if (ROOT_DIR / "dist" / "privacy.html").exists() else (ROOT_DIR / "privacy.html")
+            if privacy_path.exists():
+                self._send_file(privacy_path, cache_control="public, max-age=3600")
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND, "Halaman Kebijakan Privasi tidak ditemukan")
+            return
+
         if resolve_public_static_path(parsed.path):
             self._public_static_cache_control = public_static_cache_control(self.path)
             return super().do_GET()
@@ -5768,6 +5779,13 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 self._send_file(sso_path, cache_control="no-store", head_only=True)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Halaman login SSO tidak ditemukan")
+            return
+        if parsed.path in {"/privacy", "/privacy.html"}:
+            privacy_path = (ROOT_DIR / "dist" / "privacy.html") if (ROOT_DIR / "dist" / "privacy.html").exists() else (ROOT_DIR / "privacy.html")
+            if privacy_path.exists():
+                self._send_file(privacy_path, cache_control="public, max-age=3600", head_only=True)
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND, "Halaman Kebijakan Privasi tidak ditemukan")
             return
         media_path = resolve_authenticated_media_path(parsed.path)
         if media_path:

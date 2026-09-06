@@ -4,12 +4,19 @@ import "../../../core/theme/app_theme.dart";
 import "../../../data/models/models.dart";
 import "../../../data/services/api_service.dart";
 import "../../core/widgets/stat_card.dart";
+import "widgets/carbon_brush_detail_sheet.dart";
+import "widgets/cement_plant_flow_widget.dart";
+import "widgets/equipment_health_sheet.dart";
+import "widgets/negatif_detail_sheet.dart";
+import "widgets/user_management_sheet.dart";
+import "../service/widgets/service_detail_sheet.dart";
 
 class OverviewScreen extends StatefulWidget {
   final ApiService apiService;
   final VoidCallback onLogout;
   final String selectedArea;
   final Function(String) onAreaChanged;
+  final UserModel? currentUser;
 
   const OverviewScreen({
     super.key,
@@ -17,6 +24,7 @@ class OverviewScreen extends StatefulWidget {
     required this.onLogout,
     required this.selectedArea,
     required this.onAreaChanged,
+    this.currentUser,
   });
 
   @override
@@ -28,6 +36,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
   List<CarbonBrushItem> _carbonBrushList = [];
   List<NegatifItem> _negatifList = [];
   List<ServiceItem> _serviceList = [];
+  List<PlantEquipmentNode> _plantNodes = [];
 
   @override
   void initState() {
@@ -49,11 +58,18 @@ class _OverviewScreenState extends State<OverviewScreen> {
       final cb = await widget.apiService.fetchCarbonBrush();
       final neg = await widget.apiService.fetchNegatifList(status: "Open", area: widget.selectedArea);
       final srv = await widget.apiService.fetchServices(area: widget.selectedArea);
+      final nodes = PlantEquipmentNode.generatePlantNodes(
+        selectedArea: widget.selectedArea,
+        carbonBrushes: cb,
+        negatifItems: neg,
+        serviceItems: srv,
+      );
       if (mounted) {
         setState(() {
           _carbonBrushList = cb;
           _negatifList = neg;
           _serviceList = srv;
+          _plantNodes = nodes;
           _isLoading = false;
         });
       }
@@ -181,9 +197,58 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 ),
               ],
             ),
+            if (widget.currentUser != null) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: widget.currentUser!.isAdmin
+                    ? () => UserManagementSheet.show(context, apiService: widget.apiService)
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: widget.currentUser!.isAdmin
+                        ? AppTheme.amber.withValues(alpha: 0.15)
+                        : (widget.currentUser!.isOrganik
+                            ? AppTheme.teal.withValues(alpha: 0.15)
+                            : AppTheme.green.withValues(alpha: 0.15)),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: widget.currentUser!.isAdmin
+                          ? AppTheme.amber
+                          : (widget.currentUser!.isOrganik ? AppTheme.teal : AppTheme.green),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.currentUser!.roleBadgeLabel,
+                        style: TextStyle(
+                          color: widget.currentUser!.isAdmin
+                              ? AppTheme.amber
+                              : (widget.currentUser!.isOrganik ? AppTheme.teal : AppTheme.green),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (widget.currentUser!.isAdmin) ...[
+                        const SizedBox(width: 3),
+                        const Icon(Icons.settings_outlined, size: 10, color: AppTheme.amber),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
+          if (widget.currentUser?.isAdmin == true)
+            IconButton(
+              icon: const Icon(Icons.manage_accounts_rounded, color: AppTheme.amber),
+              tooltip: "Kelola User & Otorisasi",
+              onPressed: () => UserManagementSheet.show(context, apiService: widget.apiService),
+            ),
           IconButton(
             icon: const Icon(Icons.filter_list_rounded, color: AppTheme.teal),
             tooltip: "Filter Area",
@@ -211,6 +276,23 @@ class _OverviewScreenState extends State<OverviewScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                 children: [
+                  // 2D Real Live Cement Plant Flow Health Monitoring (8 Main Equipment)
+                  if (_plantNodes.isNotEmpty)
+                    CementPlantFlowWidget(
+                      nodes: _plantNodes,
+                      selectedArea: widget.selectedArea,
+                      onRefresh: _loadData,
+                      onEquipmentTapped: (node) {
+                        EquipmentHealthSheet.show(
+                          context,
+                          node: node,
+                          apiService: widget.apiService,
+                          currentUser: widget.currentUser,
+                          onRefresh: _loadData,
+                        );
+                      },
+                    ),
+
                   // Carbon Brush Early Warning Section
                   _sectionHeader("Carbon Brush Early Warning"),
                   if (_carbonBrushList.isNotEmpty)
@@ -221,6 +303,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
                       mainText: _carbonBrushList.first.equipment,
                       subText: "Estimasi penggantian: ${_carbonBrushList.first.estimasi}",
                       footer: "Pengukuran terakhir: ${_carbonBrushList.first.tanggalUkur}\n${_carbonBrushList.first.keterangan}",
+                      onTap: () {
+                        CarbonBrushDetailSheet.show(context, _carbonBrushList.first);
+                      },
                     ),
 
                   const SizedBox(height: 8),
@@ -246,9 +331,17 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     ..._negatifList.map((item) => StatCard(
                           title: item.area.isNotEmpty ? "${item.equipment} - ${item.area}" : item.equipment,
                           badge: item.status,
-                          badgeColor: AppTheme.amber,
+                          badgeColor: item.isOpen ? AppTheme.amber : AppTheme.green,
                           mainText: item.temuan,
                           footer: item.statusTambahan.isNotEmpty ? item.statusTambahan : null,
+                          onTap: () {
+                            NegatifDetailSheet.show(
+                              context,
+                              item: item,
+                              currentUser: widget.currentUser,
+                              onItemClosed: _loadData,
+                            );
+                          },
                         )),
 
                   const SizedBox(height: 8),
@@ -268,6 +361,13 @@ class _OverviewScreenState extends State<OverviewScreen> {
                           mainText: item.equipment,
                           subText: item.deskripsi,
                           footer: "Tindakan: ${item.tindakan}\nTeknisi: ${item.teknisi}",
+                          onTap: () {
+                            ServiceDetailSheet.show(
+                              context,
+                              item: item,
+                              currentUser: widget.currentUser,
+                            );
+                          },
                         )),
                 ],
               ),
