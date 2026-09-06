@@ -30,7 +30,15 @@ class _ServiceScreenState extends State<ServiceScreen> {
   DateTime? _endDate;
   bool _isLoading = false;
   int _offlinePendingCount = 0;
+  bool _isDeviceOffline = false;
   List<ServiceItem> _services = [];
+
+  // Search & Sort state
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  String _searchQuery = "";
+  bool _sortAscending = false; // false = Terbaru/Desc, true = Terlama/Asc
+  String _sortField = "tanggal"; // "tanggal" atau "equipment"
 
   final List<String> _categories = ["Semua", "Electrical", "Instrumentasi", "DCS"];
   final DateFormat _dateFormatter = DateFormat("dd MMM yyyy");
@@ -44,6 +52,13 @@ class _ServiceScreenState extends State<ServiceScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant ServiceScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedArea != widget.selectedArea) {
@@ -51,30 +66,69 @@ class _ServiceScreenState extends State<ServiceScreen> {
     }
   }
 
-  Future<void> _checkOfflineAndSync() async {
+  Future<void> _checkOfflineAndSync({bool manualTrigger = false}) async {
     final count = await OfflineService.getPendingCount();
-    if (mounted) setState(() => _offlinePendingCount = count);
-    if (count > 0) {
-      final synced = await OfflineService.syncPendingItems(widget.apiService);
-      final remaining = await OfflineService.getPendingCount();
+    if (count == 0) {
       if (mounted) {
-        setState(() => _offlinePendingCount = remaining);
-        if (synced > 0) {
+        setState(() {
+          _offlinePendingCount = 0;
+          _isDeviceOffline = false;
+        });
+        if (manualTrigger) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.cloud_done_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('Auto-sync: $synced laporan offline berhasil diunggah ke database!')),
-                ],
-              ),
-              backgroundColor: const Color(0xFF25D366),
+            const SnackBar(
+              content: Text('Semua laporan offline sudah tersinkronkan.'),
               behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
             ),
           );
-          _loadServices();
         }
+      }
+      return;
+    }
+
+    final syncResult = await OfflineService.syncPendingItems(widget.apiService);
+    if (!mounted) return;
+
+    setState(() {
+      _offlinePendingCount = syncResult.remainingCount;
+      // Banner HANYA muncul jika HP benar-benar tidak ada sinyal (offline)
+      _isDeviceOffline = !syncResult.isOnline;
+    });
+
+    if (syncResult.syncedCount > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.cloud_done_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Auto-sync: ${syncResult.syncedCount} laporan offline berhasil disinkronkan ke database!')),
+            ],
+          ),
+          backgroundColor: const Color(0xFF25D366),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadServices();
+    } else if (manualTrigger) {
+      if (!syncResult.isOnline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada sinyal internet. Laporan tersimpan aman di HP.'),
+            backgroundColor: Color(0xFFFF9800),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sinkronisasi selesai.'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -82,10 +136,6 @@ class _ServiceScreenState extends State<ServiceScreen> {
   Future<void> _loadServices() async {
     setState(() => _isLoading = true);
     try {
-      // Periksa pending offline saat load
-      final offlineCount = await OfflineService.getPendingCount();
-      if (mounted) setState(() => _offlinePendingCount = offlineCount);
-
       final list = await widget.apiService.fetchServices(
         area: widget.selectedArea,
         kategori: _selectedCategory == "Semua" ? null : _selectedCategory,
@@ -93,18 +143,69 @@ class _ServiceScreenState extends State<ServiceScreen> {
         endDate: _endDate != null ? _apiDateFormatter.format(_endDate!) : null,
       );
 
-      // Sort newest on top
-      list.sort((a, b) => b.tanggal.compareTo(a.tanggal));
+      final offlineCount = await OfflineService.getPendingCount();
 
       if (mounted) {
         setState(() {
           _services = list;
           _isLoading = false;
+          _offlinePendingCount = offlineCount;
+          _isDeviceOffline = false; // HP terbukti online karena fetchServices berhasil
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isDeviceOffline = true;
+        });
+      }
     }
+  }
+
+  List<ServiceItem> get _filteredAndSortedServices {
+    var list = List<ServiceItem>.from(_services);
+
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((item) {
+        final equip = item.equipment.toLowerCase();
+        final tag = (item.payload['tag'] ?? item.payload['equipmentTag'] ?? item.subtype).toString().toLowerCase();
+        final subEquip = (item.payload['subEquipment'] ?? '').toString().toLowerCase();
+        final teknisi = item.teknisi.toLowerCase();
+        final tagged = (item.payload['taggedPersonnel'] is List
+            ? (item.payload['taggedPersonnel'] as List).join(' ')
+            : '').toLowerCase();
+        final desc = item.deskripsi.toLowerCase();
+        final tindakan = item.tindakan.toLowerCase();
+        final detail = item.detail.toLowerCase();
+        final status = item.status.toLowerCase();
+        final formType = item.formType.toLowerCase();
+
+        return equip.contains(q) ||
+            tag.contains(q) ||
+            subEquip.contains(q) ||
+            teknisi.contains(q) ||
+            tagged.contains(q) ||
+            desc.contains(q) ||
+            tindakan.contains(q) ||
+            detail.contains(q) ||
+            status.contains(q) ||
+            formType.contains(q);
+      }).toList();
+    }
+
+    list.sort((a, b) {
+      int cmp = 0;
+      if (_sortField == "equipment") {
+        cmp = a.equipment.toLowerCase().compareTo(b.equipment.toLowerCase());
+      } else {
+        cmp = a.tanggal.compareTo(b.tanggal);
+      }
+      return _sortAscending ? cmp : -cmp;
+    });
+
+    return list;
   }
 
   Future<void> _pickDate({required bool isStart}) async {
@@ -188,6 +289,8 @@ class _ServiceScreenState extends State<ServiceScreen> {
   Widget build(BuildContext context) {
     final hasDateFilter = _startDate != null || _endDate != null;
 
+    final filteredList = _filteredAndSortedServices;
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -201,6 +304,14 @@ class _ServiceScreenState extends State<ServiceScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: "Muat Ulang / Refresh Data",
+            icon: const Icon(Icons.refresh_rounded, color: AppTheme.teal),
+            onPressed: () {
+              _loadServices();
+              _checkOfflineAndSync(manualTrigger: true);
+            },
+          ),
           IconButton(
             tooltip: "Input Service Baru",
             icon: const Icon(Icons.add_circle_outline, color: AppTheme.teal),
@@ -252,7 +363,7 @@ class _ServiceScreenState extends State<ServiceScreen> {
 
           // Cross Month & Year Date Range Filter
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppTheme.surface,
@@ -294,8 +405,50 @@ class _ServiceScreenState extends State<ServiceScreen> {
             ),
           ),
 
-          // Offline Pending Banner (Auto-Sync & Manual Trigger)
-          if (_offlinePendingCount > 0) ...[
+          // Search Bar Field
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _searchFocusNode.hasFocus ? AppTheme.teal : AppTheme.border,
+                ),
+              ),
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                style: const TextStyle(color: AppTheme.text, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: "Cari hasil inspeksi (alat, tag, teknisi, tindakan)...",
+                  hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.teal, size: 20),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, color: AppTheme.textMuted, size: 18),
+                          tooltip: "Hapus Pencarian",
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = "");
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                ),
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val.trim();
+                  });
+                },
+              ),
+            ),
+          ),
+
+          // Offline Pending Banner (HANYA tampil saat kondisi HP offline / tidak ada sinyal dan ada laporan pending)
+          if (_offlinePendingCount > 0 && _isDeviceOffline) ...[
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -318,14 +471,14 @@ class _ServiceScreenState extends State<ServiceScreen> {
                         ),
                         const SizedBox(height: 1),
                         const Text(
-                          'Otomatis diunggah saat ada sinyal atau ketuk Sinkronkan',
+                          'Tersimpan aman di HP. Otomatis sync saat ada sinyal atau ketuk Sinkronkan',
                           style: TextStyle(color: Colors.white60, fontSize: 11),
                         ),
                       ],
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: _checkOfflineAndSync,
+                    onPressed: () => _checkOfflineAndSync(manualTrigger: true),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFF9800),
                       foregroundColor: const Color(0xFF03181B),
@@ -341,51 +494,254 @@ class _ServiceScreenState extends State<ServiceScreen> {
             ),
           ],
 
-          // Summary Counter
+          // Summary Counter & Sort Controls
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "${_services.length} Riwayat Service",
-                  style: const TextStyle(
-                    color: AppTheme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    _searchQuery.isEmpty
+                        ? "${filteredList.length} Riwayat Service"
+                        : "${filteredList.length} dari ${_services.length} Ditemukan",
+                    style: const TextStyle(
+                      color: AppTheme.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Text(
-                  "Urutan: Terbaru di atas",
-                  style: TextStyle(
-                    color: AppTheme.teal,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Sort Order Toggle (Ascending / Descending)
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _sortAscending = !_sortAscending;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceFloat,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppTheme.borderMuted),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _sortAscending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                              size: 14,
+                              color: AppTheme.teal,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _sortField == "equipment"
+                                  ? (_sortAscending ? "Alat: A-Z" : "Alat: Z-A")
+                                  : (_sortAscending ? "Terlama (Asc)" : "Terbaru (Desc)"),
+                              style: const TextStyle(
+                                color: AppTheme.teal,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Sort Menu
+                    PopupMenuButton<String>(
+                      tooltip: "Opsi Urutan",
+                      icon: const Icon(Icons.swap_vert_rounded, size: 20, color: AppTheme.teal),
+                      color: AppTheme.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: AppTheme.border),
+                      ),
+                      onSelected: (val) {
+                        setState(() {
+                          if (val == "date_desc") {
+                            _sortField = "tanggal";
+                            _sortAscending = false;
+                          } else if (val == "date_asc") {
+                            _sortField = "tanggal";
+                            _sortAscending = true;
+                          } else if (val == "equip_asc") {
+                            _sortField = "equipment";
+                            _sortAscending = true;
+                          } else if (val == "equip_desc") {
+                            _sortField = "equipment";
+                            _sortAscending = false;
+                          }
+                        });
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: "date_desc",
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_rounded,
+                                size: 16,
+                                color: (_sortField == "tanggal" && !_sortAscending) ? AppTheme.teal : AppTheme.textMuted,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Tanggal: Terbaru ↓ (Desc)",
+                                style: TextStyle(
+                                  color: (_sortField == "tanggal" && !_sortAscending) ? AppTheme.teal : AppTheme.text,
+                                  fontWeight: (_sortField == "tanggal" && !_sortAscending) ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: "date_asc",
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_rounded,
+                                size: 16,
+                                color: (_sortField == "tanggal" && _sortAscending) ? AppTheme.teal : AppTheme.textMuted,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Tanggal: Terlama ↑ (Asc)",
+                                style: TextStyle(
+                                  color: (_sortField == "tanggal" && _sortAscending) ? AppTheme.teal : AppTheme.text,
+                                  fontWeight: (_sortField == "tanggal" && _sortAscending) ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        PopupMenuItem(
+                          value: "equip_asc",
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.sort_by_alpha_rounded,
+                                size: 16,
+                                color: (_sortField == "equipment" && _sortAscending) ? AppTheme.teal : AppTheme.textMuted,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Alat: A ke Z (Asc)",
+                                style: TextStyle(
+                                  color: (_sortField == "equipment" && _sortAscending) ? AppTheme.teal : AppTheme.text,
+                                  fontWeight: (_sortField == "equipment" && _sortAscending) ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: "equip_desc",
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.sort_by_alpha_rounded,
+                                size: 16,
+                                color: (_sortField == "equipment" && !_sortAscending) ? AppTheme.teal : AppTheme.textMuted,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Alat: Z ke A (Desc)",
+                                style: TextStyle(
+                                  color: (_sortField == "equipment" && !_sortAscending) ? AppTheme.teal : AppTheme.text,
+                                  fontWeight: (_sortField == "equipment" && !_sortAscending) ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
 
-          // Service Items List
+          // Service Items List with Pull-to-Refresh
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.teal))
-                : _services.isEmpty
-                    ? const Center(
-                        child: Text(
-                          "Tidak ada data service untuk filter ini",
-                          style: TextStyle(color: AppTheme.textMuted),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-                        itemCount: _services.length,
-                        itemBuilder: (context, index) {
-                          final item = _services[index];
-                          return _serviceCard(item);
-                        },
-                      ),
+                : RefreshIndicator(
+                    color: AppTheme.teal,
+                    backgroundColor: AppTheme.surface,
+                    onRefresh: () async {
+                      await Future.wait([
+                        _loadServices(),
+                        _checkOfflineAndSync(),
+                      ]);
+                    },
+                    child: filteredList.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _searchQuery.isNotEmpty ? Icons.search_off_rounded : Icons.inbox_rounded,
+                                      size: 48,
+                                      color: AppTheme.textMuted.withValues(alpha: 0.5),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      _searchQuery.isNotEmpty
+                                          ? "Tidak ditemukan hasil untuk '$_searchQuery'"
+                                          : "Tidak ada data service untuk filter ini",
+                                      style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    if (_searchQuery.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.clear_rounded, size: 16),
+                                        label: const Text("Reset Pencarian"),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppTheme.teal,
+                                          side: const BorderSide(color: AppTheme.teal),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchQuery = "");
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                            itemCount: filteredList.length,
+                            itemBuilder: (context, index) {
+                              final item = filteredList[index];
+                              return _serviceCard(item);
+                            },
+                          ),
+                  ),
           ),
         ],
       ),

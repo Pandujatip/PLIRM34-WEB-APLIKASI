@@ -66,32 +66,50 @@ class OfflineService {
   }
 
   /// Mengirim semua data pending offline ke database server via ApiService
-  /// Mengembalikan jumlah item yang berhasil disinkronisasi
-  static Future<int> syncPendingItems(ApiService apiService) async {
+  /// Mengembalikan SyncResult dengan status sinkronisasi dan koneksi (online/offline)
+  static Future<SyncResult> syncPendingItems(ApiService apiService) async {
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList(_storageKey) ?? [];
-    if (list.isEmpty) return 0;
+    if (list.isEmpty) {
+      return const SyncResult(syncedCount: 0, remainingCount: 0, isOnline: true);
+    }
 
     final remaining = <String>[];
     int syncedCount = 0;
+    bool isOnline = true;
 
     for (final str in list) {
       try {
         final data = jsonDecode(str) as Map<String, dynamic>;
         final item = ServiceItem.fromJson(data);
-        final success = await apiService.createServiceItem(item);
-        if (success) {
+        final result = await apiService.createServiceItemDetailed(item);
+        if (result.isSuccess) {
           syncedCount++;
-        } else {
+        } else if (result.isNetworkError) {
+          isOnline = false;
           remaining.add(str);
+        } else {
+          // Server merespon (HP kondisi ONLINE)
+          if (result.statusCode == 409) {
+            // Sudah ada di server, anggap tersinkron
+            syncedCount++;
+          } else {
+            // Error lain dari server saat online
+            remaining.add(str);
+          }
         }
       } catch (_) {
+        isOnline = false;
         remaining.add(str);
       }
     }
 
     await prefs.setStringList(_storageKey, remaining);
-    return syncedCount;
+    return SyncResult(
+      syncedCount: syncedCount,
+      remainingCount: remaining.length,
+      isOnline: isOnline,
+    );
   }
 
   /// Menghapus seluruh data pending offline
@@ -136,3 +154,18 @@ class OfflineService {
     await saveCachedCarbonBrushStock(updated);
   }
 }
+
+class SyncResult {
+  final int syncedCount;
+  final int remainingCount;
+  final bool isOnline;
+  final String? message;
+
+  const SyncResult({
+    required this.syncedCount,
+    required this.remainingCount,
+    required this.isOnline,
+    this.message,
+  });
+}
+

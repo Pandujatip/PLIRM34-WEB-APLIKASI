@@ -441,7 +441,7 @@ class ApiService {
     }
   }
 
-  Future<bool> createServiceItem(ServiceItem item) async {
+  Future<ApiResponseResult> createServiceItemDetailed(ServiceItem item) async {
     try {
       final uri = Uri.parse("$baseUrl/api/items/service");
       final res = await http.post(
@@ -451,10 +451,33 @@ class ApiService {
           "item": item.toJson(),
         }),
       ).timeout(const Duration(seconds: 15));
-      return res.statusCode >= 200 && res.statusCode < 300;
-    } catch (_) {
-      return false;
+
+      final isSuccess = (res.statusCode >= 200 && res.statusCode < 300) || res.statusCode == 409;
+      String? msg;
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map && decoded["message"] != null) {
+          msg = decoded["message"].toString();
+        }
+      } catch (_) {}
+      return ApiResponseResult(
+        isSuccess: isSuccess,
+        isNetworkError: false,
+        statusCode: res.statusCode,
+        message: msg,
+      );
+    } catch (e) {
+      return ApiResponseResult(
+        isSuccess: false,
+        isNetworkError: true,
+        message: e.toString(),
+      );
     }
+  }
+
+  Future<bool> createServiceItem(ServiceItem item) async {
+    final result = await createServiceItemDetailed(item);
+    return result.isSuccess;
   }
 
   Future<bool> updateServiceItem(ServiceItem item) async {
@@ -579,3 +602,18 @@ class ApiService {
     }
   }
 }
+
+class ApiResponseResult {
+  final bool isSuccess;
+  final bool isNetworkError;
+  final int? statusCode;
+  final String? message;
+
+  const ApiResponseResult({
+    required this.isSuccess,
+    required this.isNetworkError,
+    this.statusCode,
+    this.message,
+  });
+}
+
