@@ -111,10 +111,14 @@ class ApiService {
       uri,
       headers: _headers(),
       body: jsonEncode({
+        "fullName": fullName,
         "full_name": fullName,
+        "badgeNumber": badgeNumber,
         "badge_number": badgeNumber,
+        "employmentType": employmentType,
         "employment_type": employmentType,
         "company": company,
+        "unitKerja": unitKerja,
         "unit_kerja": unitKerja,
       }),
     ).timeout(const Duration(seconds: 15));

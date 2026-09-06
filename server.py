@@ -7724,11 +7724,11 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         except (json.JSONDecodeError, RequestBodyTooLarge):
             return
 
-        full_name = str(payload.get("fullName", "") or "").strip()
-        badge_number = str(payload.get("badgeNumber", "") or "").strip()
-        employment_type = str(payload.get("employmentType", "outsourcing") or "outsourcing").strip().lower()
+        full_name = str(payload.get("fullName") or payload.get("full_name") or "").strip()
+        badge_number = str(payload.get("badgeNumber") or payload.get("badge_number") or "").strip()
+        employment_type = str(payload.get("employmentType") or payload.get("employment_type") or "outsourcing").strip().lower()
         company = str(payload.get("company", "") or "").strip()
-        unit_kerja = str(payload.get("unitKerja", "") or "").strip().upper()
+        unit_kerja = str(payload.get("unitKerja") or payload.get("unit_kerja") or "").strip().upper()
 
         if not full_name:
             self._send_json({"error": "Nama lengkap wajib diisi"}, status=HTTPStatus.BAD_REQUEST)
