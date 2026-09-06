@@ -2532,14 +2532,25 @@ def is_service_item_in_unit_scope(item: dict, user: dict | None) -> bool:
 
     # Check plant & area in payload
     item_plant = str(payload.get("plant") or payload.get("plantCode") or "").strip().upper()
-    item_area = str(payload.get("area") or payload.get("areaCode") or payload.get("location") or "").strip().upper()
-    eq_name = str(item.get("equipmentName") or payload.get("equipmentName") or "").strip().upper()
+    item_area = str(payload.get("area") or payload.get("areaCode") or payload.get("location") or item.get("area") or "").strip().upper()
+    eq_name = str(item.get("equipment") or item.get("equipmentName") or payload.get("equipmentName") or "").strip().upper()
 
     allowed_plants = [p.upper() for p in unit_scope["plants"]]
     allowed_areas = [a.upper() for a in unit_scope["areas"]]
     allowed_area_codes = [c.upper() for c in unit_scope["areaCodes"]]
 
-    for p in allowed_plants:
+    area_keywords = {
+        "CR": ["CRUSHER", "CR"],
+        "RM": ["RAW MILL", "RAWMILL", "RM"],
+        "KL": ["KILN", "COAL MILL", "COAL", "KL"],
+        "FM": ["FINISH MILL", "FINISHMILL", "FM"],
+        "PC": ["PACKING", "PACKING CEMENT", "PC"],
+    }
+    for c in list(allowed_area_codes):
+        for kw in area_keywords.get(c, []):
+            allowed_areas.append(kw)
+
+    for p in list(allowed_plants):
         if "2302" in p:
             allowed_plants.extend(["TUBAN 1", "T1", "PLANT 1"])
         elif "2303" in p:
@@ -2557,9 +2568,9 @@ def is_service_item_in_unit_scope(item: dict, user: dict | None) -> bool:
 
     area_match = False
     if item_area:
-        area_match = any(a in item_area or item_area in a for a in allowed_areas) or any(code in item_area for code in allowed_area_codes)
-    else:
-        area_match = any(code in eq_name for code in allowed_area_codes)
+        area_match = any(a == item_area or a in item_area or item_area in a for a in allowed_areas) or any(code in item_area for code in allowed_area_codes)
+    if not area_match and eq_name:
+        area_match = any(code in eq_name for code in allowed_area_codes) or any(kw in eq_name for code in allowed_area_codes for kw in area_keywords.get(code, []))
 
     return plant_match and area_match
 
