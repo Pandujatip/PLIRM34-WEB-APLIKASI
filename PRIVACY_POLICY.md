@@ -1,5 +1,5 @@
 # Kebijakan Privasi (Privacy Policy)
-**Aplikasi**: PLIRM 34 - Portable Inspection Tool  
+**Aplikasi**: Maintenance Tool Online  
 **Package ID**: plirm34tuban.id  
 **Pengembang**: Tim Pemeliharaan Listrik & Instrumentasi (PLIRM 34) Pabrik Tuban - PT Semen Indonesia (Persero) Tbk  
 **Berlaku Efektif**: 6 September 2026  
@@ -7,7 +7,7 @@
 ---
 
 ## 1. Pendahuluan
-Selamat datang di **PLIRM 34 - Portable Inspection Tool**. Kami sangat menghargai dan berkomitmen penuh untuk melindungi privasi serta keamanan data para pengguna. Kebijakan Privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, menyimpan, dan melindungi informasi saat Anda menggunakan aplikasi seluler dan platform web **PLIRM 34**.
+Selamat datang di **Maintenance Tool Online**. Kami sangat menghargai dan berkomitmen penuh untuk melindungi privasi serta keamanan data para pengguna. Kebijakan Privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, menyimpan, dan melindungi informasi saat Anda menggunakan aplikasi seluler dan platform web **Maintenance Tool Online (PLIRM 34)**.
 
 Aplikasi ini dikembangkan dan dioperasikan khusus untuk mendukung kegiatan operasional, inspeksi, dan pemeliharaan keandalan peralatan listrik serta instrumentasi di lingkungan pabrik semen.
 

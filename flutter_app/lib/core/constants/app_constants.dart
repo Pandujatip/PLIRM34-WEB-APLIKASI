@@ -2,7 +2,7 @@ import "package:flutter/material.dart";
 import "../theme/app_theme.dart";
 
 class AppConstants {
-  static const String appName = "Portable Inspection Tool";
+  static const String appName = "Maintenance Tool Online";
   static const String appTagline = "Industrial field operations";
   static const String baseUrl = "https://plirm34tuban.id";
   static const String ssoUrl = "https://portable-tool-inspection.firebaseapp.com/auth.html";

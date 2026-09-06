@@ -1,5 +1,5 @@
-﻿# Panduan Upload & Rilis Aplikasi ke Google Play Console
-Aplikasi: **PLIRM 34 - Portable Inspection Tool**  
+# Panduan Upload & Rilis Aplikasi ke Google Play Console
+Aplikasi: **Maintenance Tool Online**  
 Package ID: plirm34tuban.id  
 Versi: 1.0.0+1 (VersionCode: 1, VersionName: 1.0.0)  
 
@@ -72,14 +72,14 @@ Pada menu navigasi kiri, buka bagian **Policy and programs** > **App content**:
 ---
 
 ### Langkah C: Menyiapkan Halaman Toko (Main Store Listing)
-1. **App Name**: PLIRM 34 - Inspection Tool (Maks. 30 karakter)
+1. **App Name**: Maintenance Tool Online (Maks. 30 karakter)
 2. **Short Description**: (Maks. 80 karakter)
-   `	ext
+   ```text
    Aplikasi inspeksi & health monitoring peralatan industri listrik & instrumen.
-   `
+   ```
 3. **Full Description**: (Maks. 4000 karakter)
-   `	ext
-   PLIRM 34 - Portable Inspection Tool adalah aplikasi pemeliharaan dan inspeksi operasional terpadu untuk tim Pemeliharaan Listrik dan Instrumentasi (ELINS).
+   ```text
+   Maintenance Tool Online (PLIRM 34) adalah aplikasi pemeliharaan dan inspeksi operasional terpadu untuk tim Pemeliharaan Listrik dan Instrumentasi (ELINS).
 
    Fitur Utama:
    - Live 2D Plant Flow: Monitoring kesehatan real-time untuk 8 main equipment (Crusher, Raw Mill, Coal Mill, Preheater, Rotary Kiln, Clinker Cooler, Finish Mill, Rotary Packer).
@@ -90,7 +90,7 @@ Pada menu navigasi kiri, buka bagian **Policy and programs** > **App content**:
    - Lembur & Kepegawaian: Monitoring shift, jam lembur, dan rekapitulasi kehadiran tim.
 
    Aplikasi ini dirancang khusus untuk mempermudah teknisi dan pengawas dalam memelihara keandalan operasional pabrik secara cepat, akurat, dan mobile.
-   `
+   ```
 4. **Aset Grafis**:
    * **App Icon**: 512 x 512 px PNG (32-bit color dengan alpha).
    * **Feature Graphic**: 1024 x 500 px PNG atau JPEG (Banner halaman aplikasi di Play Store).
@@ -102,11 +102,11 @@ Pada menu navigasi kiri, buka bagian **Policy and programs** > **App content**:
 1. Pada menu navigasi kiri, pilih **Testing** > **Internal testing**.
 2. Klik **Create new release**.
 3. Pada bagian **App bundles**, klik **Upload** dan pilih file:
-   pandujatip-probable-giggle\flutter_app\build\app\outputs\bundle\release\app-release.aab
+   `pandujatip-probable-giggle\flutter_app\build\app\outputs\bundle\release\app-release.aab`
 4. Masukkan **Release name**: 1.0.0 (1) - Rilis Awal Produksi.
 5. Masukkan **Release notes**:
-   `	ext
-   Rilis perdana aplikasi PLIRM 34 Portable Inspection Tool dengan fitur Live 2D Plant Flow Health Monitoring, Carbon Brush Early Warning, Negatif List, dan Service Log.
-   `
+   ```text
+   Rilis perdana aplikasi Maintenance Tool Online dengan fitur Live 2D Plant Flow Health Monitoring, Carbon Brush Early Warning, Negatif List, dan Service Log.
+   ```
 6. Klik **Next**, periksa tidak ada error merah, lalu klik **Save** dan **Start rollout to Internal testing**.
 7. Tambahkan email tim Anda sebagai internal tester agar bisa langsung mendownload dari link Play Store!
