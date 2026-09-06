@@ -3419,16 +3419,50 @@ function renderElectricalRoomReferenceOptions() {
   }
 }
 
+let sapMccReferences = [];
+let sapInstrumentReferences = [];
+let sapDcsReferences = [];
+let sapReferencesLoaded = false;
+
+async function loadSapInspectionReferences() {
+  if (sapReferencesLoaded) return;
+  try {
+    const [mccRes, instRes] = await Promise.all([
+      fetch("/api/equipments/search?discipline=Electrical&limit=150").then(r => r.json()).catch(() => null),
+      fetch("/api/equipments/search?discipline=Instrumentation&limit=150").then(r => r.json()).catch(() => null)
+    ]);
+    if (mccRes && Array.isArray(mccRes.records)) {
+      sapMccReferences = mccRes.records.map(r => {
+        const tag = r.tag_no ? `${r.tag_no} - ` : "";
+        return `${tag}${r.description}`.trim().toUpperCase();
+      });
+      if (typeof renderMccReferenceOptions === "function") renderMccReferenceOptions();
+    }
+    if (instRes && Array.isArray(instRes.records)) {
+      sapInstrumentReferences = instRes.records.map(r => {
+        const tag = r.tag_no ? `${r.tag_no} - ` : "";
+        return `${tag}${r.description}`.trim().toUpperCase();
+      });
+      sapDcsReferences = sapInstrumentReferences.filter(name =>
+        name.includes("PLC") || name.includes("DCS") || name.includes("PANEL") || name.includes("CONTROL")
+      );
+      if (typeof renderInstrumentReferenceOptions === "function") renderInstrumentReferenceOptions();
+    }
+    sapReferencesLoaded = true;
+  } catch (e) {
+    console.warn("Gagal memuat referensi equipment SAP:", e);
+  }
+}
+
 function getMccEquipmentReferenceList() {
   const masterItems = getMasterEquipmentNames("service-mcc");
-  if (masterItems.length) {
-    return masterItems;
-  }
+  const baseItems = masterItems.length ? masterItems : [];
   const serviceItems = getServiceItemsFromDom()
     .filter((item) => item.formType === "service-mcc")
     .map((item) => String(item.equipmentName || "").trim().toUpperCase())
     .filter(Boolean);
-  return [...new Set(serviceItems)].sort((left, right) => left.localeCompare(right));
+  const combined = [...new Set([...baseItems, ...sapMccReferences, ...serviceItems])];
+  return combined.sort((left, right) => left.localeCompare(right));
 }
 
 function getMsoMotorEquipmentReferenceList() {
@@ -3497,25 +3531,24 @@ function renderMsoMotorReferenceOptions() {
 
 function getDcsEquipmentReferenceList() {
   const masterItems = getMasterEquipmentNames(PLC_EQUIPMENT_SOURCE_GROUPS);
-  if (masterItems.length) {
-    return masterItems.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean);
-  }
-  return dcsEquipmentReferenceItems
-    .map((item) => String(item.equipmentName || "").trim().toUpperCase())
-    .filter(Boolean)
-    .sort((left, right) => left.localeCompare(right));
+  const baseItems = masterItems.length
+    ? masterItems.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean)
+    : dcsEquipmentReferenceItems.map((item) => String(item.equipmentName || "").trim().toUpperCase()).filter(Boolean);
+  const combined = [...new Set([...baseItems, ...sapDcsReferences])];
+  return combined.sort((left, right) => left.localeCompare(right));
 }
 
 function getInstrumentEquipmentReferenceList() {
   const masterItems = getMasterEquipmentNames("service-instrument");
-  if (masterItems.length) {
-    return masterItems.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean);
-  }
-  return getServiceItemsFromDom()
+  const baseItems = masterItems.length
+    ? masterItems.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean)
+    : [];
+  const serviceItems = getServiceItemsFromDom()
     .filter((item) => item.formType === "service-instrument")
     .map((item) => String(item.equipmentName || "").trim().toUpperCase())
-    .filter(Boolean)
-    .sort((left, right) => left.localeCompare(right));
+    .filter(Boolean);
+  const combined = [...new Set([...baseItems, ...sapInstrumentReferences, ...serviceItems])];
+  return combined.sort((left, right) => left.localeCompare(right));
 }
 
 function renderInstrumentReferenceOptions() {
@@ -9288,6 +9321,7 @@ function runPostLoginBackgroundTasks(role = "") {
   scheduleUiTask(() => {
     const tasks = [
       loadMastersFromBackend(),
+      loadSapInspectionReferences(),
       refreshCarbonBrushStockData({ force: true }),
     ];
 
@@ -18211,3 +18245,5 @@ if (logoutButton) {
     await performLogout();
   });
 }
+
+void loadSapInspectionReferences();

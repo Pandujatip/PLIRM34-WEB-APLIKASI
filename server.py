@@ -1243,6 +1243,76 @@ def init_db() -> None:
                 FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE SET NULL
             );
 
+            
+            CREATE TABLE IF NOT EXISTS sap_plants (
+                plant_code TEXT PRIMARY KEY,
+                plant_number TEXT,
+                plant_name TEXT NOT NULL,
+                planning_plant TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS sap_areas (
+                area_code TEXT PRIMARY KEY,
+                plant_code TEXT NOT NULL,
+                area_name TEXT NOT NULL,
+                short_code TEXT,
+                equipment_count INTEGER DEFAULT 0,
+                main_equipment_count INTEGER DEFAULT 0,
+                FOREIGN KEY (plant_code) REFERENCES sap_plants(plant_code)
+            );
+
+            CREATE TABLE IF NOT EXISTS sap_functional_locations (
+                floc_code TEXT PRIMARY KEY,
+                plant_code TEXT NOT NULL,
+                area_code TEXT,
+                group_area_code TEXT,
+                parent_floc_code TEXT,
+                description TEXT NOT NULL,
+                category TEXT,
+                cost_center TEXT,
+                level INTEGER DEFAULT 0,
+                raw_tokens TEXT,
+                FOREIGN KEY (plant_code) REFERENCES sap_plants(plant_code)
+            );
+
+            CREATE TABLE IF NOT EXISTS sap_equipments (
+                equipment_id TEXT PRIMARY KEY,
+                floc_code TEXT,
+                parent_equipment_id TEXT,
+                tag_no TEXT,
+                description TEXT NOT NULL,
+                discipline TEXT,
+                discipline_name TEXT,
+                category TEXT,
+                plant_code TEXT NOT NULL,
+                plant_name TEXT NOT NULL,
+                area_code TEXT,
+                area_name TEXT,
+                planning_plant TEXT,
+                cost_center TEXT,
+                level INTEGER DEFAULT 0,
+                is_main_equipment INTEGER NOT NULL DEFAULT 0,
+                sub_equipment_count INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (plant_code) REFERENCES sap_plants(plant_code),
+                FOREIGN KEY (area_code) REFERENCES sap_areas(area_code),
+                FOREIGN KEY (parent_equipment_id) REFERENCES sap_equipments(equipment_id)
+            );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS sap_equipment_fts USING fts5(
+                equipment_id,
+                tag_no,
+                description,
+                floc_code,
+                area_code,
+                area_name,
+                plant_name,
+                discipline_name,
+                category
+            );
+
             CREATE TABLE IF NOT EXISTS equipment_reference (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source_group TEXT NOT NULL,
@@ -4867,6 +4937,118 @@ def list_inspection_templates() -> list[dict]:
     return templates
 
 
+
+def search_sap_equipments(query_params: dict) -> dict:
+    q = query_params.get("q", [""])[0].strip()
+    plant = query_params.get("plant", ["ALL"])[0].strip()
+    area = query_params.get("area", ["ALL"])[0].strip()
+    discipline = query_params.get("discipline", ["ALL"])[0].strip()
+    category = query_params.get("category", ["ALL"])[0].strip()
+    is_main = query_params.get("is_main", ["ALL"])[0].strip()
+    try:
+        limit = min(max(1, int(query_params.get("limit", [50])[0])), 200)
+    except (ValueError, TypeError):
+        limit = 50
+    try:
+        offset = max(0, int(query_params.get("offset", [0])[0]))
+    except (ValueError, TypeError):
+        offset = 0
+
+    where_clauses = []
+    params = []
+
+    if plant and plant != "ALL":
+        where_clauses.append("plant_code = ?")
+        params.append(plant)
+
+    if area and area != "ALL":
+        where_clauses.append("area_code = ?")
+        params.append(area)
+
+    if discipline and discipline != "ALL":
+        where_clauses.append("discipline_name LIKE ?")
+        params.append(f"%{discipline}%")
+
+    if category and category != "ALL":
+        where_clauses.append("category = ?")
+        params.append(category)
+
+    if is_main in ("0", "1"):
+        where_clauses.append("is_main_equipment = ?")
+        params.append(int(is_main))
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sap_equipments'")
+        if not cur.fetchone():
+            return {"total": 0, "records": []}
+
+        if q:
+            fts_term = q.replace('"', '""') + "*"
+            try:
+                cur.execute("SELECT rowid FROM sap_equipment_fts WHERE sap_equipment_fts MATCH ? LIMIT 500", (fts_term,))
+                rowids = [r[0] for r in cur.fetchall()]
+                if rowids:
+                    placeholders = ",".join("?" for _ in rowids)
+                    where_clauses.append(f"rowid IN ({placeholders})")
+                    params.extend(rowids)
+                else:
+                    like_str = f"%{q}%"
+                    where_clauses.append("(equipment_id LIKE ? OR tag_no LIKE ? OR description LIKE ? OR floc_code LIKE ?)")
+                    params.extend([like_str, like_str, like_str, like_str])
+            except Exception:
+                like_str = f"%{q}%"
+                where_clauses.append("(equipment_id LIKE ? OR tag_no LIKE ? OR description LIKE ? OR floc_code LIKE ?)")
+                params.extend([like_str, like_str, like_str, like_str])
+
+        where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        cur.execute(f"SELECT count(*) FROM sap_equipments {where_str}", params)
+        total = cur.fetchone()[0]
+
+        cur.execute(f"""
+            SELECT equipment_id, tag_no, description, discipline, discipline_name, category,
+                   plant_code, plant_name, area_code, area_name, floc_code, parent_equipment_id,
+                   is_main_equipment, sub_equipment_count
+            FROM sap_equipments
+            {where_str}
+            ORDER BY plant_code, level, equipment_id
+            LIMIT ? OFFSET ?
+        """, params + [limit, offset])
+
+        records = [dict(r) for r in cur.fetchall()]
+        return {"total": total, "records": records}
+
+
+def list_sap_areas(plant: str = "ALL") -> list[dict]:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sap_areas'")
+        if not cur.fetchone():
+            return []
+        if plant and plant != "ALL":
+            cur.execute("SELECT area_code, plant_code, area_name, short_code, equipment_count, main_equipment_count FROM sap_areas WHERE plant_code = ? ORDER BY area_code", (plant,))
+        else:
+            cur.execute("SELECT area_code, plant_code, area_name, short_code, equipment_count, main_equipment_count FROM sap_areas ORDER BY plant_code, area_code")
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_sap_equipment_detail(eq_id: str) -> dict | None:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sap_equipments'")
+        if not cur.fetchone():
+            return None
+        cur.execute("SELECT * FROM sap_equipments WHERE equipment_id = ? OR tag_no = ? LIMIT 1", (eq_id, eq_id))
+        row = cur.fetchone()
+        if not row:
+            return None
+        res = dict(row)
+        cur.execute("SELECT equipment_id, tag_no, description, discipline_name, is_main_equipment FROM sap_equipments WHERE parent_equipment_id = ? ORDER BY equipment_id", (res["equipment_id"],))
+        res["children"] = [dict(r) for r in cur.fetchall()]
+        return res
+
+
 def list_equipment_references(source_group: str | None = None) -> list[dict]:
     query = """
         SELECT id, source_group, equipment_code, equipment_name, category, area, plant, source_url, metadata_json
@@ -5706,6 +5888,19 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_admin_masters_get(parsed.path)
             return
 
+
+        if parsed.path == "/api/equipments/search":
+            self._handle_equipments_search_get(parsed.query)
+            return
+
+        if parsed.path == "/api/equipments/areas":
+            self._handle_equipments_areas_get(parsed.query)
+            return
+
+        if parsed.path.startswith("/api/equipments/"):
+            self._handle_equipment_detail_get(parsed.path)
+            return
+
         if parsed.path.startswith("/api/items/"):
             self._handle_items_get(parsed.path, parsed.query)
             return
@@ -6076,6 +6271,26 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             return True
         self._send_json({"error": "Akses edit tidak diizinkan untuk modul ini"}, status=HTTPStatus.FORBIDDEN)
         return False
+
+
+    def _handle_equipments_search_get(self, query: str):
+        params = parse_qs(query or "")
+        data = search_sap_equipments(params)
+        self._send_json(data)
+
+    def _handle_equipments_areas_get(self, query: str):
+        params = parse_qs(query or "")
+        plant = params.get("plant", ["ALL"])[0].strip()
+        areas = list_sap_areas(plant)
+        self._send_json({"areas": areas})
+
+    def _handle_equipment_detail_get(self, path: str):
+        eq_id = unquote(path.replace("/api/equipments/", "").strip())
+        detail = get_sap_equipment_detail(eq_id)
+        if detail:
+            self._send_json({"equipment": detail})
+        else:
+            self._send_json({"error": "Equipment tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
 
     def _handle_masters_get(self, query: str):
         user = self._require_user()
