@@ -1,7 +1,7 @@
 # Panduan Upload & Rilis Aplikasi ke Google Play Console
 Aplikasi: **Maintenance Tool Online**  
 Package ID: plirm34tuban.id  
-Versi: 1.0.0+1 (VersionCode: 1, VersionName: 1.0.0)  
+Versi: 1.0.1+2 (VersionCode: 2, VersionName: 1.0.1)  
 
 ---
 
@@ -73,23 +73,30 @@ Pada menu navigasi kiri, buka bagian **Policy and programs** > **App content**:
 
 ### Langkah C: Menyiapkan Halaman Toko (Main Store Listing)
 1. **App Name**: Maintenance Tool Online (Maks. 30 karakter)
-2. **Short Description**: (Maks. 80 karakter)
+2. **Short Description**: (Maks. 80 karakter — saat ini 76 karakter)
    ```text
-   Aplikasi inspeksi & health monitoring peralatan industri listrik & instrumen.
+   Aplikasi inspeksi, pemeliharaan preventif, dan monitoring peralatan industri.
    ```
 3. **Full Description**: (Maks. 4000 karakter)
    ```text
-   Maintenance Tool Online (PLIRM 34) adalah aplikasi pemeliharaan dan inspeksi operasional terpadu untuk tim Pemeliharaan Listrik dan Instrumentasi (ELINS).
+   Maintenance Tool Online adalah solusi digital terpadu untuk inspeksi lapangan, manajemen pemeliharaan (preventive & corrective maintenance), dan monitoring keandalan peralatan industri secara real-time.
+
+   Aplikasi ini dirancang untuk memudahkan teknisi lapangan, engineer, dan supervisor dalam mencatat riwayat servis, memantau kesehatan aset operasional, serta memastikan keandalan mesin industri tetap optimal.
 
    Fitur Utama:
-   - Live 2D Plant Flow: Monitoring kesehatan real-time untuk 8 main equipment (Crusher, Raw Mill, Coal Mill, Preheater, Rotary Kiln, Clinker Cooler, Finish Mill, Rotary Packer).
-   - Carbon Brush Monitoring: Deteksi keausan dini carbon brush motor MV, prediksi sisa umur pakai, dan peringatan limit.
-   - Negatif List Management: Pencatatan temuan abnormalitas alat di lapangan, penugasan tindak lanjut, dan status penutupan temuan.
-   - Layanan & Pemeliharaan: Pencatatan servis motor, MCC, PLC, DCS, CEMS, dan instrumen lapangan.
-   - Manajemen Sparepart & SPB: Pelacakan stok kritis suku cadang dan surat pengambilan barang.
-   - Lembur & Kepegawaian: Monitoring shift, jam lembur, dan rekapitulasi kehadiran tim.
+   • Health & Asset Monitoring: Visualisasi interaktif status operasional dan kesehatan peralatan utama di lini produksi secara real-time.
+   • Inspeksi Lapangan & Checklist Digital: Pencatatan parameter operasional rutin (suhu bearing, vibrasi, keausan komponen, dan pembacaan sensor).
+   • Service & Repair Log: Pencatatan riwayat pemeliharaan multi-disiplin (Electrical, Mechanical, Instrumentation, PLC, dan Control Systems).
+   • Defect & Anomaly Tracking: Pencatatan temuan abnormalitas alat di lapangan dilengkapi foto dokumentasi, penugasan tindakan perbaikan, dan verifikasi penyelesaian.
+   • Manajemen Suku Cadang & Logistik: Monitoring ketersediaan stok komponen kritis dan pencatatan surat pemakaian barang suku cadang.
+   • Administrasi Tim & Jadwal Kerja: Pengaturan jadwal kerja tim teknisi lapangan, pemantauan shift, dan rekapitulasi penugasan.
 
-   Aplikasi ini dirancang khusus untuk mempermudah teknisi dan pengawas dalam memelihara keandalan operasional pabrik secara cepat, akurat, dan mobile.
+   Keunggulan Aplikasi:
+   - Akses Cepat & Mobile-First: Input data inspeksi langsung di area kerja mesin tanpa perlu formulir kertas.
+   - Dokumentasi Lengkap: Mendukung foto temuan lapangan dan penelusuran riwayat servis alat.
+   - Keamanan Terjamin: Otentikasi aman berbasis peran (Role-Based Access Control) untuk menjaga integritas data operasional pabrik.
+
+   Tingkatkan efisiensi kerja tim pemeliharaan dan cegah downtime tak terduga dengan Maintenance Tool Online!
    ```
 4. **Aset Grafis**:
    * **App Icon**: 512 x 512 px PNG (32-bit color dengan alpha).
