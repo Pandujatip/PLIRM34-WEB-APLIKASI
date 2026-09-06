@@ -163,13 +163,19 @@ class ServiceItem {
     return ServiceItem(
       id: json['id']?.toString() ?? '',
       tanggal: json['tanggal']?.toString() ?? payloadMap['inspectionDate']?.toString() ?? json['date']?.toString() ?? '',
-      equipment: json['equipmentName']?.toString() ?? json['equipment']?.toString() ?? json['nama_alat']?.toString() ?? '',
+      equipment: json['equipmentName']?.toString() ??
+          json['equipment']?.toString() ??
+          json['nama_alat']?.toString() ??
+          payloadMap['equipmentDesc']?.toString() ??
+          payloadMap['equipmentName']?.toString() ??
+          payloadMap['tag']?.toString() ??
+          '',
       kategori: json['type']?.toString() ?? json['kategori']?.toString() ?? json['category']?.toString() ?? 'Electrical',
       deskripsi: json['description']?.toString() ?? json['deskripsi']?.toString() ?? json['subtype']?.toString() ?? '',
       tindakan: json['detail']?.toString() ?? json['tindakan']?.toString() ?? payloadMap['recommendation']?.toString() ?? '',
       status: json['status']?.toString() ?? 'Done',
       teknisi: json['teknisi']?.toString() ?? payloadMap['pic']?.toString() ?? '',
-      area: json['area']?.toString() ?? '',
+      area: json['area']?.toString() ?? payloadMap['area']?.toString() ?? payloadMap['unitKerja']?.toString() ?? '',
       subtype: json['subtype']?.toString() ?? '',
       formType: json['formType']?.toString() ?? '',
       recommendation: payloadMap['recommendation']?.toString() ?? '',

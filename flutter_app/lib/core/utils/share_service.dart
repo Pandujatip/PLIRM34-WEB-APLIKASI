@@ -36,6 +36,20 @@ class ShareService {
     if (item.replacedPoints.isNotEmpty) {
       buffer.writeln('Titik diganti: ${item.replacedPoints.join(", ")}');
     }
+    final payload = item.payload;
+    if (payload.isNotEmpty && (item.subtype.toLowerCase().contains('mso') || item.formType == 'service-motor-mso' || payload['source']?.toString().toUpperCase() == 'MSO' || payload.containsKey('temperaturDs'))) {
+      final cond = payload['condition'] ?? 'GOOD';
+      final tempDs = payload['temperaturDs'] ?? '-';
+      final tempNds = payload['temperaturNds'] ?? '-';
+      final vibDs = payload['vibrasiDsVertBefore'] ?? '-';
+      final vibNds = payload['vibrasiNdsVertBefore'] ?? '-';
+      final regDe = payload['regreaseDe'] ?? '-';
+      final regNde = payload['regreaseNde'] ?? '-';
+      buffer.writeln('Kondisi Motor: $cond (Normal)');
+      buffer.writeln('Suhu Bearing: DS $tempDs°C, NDS $tempNds°C (Batas < 70°C)');
+      buffer.writeln('Vibrasi Vert: DS $vibDs mm/s, NDS $vibNds mm/s (Batas < 4.5 mm/s)');
+      buffer.writeln('Regrease: DE $regDe spet, NDE $regNde spet');
+    }
     return buffer.toString().trim();
   }
 

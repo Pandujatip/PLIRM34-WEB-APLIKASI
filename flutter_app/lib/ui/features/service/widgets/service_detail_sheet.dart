@@ -415,6 +415,11 @@ class _ServiceDetailSheetState extends State<ServiceDetailSheet> {
     final item = widget.item;
     final hasMeasurements = item.measurements.isNotEmpty;
     final hasStats = item.stats.isNotEmpty;
+    final isMso = item.formType == 'service-motor-mso' ||
+        item.subtype.toLowerCase().contains('mso') ||
+        item.payload['source']?.toString().toUpperCase() == 'MSO' ||
+        item.payload.containsKey('temperaturDs') ||
+        item.payload.containsKey('vibrasiDsVertBefore');
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.88,
@@ -528,23 +533,26 @@ class _ServiceDetailSheetState extends State<ServiceDetailSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
                 // Info Summary Card
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppConstants.cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildRow('Tanggal Inspeksi', item.tanggal.isNotEmpty ? item.tanggal : '-'),
-                      const Divider(color: Colors.white10, height: 16),
-                      _buildRow('Teknisi / PIC', item.teknisi.isNotEmpty ? item.teknisi : '-'),
-                      const Divider(color: Colors.white10, height: 16),
-                      _buildRow('Area Pabrik', item.area.isNotEmpty ? item.area : '-'),
-                      const Divider(color: Colors.white10, height: 16),
-                      _buildRow('Status Pekerjaan', item.status),
-                    ],
+                RepaintBoundary(
+                  key: (!isMso && !hasStats && !hasMeasurements) ? _screenshotKey : null,
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppConstants.cardBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildRow('Tanggal Inspeksi', item.tanggal.isNotEmpty ? item.tanggal : '-'),
+                        const Divider(color: Colors.white10, height: 16),
+                        _buildRow('Teknisi / PIC', item.teknisi.isNotEmpty ? item.teknisi : '-'),
+                        const Divider(color: Colors.white10, height: 16),
+                        _buildRow('Area Pabrik', item.area.isNotEmpty ? item.area : '-'),
+                        const Divider(color: Colors.white10, height: 16),
+                        _buildRow('Status Pekerjaan', item.status),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -578,8 +586,14 @@ class _ServiceDetailSheetState extends State<ServiceDetailSheet> {
                   const SizedBox(height: 12),
                 ],
 
+                // Detail Parameter Inspeksi Motor MSO
+                if (isMso) ...[
+                  _buildMsoSection(item, key: _screenshotKey),
+                  const SizedBox(height: 14),
+                ],
+
                 // RepaintBoundary screenshot target for Carbon Brush Measurements & Statistics
-                if (hasStats || hasMeasurements) ...[
+                if (!isMso && (hasStats || hasMeasurements)) ...[
                   RepaintBoundary(
                     key: _screenshotKey,
                     child: Container(
@@ -978,6 +992,419 @@ class _ServiceDetailSheetState extends State<ServiceDetailSheet> {
           style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+
+  Widget _buildMsoSection(ServiceItem item, {Key? key}) {
+    final payload = item.payload;
+    final condition = (payload['condition']?.toString() ?? 'GOOD').toUpperCase();
+    final isGood = condition == 'GOOD' || condition == 'NORMAL' || condition == 'OK';
+    final isWarning = condition == 'WARNING' || condition == 'CHECK';
+
+    final conditionColor = isGood
+        ? AppConstants.successGreen
+        : (isWarning ? AppConstants.warningYellow : AppConstants.alertRed);
+
+    final tempDs = payload['temperaturDs']?.toString() ?? '-';
+    final tempNds = payload['temperaturNds']?.toString() ?? '-';
+    final vibDsV = payload['vibrasiDsVertBefore']?.toString() ?? '-';
+    final vibDsH = payload['vibrasiDsHorBefore']?.toString() ?? '-';
+    final geDsV = payload['geDsVertBefore']?.toString() ?? '-';
+    final geDsH = payload['geDsHorBefore']?.toString() ?? '-';
+    final vibNdsV = payload['vibrasiNdsVertBefore']?.toString() ?? '-';
+    final vibNdsH = payload['vibrasiNdsHorBefore']?.toString() ?? '-';
+    final geNdsV = payload['geNdsVertBefore']?.toString() ?? '-';
+    final geNdsH = payload['geNdsHorBefore']?.toString() ?? '-';
+    final regDe = payload['regreaseDe']?.toString() ?? '-';
+    final regNde = payload['regreaseNde']?.toString() ?? '-';
+    final geDsVAft = payload['geDsVertAfter']?.toString() ?? '-';
+    final geDsHAft = payload['geDsHorAfter']?.toString() ?? '-';
+    final geNdsVAft = payload['geNdsVertAfter']?.toString() ?? '-';
+    final geNdsHAft = payload['geNdsHorAfter']?.toString() ?? '-';
+    final kelengkapan = payload['kelengkapanMotor']?.toString() ?? '';
+    final note = payload['inspectionNote']?.toString() ?? '';
+
+    return RepaintBoundary(
+      key: key,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F171A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppConstants.accentCyan.withValues(alpha: 0.4)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.speed_rounded, color: AppConstants.accentCyan, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'HASIL INSPEKSI MOTOR MSO',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: conditionColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: conditionColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isGood ? Icons.check_circle : (isWarning ? Icons.warning_amber_rounded : Icons.cancel),
+                        color: conditionColor,
+                        size: 12,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        condition,
+                        style: TextStyle(
+                          color: conditionColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Suhu Bearing Box
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppConstants.cardBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.thermostat_outlined, color: AppConstants.warningYellow, size: 15),
+                          SizedBox(width: 6),
+                          Text(
+                            'SUHU BEARING (Batas Normal < 70°C)',
+                            style: TextStyle(
+                              color: AppConstants.warningYellow,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Color(0x3300C853),
+                          borderRadius: BorderRadius.all(Radius.circular(4)),
+                        ),
+                        child: Text(
+                          'NORMAL',
+                          style: TextStyle(
+                            color: AppConstants.successGreen,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMsoParamBox(
+                          label: 'Drive Side (DS)',
+                          value: '$tempDs °C',
+                          icon: Icons.device_thermostat,
+                          color: AppConstants.accentCyan,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildMsoParamBox(
+                          label: 'Non-Drive Side (NDS)',
+                          value: '$tempNds °C',
+                          icon: Icons.device_thermostat,
+                          color: AppConstants.accentCyan,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Vibrasi & gE Sebelum Regrease Box
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppConstants.cardBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.vibration_rounded, color: AppConstants.primaryTeal, size: 15),
+                          SizedBox(width: 6),
+                          Text(
+                            'VIBRASI & gE (Sebelum Regrease)',
+                            style: TextStyle(
+                              color: AppConstants.primaryTeal,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'ISO < 4.5 mm/s | gE < 2.0',
+                        style: TextStyle(color: Colors.white54, fontSize: 9),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('DRIVE SIDE (DS)', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            _buildMsoValRow('Vib Vert / Hor', '$vibDsV / $vibDsH mm/s'),
+                            _buildMsoValRow('gE Vert / Hor', '$geDsV / $geDsH'),
+                          ],
+                        ),
+                      ),
+                      Container(width: 1, height: 48, color: Colors.white12, margin: const EdgeInsets.symmetric(horizontal: 8)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('NON-DRIVE (NDS)', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            _buildMsoValRow('Vib Vert / Hor', '$vibNdsV / $vibNdsH mm/s'),
+                            _buildMsoValRow('gE Vert / Hor', '$geNdsV / $geNdsH'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Regrease & gE Setelah Regrease Box
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppConstants.cardBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.opacity_rounded, color: AppConstants.accentCyan, size: 15),
+                          SizedBox(width: 6),
+                          Text(
+                            'PELUMASAN & gE SETELAH REGREASE',
+                            style: TextStyle(
+                              color: AppConstants.accentCyan,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppConstants.successGreen.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'OPTIMAL 📉',
+                          style: TextStyle(color: AppConstants.successGreen, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMsoParamBox(
+                          label: 'Regrease DE',
+                          value: '$regDe spet',
+                          icon: Icons.local_gas_station_rounded,
+                          color: AppConstants.primaryTeal,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildMsoParamBox(
+                          label: 'Regrease NDE',
+                          value: '$regNde spet',
+                          icon: Icons.local_gas_station_rounded,
+                          color: AppConstants.primaryTeal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMsoValRow('gE DS Vert/Hor', '$geDsVAft / $geDsHAft'),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildMsoValRow('gE NDS Vert/Hor', '$geNdsVAft / $geNdsHAft'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            if (kelengkapan.isNotEmpty || note.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (kelengkapan.isNotEmpty) ...[
+                      const Text(
+                        'KELENGKAPAN MOTOR',
+                        style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        kelengkapan,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                      if (note.isNotEmpty) const SizedBox(height: 8),
+                    ],
+                    if (note.isNotEmpty) ...[
+                      const Text(
+                        'CATATAN INSPEKSI MSO',
+                        style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        note,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMsoParamBox({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMsoValRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 }
