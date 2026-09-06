@@ -1,7 +1,7 @@
 # Panduan Upload & Rilis Aplikasi ke Google Play Console
 Aplikasi: **Maintenance Tool Online**  
 Package ID: plirm34tuban.id  
-Versi: 1.0.1+2 (VersionCode: 2, VersionName: 1.0.1)  
+Versi: 1.0.2+3 (VersionCode: 3, VersionName: 1.0.2)  
 
 ---
 

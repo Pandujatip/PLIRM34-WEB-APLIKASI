@@ -1,7 +1,7 @@
 name: portable_inspection_tool
 description: "Maintenance Tool Online - industrial maintenance and field operations"
 publish_to: "none"
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
