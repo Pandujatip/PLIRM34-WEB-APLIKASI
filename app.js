@@ -8220,23 +8220,44 @@ function renderUserManagementTable() {
   const users = getStoredUsers();
   userManagementBody.innerHTML = "";
 
+  const unitOptions = [
+    "PLICR12", "PLIRM12", "PLIKC12", "PLIFM12", "PLIPC",
+    "PLICR34", "PLIRM34", "PLIKC34", "PLIFM34"
+  ];
+
   users.forEach((user) => {
     const row = document.createElement("tr");
     row.dataset.username = user.username;
+    row.dataset.unitKerja = user.unitKerja || "";
+    const displayName = user.fullName ? `<strong>${user.fullName}</strong><br><small style="color:#94a3b8;">${user.username}</small>` : `<strong>${user.username}</strong>`;
+    const badgeInfo = `${user.badgeNumber || "-"}<br><small style="text-transform: capitalize; color: #94a3b8;">${user.employmentType || "outsourcing"}</small>`;
+    const company = user.company || "-";
+    const currentUnit = user.unitKerja || "-";
+
+    const unitSelectHtml = `
+      <select class="user-unit-select" data-username="${user.username}" style="margin-top: 4px; display: block; font-size: 0.8rem;">
+        <option value="" ${!user.unitKerja ? "selected" : ""}>- Tanpa Unit -</option>
+        ${unitOptions.map((u) => `<option value="${u}" ${user.unitKerja === u ? "selected" : ""}>${u}</option>`).join("")}
+      </select>
+    `;
+
     row.innerHTML = `
-      <td>${user.username}</td>
-      <td><span class="tag tag-blue">${roleLabels[user.role] || user.role}</span></td>
+      <td>${displayName}</td>
+      <td>${badgeInfo}</td>
+      <td>${company}</td>
+      <td><span class="tag tag-blue">${currentUnit}</span></td>
+      <td><span class="tag tag-green">${roleLabels[user.role] || user.role}</span></td>
       <td>
         <select class="user-role-select" data-username="${user.username}">
           <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
           <option value="organik" ${user.role === "organik" ? "selected" : ""}>Organik</option>
           <option value="team" ${user.role === "team" ? "selected" : ""}>Team</option>
         </select>
+        ${unitSelectHtml}
       </td>
       <td class="action-cell">
-        <button class="table-action" data-action="save-user-role" type="button">Simpan Role</button>
-        <button class="table-action danger" data-action="delete-user-role" type="button">Hapus Role</button>
-        <button class="table-action danger" data-action="delete-user-account" type="button">Hapus Akun</button>
+        <button class="table-action" data-action="save-user-role" type="button">Simpan</button>
+        <button class="table-action danger" data-action="delete-user-account" type="button">Hapus</button>
       </td>
     `;
     userManagementBody.append(row);
@@ -11974,6 +11995,8 @@ userManagementBody?.addEventListener("click", async (event) => {
 
   const isDeleteRole = target.dataset.action === "delete-user-role";
   const nextRole = isDeleteRole ? "team" : roleSelect.value;
+  const unitSelect = row.querySelector(".user-unit-select");
+  const nextUnit = unitSelect instanceof HTMLSelectElement ? unitSelect.value : (row.dataset.unitKerja || "");
   if (isDeleteRole && !confirmDeleteAction(`role user ${username}; role akan kembali ke Team`)) {
     return;
   }
@@ -11982,7 +12005,7 @@ userManagementBody?.addEventListener("click", async (event) => {
     try {
       const result = await apiRequest(`/users/${encodeURIComponent(username)}/role`, {
         method: "PUT",
-        body: { role: nextRole },
+        body: { role: nextRole, unitKerja: nextUnit },
       });
       cacheUsers(result.users);
       renderUserManagementTable();
@@ -15935,3 +15958,110 @@ if (logoutButton) {
 }
 
 void loadSapInspectionReferences();
+
+
+// Profile Completion Form & Google Login Setup
+const empTypeSelect = document.getElementById("profile-employment-type");
+const companyInput = document.getElementById("profile-company");
+empTypeSelect?.addEventListener("change", () => {
+  if (empTypeSelect.value === "organik") {
+    companyInput.value = "Gopo Tuban";
+    companyInput.readOnly = true;
+  } else {
+    if (companyInput.value === "Gopo Tuban") {
+      companyInput.value = "";
+    }
+    companyInput.readOnly = false;
+    companyInput.focus();
+  }
+});
+
+const profileForm = document.getElementById("profile-completion-form");
+profileForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const submitBtn = document.getElementById("profile-completion-submit");
+  const originalText = submitBtn?.textContent || "Simpan";
+  const fullName = String(document.getElementById("profile-full-name")?.value || "").trim();
+  const badgeNumber = String(document.getElementById("profile-badge-number")?.value || "").trim();
+  const employmentType = String(document.getElementById("profile-employment-type")?.value || "outsourcing").trim();
+  const company = String(document.getElementById("profile-company")?.value || "").trim();
+  const unitKerja = String(document.getElementById("profile-unit-kerja")?.value || "").trim();
+
+  if (!fullName || !badgeNumber || !unitKerja) {
+    showToast("Profil Belum Lengkap", "Harap isi nama lengkap, nomor badge, dan pilih unit kerja.");
+    return;
+  }
+  if (employmentType === "outsourcing" && !company) {
+    showToast("Perusahaan Wajib Diisi", "Tenaga outsourcing wajib mencantumkan nama PT / perusahaan.");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Menyimpan profil...";
+  }
+
+  try {
+    const res = await apiRequest("/auth/complete-profile", {
+      method: "POST",
+      body: {
+        fullName,
+        badgeNumber,
+        employmentType,
+        company: employmentType === "organik" ? "Gopo Tuban" : company,
+        unitKerja
+      }
+    });
+
+    if (res && res.user) {
+      const currentUserObj = res.user;
+      currentUser.textContent = currentUserObj.fullName ? `${currentUserObj.fullName} (${currentUserObj.username})` : currentUserObj.username;
+      currentRole.textContent = (roleLabels[currentUserObj.role] || "Team") + ` • ${currentUserObj.unitKerja}`;
+      const badgeEl = document.getElementById("current-unit-badge");
+      if (badgeEl) badgeEl.textContent = currentUserObj.unitKerja;
+
+      const modal = document.getElementById("profile-completion-modal");
+      modal?.classList.add("hidden");
+      modal?.setAttribute("aria-hidden", "true");
+
+      showToast("Profil Berhasil Disimpan", `Selamat datang, ${fullName}. Unit Kerja: ${unitKerja}. Data telah disesuaikan.`);
+
+      if (typeof loadStoredData === "function") {
+        loadStoredData({ resources: ["service"] });
+      }
+      if (typeof syncDashboardFromBackendInBackground === "function") {
+        syncDashboardFromBackendInBackground({ delayMs: 100, toastOnError: false });
+      }
+    }
+  } catch (err) {
+    showToast("Gagal Menyimpan", err.message || "Terjadi kesalahan saat menyimpan profil.");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  }
+});
+
+const googleLoginBtn = document.getElementById("google-login-button");
+googleLoginBtn?.addEventListener("click", () => {
+  const returnUrl = window.location.origin + window.location.pathname;
+  const ssoUrl = `/api/auth/google/login?return_url=${encodeURIComponent(returnUrl)}`;
+  const popup = window.open(ssoUrl, "plirm34_google_sso", "width=500,height=650,menubar=no,toolbar=no");
+  if (!popup) {
+    window.location.href = ssoUrl;
+  }
+});
+
+window.addEventListener("message", async (event) => {
+  if (event.data && event.data.type === "PLIRM34_AUTH_TOKEN" && event.data.token) {
+    const user = event.data.user;
+    backendState.sessionActive = true;
+    loginWithUser(user);
+    if (event.data.needsProfileCompletion || (!user.isProfileCompleted && user.role !== "admin")) {
+      showProfileCompletionModal(user);
+    }
+    loadStoredData({ resources: ["negatif-list", "service", "spb"] });
+    syncDashboardFromBackendInBackground({ delayMs: 400, toastOnError: false });
+  }
+});

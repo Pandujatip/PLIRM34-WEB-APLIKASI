@@ -458,6 +458,64 @@ ROLE_EDITABLE = {
     "team": {"service"},
 }
 
+UNIT_KERJA_SCOPES = {
+    "PLICR12": {
+        "plants": ["SG-2302", "SG-2303"],
+        "areas": ["SG-2302-CR", "SG-2303-CR"],
+        "areaCodes": ["CR"],
+        "label": "PLI Crusher Tuban 1-2",
+    },
+    "PLIRM12": {
+        "plants": ["SG-2302", "SG-2303"],
+        "areas": ["SG-2302-RM", "SG-2303-RM"],
+        "areaCodes": ["RM"],
+        "label": "PLI Raw Mill Tuban 1-2",
+    },
+    "PLIKC12": {
+        "plants": ["SG-2302", "SG-2303"],
+        "areas": ["SG-2302-KL", "SG-2303-KL"],
+        "areaCodes": ["KL"],
+        "label": "PLI Kiln & Coal Mill Tuban 1-2",
+    },
+    "PLIFM12": {
+        "plants": ["SG-2302", "SG-2303"],
+        "areas": ["SG-2302-FM", "SG-2303-FM"],
+        "areaCodes": ["FM"],
+        "label": "PLI Finish Mill Tuban 1-2",
+    },
+    "PLIPC": {
+        "plants": ["SG-2302", "SG-2303", "SG-2304", "SG-2305"],
+        "areas": ["SG-2302-PC", "SG-2303-PC", "SG-2304-PC", "SG-2305-PC"],
+        "areaCodes": ["PC"],
+        "label": "PLI Packing Cement Tuban 1-4",
+    },
+    "PLICR34": {
+        "plants": ["SG-2304", "SG-2305"],
+        "areas": ["SG-2304-CR", "SG-2305-CR"],
+        "areaCodes": ["CR"],
+        "label": "PLI Crusher Tuban 3-4",
+    },
+    "PLIRM34": {
+        "plants": ["SG-2304", "SG-2305"],
+        "areas": ["SG-2304-RM", "SG-2305-RM"],
+        "areaCodes": ["RM"],
+        "label": "PLI Raw Mill Tuban 3-4",
+    },
+    "PLIKC34": {
+        "plants": ["SG-2304", "SG-2305"],
+        "areas": ["SG-2304-KL", "SG-2305-KL"],
+        "areaCodes": ["KL"],
+        "label": "PLI Kiln & Coal Mill Tuban 3-4",
+    },
+    "PLIFM34": {
+        "plants": ["SG-2304", "SG-2305"],
+        "areas": ["SG-2304-FM", "SG-2305-FM"],
+        "areaCodes": ["FM"],
+        "label": "PLI Finish Mill Tuban 3-4",
+    },
+}
+
+
 MASTER_REFERENCE_URLS = {
     "negatif-list": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRt_ysTFRHmKVY3-hlFDgBYex-BExU0cdFnuBaWOPqxKAo6mqavGhtZeKdTkvvFXsm-uvcOt2QVLHHC/pub?output=csv",
     "carbon-brush": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQfKUBfJ2IEybsMUaBoZnPeTgqCdPwuGnoXPtFuLfRzydveC6cBMYobCistT3GNdm2kS7xIKUgVkAVb/pub?output=csv",
@@ -1605,6 +1663,7 @@ def init_db() -> None:
         seed_master_data(connection)
         seed_carbon_brush_stock(connection)
         ensure_audit_columns(connection)
+        ensure_user_profile_columns(connection)
         ensure_bom_columns(connection)
         ensure_spb_columns(connection)
         ensure_service_motor_mv_columns(connection)
@@ -1613,37 +1672,99 @@ def init_db() -> None:
     write_whatsapp_bot_runtime_config()
 
 
+
+def ensure_user_profile_columns(connection: sqlite3.Connection) -> None:
+    cur = connection.cursor()
+    cur.execute("PRAGMA table_info(users)")
+    existing_cols = {row[1] for row in cur.fetchall()}
+    columns_to_add = [
+        ("full_name", "TEXT DEFAULT ''"),
+        ("badge_number", "TEXT DEFAULT ''"),
+        ("employment_type", "TEXT DEFAULT 'outsourcing'"),
+        ("company", "TEXT DEFAULT ''"),
+        ("unit_kerja", "TEXT DEFAULT ''"),
+        ("is_profile_completed", "INTEGER DEFAULT 0"),
+    ]
+    for col_name, col_def in columns_to_add:
+        if col_name not in existing_cols:
+            cur.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+    connection.execute("UPDATE users SET is_profile_completed = 1, company = 'Gopo Tuban' WHERE role = 'admin' AND is_profile_completed = 0")
+
+
+def serialize_user(row: sqlite3.Row | dict | None) -> dict | None:
+    if not row:
+        return None
+    data = dict(row)
+    return {
+        "id": data.get("id"),
+        "username": data.get("username"),
+        "role": data.get("role"),
+        "createdAt": data.get("created_at"),
+        "fullName": data.get("full_name") or "",
+        "badgeNumber": data.get("badge_number") or "",
+        "employmentType": data.get("employment_type") or "outsourcing",
+        "company": data.get("company") or "",
+        "unitKerja": data.get("unit_kerja") or "",
+        "isProfileCompleted": bool(data.get("is_profile_completed", 0)),
+    }
+
+
 def get_user_by_username(username: str) -> sqlite3.Row | None:
     with get_connection() as connection:
         return connection.execute(
-            "SELECT id, username, password_hash, role, created_at FROM users WHERE lower(username) = lower(?)",
+            """
+            SELECT id, username, password_hash, role, created_at,
+                   full_name, badge_number, employment_type, company, unit_kerja, is_profile_completed
+            FROM users WHERE lower(username) = lower(?)
+            """,
             (username,),
         ).fetchone()
 
 
-def create_user(username: str, password: str, role: str = "team") -> dict:
+def create_user(
+    username: str,
+    password: str,
+    role: str = "team",
+    *,
+    full_name: str = "",
+    badge_number: str = "",
+    employment_type: str = "outsourcing",
+    company: str = "",
+    unit_kerja: str = "",
+    is_profile_completed: int = 0
+) -> dict:
     with get_connection() as connection:
         cursor = connection.execute(
             """
-            INSERT INTO users (username, password_hash, role, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (username, password_hash, role, created_at,
+                               full_name, badge_number, employment_type, company, unit_kerja, is_profile_completed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (username, hash_password(password), role, utc_now().isoformat()),
+            (username, hash_password(password), role, utc_now().isoformat(),
+             full_name, badge_number, employment_type, company, unit_kerja, is_profile_completed),
         )
         user_id = cursor.lastrowid
         row = connection.execute(
-            "SELECT id, username, role, created_at FROM users WHERE id = ?",
+            """
+            SELECT id, username, role, created_at,
+                   full_name, badge_number, employment_type, company, unit_kerja, is_profile_completed
+            FROM users WHERE id = ?
+            """,
             (user_id,),
         ).fetchone()
-    return dict(row)
+    return serialize_user(row)
 
 
 def list_users() -> list[dict]:
     with get_connection() as connection:
         rows = connection.execute(
-            "SELECT id, username, role, created_at FROM users ORDER BY lower(username)"
+            """
+            SELECT id, username, role, created_at,
+                   full_name, badge_number, employment_type, company, unit_kerja, is_profile_completed
+            FROM users ORDER BY lower(username)
+            """
         ).fetchall()
-    return [dict(row) for row in rows]
+    return [serialize_user(row) for row in rows]
 
 
 def list_users_for_backup() -> list[dict]:
@@ -2166,7 +2287,7 @@ def count_admin_users() -> int:
     return int(row["total"]) if row else 0
 
 
-def update_user_role(username: str, role: str) -> dict | None:
+def update_user_role(username: str, role: str, *, unit_kerja: str | None = None) -> dict | None:
     with get_connection() as connection:
         existing = connection.execute(
             "SELECT id, username, role, created_at FROM users WHERE lower(username) = lower(?)",
@@ -2175,15 +2296,25 @@ def update_user_role(username: str, role: str) -> dict | None:
         if not existing:
             return None
 
-        connection.execute(
-            "UPDATE users SET role = ? WHERE id = ?",
-            (role, existing["id"]),
-        )
+        if unit_kerja is not None:
+            connection.execute(
+                "UPDATE users SET role = ?, unit_kerja = ? WHERE id = ?",
+                (role, unit_kerja, existing["id"]),
+            )
+        else:
+            connection.execute(
+                "UPDATE users SET role = ? WHERE id = ?",
+                (role, existing["id"]),
+            )
         row = connection.execute(
-            "SELECT id, username, role, created_at FROM users WHERE id = ?",
+            """
+            SELECT id, username, role, created_at,
+                   full_name, badge_number, employment_type, company, unit_kerja, is_profile_completed
+            FROM users WHERE id = ?
+            """,
             (existing["id"],),
         ).fetchone()
-    return dict(row) if row else None
+    return serialize_user(row) if row else None
 
 
 def delete_user_account(username: str) -> dict | None:
@@ -2226,7 +2357,9 @@ def get_user_from_session(token: str | None) -> dict | None:
     with get_connection() as connection:
         row = connection.execute(
             """
-            SELECT users.id, users.username, users.role, sessions.expires_at
+            SELECT users.id, users.username, users.role, sessions.expires_at,
+                   users.full_name, users.badge_number, users.employment_type,
+                   users.company, users.unit_kerja, users.is_profile_completed, users.created_at
             FROM sessions
             JOIN users ON users.id = sessions.user_id
             WHERE sessions.token = ?
@@ -2242,11 +2375,7 @@ def get_user_from_session(token: str | None) -> dict | None:
         delete_session(token)
         return None
 
-    return {
-        "id": row["id"],
-        "username": row["username"],
-        "role": row["role"],
-    }
+    return serialize_user(row)
 
 
 def build_service_list_payload(payload: dict) -> dict:
@@ -2378,7 +2507,64 @@ def list_items(resource_key: str) -> list[dict]:
     return load_resource_items(resource_key, include_media=(resource_key != "service"))
 
 
-def list_service_items_compact(limit: int | None = None, *, start_date: str = "", end_date: str = "") -> list[dict]:
+
+def is_service_item_in_unit_scope(item: dict, user: dict | None) -> bool:
+    if not user:
+        return True
+    user_role = str(user.get("role") or "").strip()
+    if user_role == "admin":
+        return True
+    user_unit = str(user.get("unitKerja") or "").strip().upper()
+    if not user_unit:
+        return True
+    unit_scope = UNIT_KERJA_SCOPES.get(user_unit)
+    if not unit_scope:
+        return True
+
+    # If item was created by this user
+    if item.get("createdByUserId") and item.get("createdByUserId") == user.get("id"):
+        return True
+
+    payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+    item_unit = str(payload.get("unitKerja") or payload.get("unit_kerja") or "").strip().upper()
+    if item_unit and item_unit != user_unit:
+        return False
+
+    # Check plant & area in payload
+    item_plant = str(payload.get("plant") or payload.get("plantCode") or "").strip().upper()
+    item_area = str(payload.get("area") or payload.get("areaCode") or payload.get("location") or "").strip().upper()
+    eq_name = str(item.get("equipmentName") or payload.get("equipmentName") or "").strip().upper()
+
+    allowed_plants = [p.upper() for p in unit_scope["plants"]]
+    allowed_areas = [a.upper() for a in unit_scope["areas"]]
+    allowed_area_codes = [c.upper() for c in unit_scope["areaCodes"]]
+
+    for p in allowed_plants:
+        if "2302" in p:
+            allowed_plants.extend(["TUBAN 1", "T1", "PLANT 1"])
+        elif "2303" in p:
+            allowed_plants.extend(["TUBAN 2", "T2", "PLANT 2"])
+        elif "2304" in p:
+            allowed_plants.extend(["TUBAN 3", "T3", "PLANT 3"])
+        elif "2305" in p:
+            allowed_plants.extend(["TUBAN 4", "T4", "PLANT 4"])
+
+    plant_match = False
+    if item_plant:
+        plant_match = any(p in item_plant or item_plant in p for p in allowed_plants)
+    else:
+        plant_match = True
+
+    area_match = False
+    if item_area:
+        area_match = any(a in item_area or item_area in a for a in allowed_areas) or any(code in item_area for code in allowed_area_codes)
+    else:
+        area_match = any(code in eq_name for code in allowed_area_codes)
+
+    return plant_match and area_match
+
+
+def list_service_items_compact(limit: int | None = None, *, start_date: str = "", end_date: str = "", user: dict | None = None) -> list[dict]:
     conditions: list[str] = []
     params: list[object] = []
     if start_date:
@@ -2394,12 +2580,14 @@ def list_service_items_compact(limit: int | None = None, *, start_date: str = ""
                  updated_at DESC,
                  rowid DESC
     """
-    if limit is not None and limit > 0:
-        sql += " LIMIT ?"
-        params.append(int(limit))
     with get_connection() as connection:
         rows = connection.execute(sql, params).fetchall()
-    return [deserialize_resource_item("service", row, include_media=False) for row in rows]
+    items = [deserialize_resource_item("service", row, include_media=False) for row in rows]
+    if user and user.get("role") != "admin" and user.get("unitKerja"):
+        items = [it for it in items if is_service_item_in_unit_scope(it, user)]
+    if limit is not None and limit > 0:
+        items = items[:int(limit)]
+    return items
 
 
 def list_negatif_list_items_filtered(status: str = "", limit: int | None = None, *, compact: bool = False) -> list[dict]:
@@ -4302,6 +4490,14 @@ def apply_carbon_brush_stock_usage_from_service(
 def create_or_update_service_item_atomic(item: dict, user: dict) -> tuple[dict | None, dict, dict | None]:
     if not item.get("id"):
         raise ValueError("ID item wajib ada")
+    if user.get("role") != "admin" and user.get("unitKerja"):
+        if not is_service_item_in_unit_scope(item, user):
+            unit_scope = UNIT_KERJA_SCOPES.get(user["unitKerja"])
+            scope_desc = unit_scope["label"] if unit_scope else user["unitKerja"]
+            raise ValueError(f"Peralatan atau area di luar wewenang Unit Kerja Anda ({scope_desc})")
+    if isinstance(item.get("payload"), dict):
+        if not item["payload"].get("unitKerja") and user.get("unitKerja"):
+            item["payload"]["unitKerja"] = user["unitKerja"]
     with get_connection() as connection:
         existing_item = get_item_by_id_from_connection(connection, "service", str(item["id"]))
         saved_item = create_or_update_item_in_connection(connection, "service", item, int(user["id"]))
@@ -4938,7 +5134,7 @@ def list_inspection_templates() -> list[dict]:
 
 
 
-def search_sap_equipments(query_params: dict) -> dict:
+def search_sap_equipments(query_params: dict, user: dict | None = None) -> dict:
     q = query_params.get("q", [""])[0].strip()
     plant = query_params.get("plant", ["ALL"])[0].strip()
     area = query_params.get("area", ["ALL"])[0].strip()
@@ -4957,13 +5153,43 @@ def search_sap_equipments(query_params: dict) -> dict:
     where_clauses = []
     params = []
 
-    if plant and plant != "ALL":
-        where_clauses.append("plant_code = ?")
-        params.append(plant)
+    user_unit = (user.get("unitKerja") or "").strip().upper() if user else ""
+    user_role = (user.get("role") or "").strip() if user else ""
+    unit_scope = UNIT_KERJA_SCOPES.get(user_unit) if (user_unit and user_role != "admin") else None
 
-    if area and area != "ALL":
-        where_clauses.append("area_code = ?")
-        params.append(area)
+    if unit_scope:
+        allowed_plants = unit_scope["plants"]
+        allowed_areas = unit_scope["areas"]
+
+        if plant and plant != "ALL":
+            if plant in allowed_plants:
+                where_clauses.append("plant_code = ?")
+                params.append(plant)
+            else:
+                return {"total": 0, "records": []}
+        else:
+            placeholders = ",".join("?" for _ in allowed_plants)
+            where_clauses.append(f"plant_code IN ({placeholders})")
+            params.extend(allowed_plants)
+
+        if area and area != "ALL":
+            if area in allowed_areas:
+                where_clauses.append("area_code = ?")
+                params.append(area)
+            else:
+                return {"total": 0, "records": []}
+        else:
+            placeholders = ",".join("?" for _ in allowed_areas)
+            where_clauses.append(f"area_code IN ({placeholders})")
+            params.extend(allowed_areas)
+    else:
+        if plant and plant != "ALL":
+            where_clauses.append("plant_code = ?")
+            params.append(plant)
+
+        if area and area != "ALL":
+            where_clauses.append("area_code = ?")
+            params.append(area)
 
     if discipline and discipline != "ALL":
         where_clauses.append("discipline_name LIKE ?")
@@ -5020,16 +5246,42 @@ def search_sap_equipments(query_params: dict) -> dict:
         return {"total": total, "records": records}
 
 
-def list_sap_areas(plant: str = "ALL") -> list[dict]:
+def list_sap_areas(plant: str = "ALL", user: dict | None = None) -> list[dict]:
+    user_unit = (user.get("unitKerja") or "").strip().upper() if user else ""
+    user_role = (user.get("role") or "").strip() if user else ""
+    unit_scope = UNIT_KERJA_SCOPES.get(user_unit) if (user_unit and user_role != "admin") else None
+
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sap_areas'")
         if not cur.fetchone():
             return []
-        if plant and plant != "ALL":
-            cur.execute("SELECT area_code, plant_code, area_name, short_code, equipment_count, main_equipment_count FROM sap_areas WHERE plant_code = ? ORDER BY area_code", (plant,))
+        where_clauses = []
+        params = []
+        if unit_scope:
+            allowed_plants = unit_scope["plants"]
+            allowed_areas = unit_scope["areas"]
+            if plant and plant != "ALL":
+                if plant in allowed_plants:
+                    where_clauses.append("plant_code = ?")
+                    params.append(plant)
+                else:
+                    return []
+            else:
+                placeholders = ",".join("?" for _ in allowed_plants)
+                where_clauses.append(f"plant_code IN ({placeholders})")
+                params.extend(allowed_plants)
+
+            placeholders = ",".join("?" for _ in allowed_areas)
+            where_clauses.append(f"area_code IN ({placeholders})")
+            params.extend(allowed_areas)
         else:
-            cur.execute("SELECT area_code, plant_code, area_name, short_code, equipment_count, main_equipment_count FROM sap_areas ORDER BY plant_code, area_code")
+            if plant and plant != "ALL":
+                where_clauses.append("plant_code = ?")
+                params.append(plant)
+
+        where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        cur.execute(f"SELECT area_code, plant_code, area_name, short_code, equipment_count, main_equipment_count FROM sap_areas {where_str} ORDER BY plant_code, area_code", params)
         return [dict(r) for r in cur.fetchall()]
 
 
@@ -5907,7 +6159,8 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         if parsed.path == "/api/auth/me":
             user = self._require_user(optional=True)
-            self._send_json({"user": user})
+            needs_completion = bool(user and not user.get("isProfileCompleted") and user.get("role") != "admin")
+            self._send_json({"user": user, "needsProfileCompletion": needs_completion})
             return
 
         if parsed.path == "/api/bootstrap":
@@ -6077,6 +6330,10 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._handle_google_login()
             return
 
+        if parsed.path == "/api/auth/complete-profile":
+            self._handle_complete_profile()
+            return
+
         if parsed.path == "/api/auth/login":
             self._handle_login()
             return
@@ -6238,7 +6495,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
         return cookies[SESSION_COOKIE_NAME].value
 
     def _build_session_cookie(self, token: str, *, expires_days: int = SESSION_DURATION_DAYS) -> str:
-        expires = (datetime.utcnow() + timedelta(days=expires_days)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        expires = (utc_now() + timedelta(days=expires_days)).strftime("%a, %d %b %Y %H:%M:%S GMT")
         return f"{SESSION_COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Lax; Expires={expires}"
 
     def _clear_session_cookie(self) -> str:
@@ -6274,14 +6531,16 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
 
     def _handle_equipments_search_get(self, query: str):
+        user = self._require_user(optional=True)
         params = parse_qs(query or "")
-        data = search_sap_equipments(params)
+        data = search_sap_equipments(params, user=user)
         self._send_json(data)
 
     def _handle_equipments_areas_get(self, query: str):
+        user = self._require_user(optional=True)
         params = parse_qs(query or "")
         plant = params.get("plant", ["ALL"])[0].strip()
-        areas = list_sap_areas(plant)
+        areas = list_sap_areas(plant, user=user)
         self._send_json({"areas": areas})
 
     def _handle_equipment_detail_get(self, path: str):
@@ -7190,7 +7449,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             except ValueError:
                 limit = None
             if compact or limit or start_date or end_date:
-                self._send_json({"items": list_service_items_compact(limit=limit, start_date=start_date, end_date=end_date)})
+                self._send_json({"items": list_service_items_compact(limit=limit, start_date=start_date, end_date=end_date, user=user)})
                 return
         if resource_key == "negatif-list":
             params = parse_qs(query or "")
@@ -7422,10 +7681,18 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
 
         user = get_user_by_username(username)
         if not user:
-            # Auto-register new Google user with team role
             import secrets
             random_pw = secrets.token_urlsafe(16)
-            user = create_user(username=username, password=random_pw, role="team")
+            created = create_user(
+                username=username,
+                password=random_pw,
+                role="team",
+                full_name=full_name,
+                is_profile_completed=0
+            )
+            user = get_user_by_username(username)
+
+        needs_profile_completion = not bool(user["is_profile_completed"]) if "is_profile_completed" in user.keys() else True
 
         token, _expires_at = create_session(user["id"])
         log_activity(
@@ -7436,12 +7703,93 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             resource="auth",
             target_id=str(user["id"]),
             target_label=str(user["username"]),
-            detail={"name": full_name, "email": email}
+            detail={"name": full_name, "email": email, "needsProfileCompletion": needs_profile_completion}
         )
         self._send_json(
-            {"user": {"id": user["id"], "username": user["username"], "role": user["role"]}, "token": token},
+            {
+                "user": serialize_user(user),
+                "token": token,
+                "needsProfileCompletion": needs_profile_completion,
+            },
             extra_headers={"Set-Cookie": self._build_session_cookie(token)},
         )
+
+    def _handle_complete_profile(self):
+        user = self._require_user()
+        if not user:
+            return
+
+        try:
+            payload = self._parse_json_body()
+        except (json.JSONDecodeError, RequestBodyTooLarge):
+            return
+
+        full_name = str(payload.get("fullName", "") or "").strip()
+        badge_number = str(payload.get("badgeNumber", "") or "").strip()
+        employment_type = str(payload.get("employmentType", "outsourcing") or "outsourcing").strip().lower()
+        company = str(payload.get("company", "") or "").strip()
+        unit_kerja = str(payload.get("unitKerja", "") or "").strip().upper()
+
+        if not full_name:
+            self._send_json({"error": "Nama lengkap wajib diisi"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if not badge_number:
+            self._send_json({"error": "No Badge wajib diisi"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if employment_type not in {"organik", "outsourcing"}:
+            self._send_json({"error": "Pilihan peran karyawan tidak valid (harus Organik atau Outsourcing)"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if employment_type == "organik":
+            company = "Gopo Tuban"
+        else:
+            if not company:
+                self._send_json({"error": "Nama PT / perusahaan wajib diisi untuk tenaga outsourcing"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+        if unit_kerja not in UNIT_KERJA_SCOPES:
+            valid_units = ", ".join(UNIT_KERJA_SCOPES.keys())
+            self._send_json({"error": f"Unit kerja tidak valid. Pilihan: {valid_units}"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        with get_connection() as connection:
+            connection.execute(
+                """
+                UPDATE users
+                SET full_name = ?, badge_number = ?, employment_type = ?, company = ?, unit_kerja = ?, is_profile_completed = 1
+                WHERE id = ?
+                """,
+                (full_name, badge_number, employment_type, company, unit_kerja, user["id"]),
+            )
+            updated_row = connection.execute(
+                """
+                SELECT id, username, role, created_at,
+                       full_name, badge_number, employment_type, company, unit_kerja, is_profile_completed
+                FROM users WHERE id = ?
+                """,
+                (user["id"],),
+            ).fetchone()
+
+        updated_user = serialize_user(updated_row)
+        log_activity(
+            actor_user_id=int(user["id"]),
+            actor_username=str(user["username"]),
+            actor_role=str(user["role"]),
+            action="complete_profile",
+            resource="users",
+            target_id=str(user["id"]),
+            target_label=str(user["username"]),
+            detail={
+                "fullName": full_name,
+                "badgeNumber": badge_number,
+                "employmentType": employment_type,
+                "company": company,
+                "unitKerja": unit_kerja,
+            },
+        )
+        self._send_json({"ok": True, "user": updated_user})
 
     def _handle_login(self):
         try:
@@ -7571,6 +7919,13 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Role tidak valid"}, status=HTTPStatus.BAD_REQUEST)
             return
 
+        next_unit = payload.get("unitKerja")
+        if next_unit is not None:
+            next_unit = str(next_unit).strip().upper()
+            if next_unit and next_unit not in UNIT_KERJA_SCOPES:
+                self._send_json({"error": "Unit kerja tidak valid"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
         target_user = get_user_by_username(username)
         if not target_user:
             self._send_json({"error": "User tidak ditemukan"}, status=HTTPStatus.NOT_FOUND)
@@ -7583,7 +7938,7 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
             )
             return
 
-        updated_user = update_user_role(username, next_role)
+        updated_user = update_user_role(username, next_role, unit_kerja=next_unit)
         if updated_user:
             log_activity(
                 actor_user_id=int(user["id"]),
