@@ -172,6 +172,22 @@ class ApiService {
     return [];
   }
 
+  Future<List<ColleagueUser>> getColleagues() async {
+    final uri = Uri.parse("$baseUrl/api/users/colleagues");
+    try {
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data["users"] is List) {
+          return (data["users"] as List)
+              .map((e) => ColleagueUser.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
   // --- Inspection & Monitor APIs ---
   Future<Map<String, dynamic>> fetchOverview() async {
     try {

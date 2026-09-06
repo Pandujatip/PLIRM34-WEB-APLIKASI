@@ -528,5 +528,42 @@ void main() {
       expect(find.text('Unit Kerja Penugasan *'), findsOneWidget);
       expect(find.text('Simpan Profil & Mulai'), findsOneWidget);
     });
+
+    test('ColleagueUser and SapEquipmentItem models parse and format correctly', () {
+      final colleague = ColleagueUser.fromJson({
+        'id': 12,
+        'username': 'agus.wahyudi',
+        'fullName': 'Agus Wahyudi',
+        'badgeNumber': '88214',
+        'unitKerja': 'HAR ELEKTRIK',
+        'role': 'organik',
+      });
+      expect(colleague.fullName, equals('Agus Wahyudi'));
+      expect(colleague.badgeNumber, equals('88214'));
+      expect(colleague.unitKerja, equals('HAR ELEKTRIK'));
+
+      final mainEquip = SapEquipmentItem(
+        equipmentId: '10001234',
+        tagNo: '231BF1',
+        description: 'Belt Feeder 1',
+        plantCode: 'PLANT3',
+        subEquipmentCount: 3,
+        isMainEquipment: true,
+      );
+      expect(mainEquip.typeBadge, equals('MAIN (3 Sub)'));
+      expect(mainEquip.fullLabel, equals('231BF1 - Belt Feeder 1 [MAIN]'));
+
+      final subEquip = SapEquipmentItem(
+        equipmentId: '10001235',
+        tagNo: '231BF1M01',
+        description: 'Motor Belt Feeder 1',
+        plantCode: 'PLANT3',
+        parentEquipmentId: '10001234',
+        isMainEquipment: false,
+      );
+      expect(subEquip.typeBadge, equals('SUB'));
+      expect(subEquip.fullLabel, equals('231BF1M01 - Motor Belt Feeder 1 [SUB]'));
+    });
   });
 }
+

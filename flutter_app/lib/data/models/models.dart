@@ -718,6 +718,8 @@ class SapEquipmentItem {
   });
 
   String get displayName => tagNo.isNotEmpty ? '$tagNo - $description' : description;
+  String get typeBadge => isMainEquipment ? (subEquipmentCount > 0 ? 'MAIN ($subEquipmentCount Sub)' : 'MAIN') : 'SUB';
+  String get fullLabel => '$displayName [${isMainEquipment ? 'MAIN' : 'SUB'}]';
 
   factory SapEquipmentItem.fromJson(Map<String, dynamic> json) {
     return SapEquipmentItem(
@@ -756,4 +758,35 @@ class SapEquipmentItem {
     'is_main_equipment': isMainEquipment ? 1 : 0,
     'sub_equipment_count': subEquipmentCount,
   };
+}
+
+class ColleagueUser {
+  final String id;
+  final String username;
+  final String fullName;
+  final String badgeNumber;
+  final String unitKerja;
+  final String role;
+
+  ColleagueUser({
+    required this.id,
+    required this.username,
+    required this.fullName,
+    required this.badgeNumber,
+    required this.unitKerja,
+    required this.role,
+  });
+
+  String get displayName => fullName.isNotEmpty ? fullName : username;
+
+  factory ColleagueUser.fromJson(Map<String, dynamic> json) {
+    return ColleagueUser(
+      id: json['id']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      fullName: json['fullName']?.toString() ?? json['full_name']?.toString() ?? '',
+      badgeNumber: json['badgeNumber']?.toString() ?? json['badge_number']?.toString() ?? '',
+      unitKerja: json['unitKerja']?.toString() ?? json['unit_kerja']?.toString() ?? '',
+      role: json['role']?.toString() ?? '',
+    );
+  }
 }

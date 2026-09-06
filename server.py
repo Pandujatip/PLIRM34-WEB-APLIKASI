@@ -5232,13 +5232,43 @@ def search_sap_equipments(query_params: dict, user: dict | None = None) -> dict:
         cur.execute(f"SELECT count(*) FROM sap_equipments {where_str}", params)
         total = cur.fetchone()[0]
 
+        if total == 0 and unit_scope and plant == "ALL" and area == "ALL" and q:
+            fb_clauses = []
+            fb_params = []
+            if discipline and discipline != "ALL":
+                fb_clauses.append("discipline_name LIKE ?")
+                fb_params.append(f"%{discipline}%")
+            if category and category != "ALL":
+                fb_clauses.append("category = ?")
+                fb_params.append(category)
+            if is_main in ("0", "1"):
+                fb_clauses.append("is_main_equipment = ?")
+                fb_params.append(int(is_main))
+            like_str = f"%{q}%"
+            fb_clauses.append("(equipment_id LIKE ? OR tag_no LIKE ? OR description LIKE ? OR floc_code LIKE ?)")
+            fb_params.extend([like_str, like_str, like_str, like_str])
+            fb_where_str = f"WHERE {' AND '.join(fb_clauses)}"
+            cur.execute(f"SELECT count(*) FROM sap_equipments {fb_where_str}", fb_params)
+            total = cur.fetchone()[0]
+            cur.execute(f"""
+                SELECT equipment_id, tag_no, description, discipline, discipline_name, category,
+                       plant_code, plant_name, area_code, area_name, floc_code, parent_equipment_id,
+                       is_main_equipment, sub_equipment_count
+                FROM sap_equipments
+                {fb_where_str}
+                ORDER BY plant_code, CASE WHEN tag_no != '' THEN tag_no ELSE equipment_id END, is_main_equipment DESC, equipment_id
+                LIMIT ? OFFSET ?
+            """, fb_params + [limit, offset])
+            records = [dict(r) for r in cur.fetchall()]
+            return {"total": total, "records": records}
+
         cur.execute(f"""
             SELECT equipment_id, tag_no, description, discipline, discipline_name, category,
                    plant_code, plant_name, area_code, area_name, floc_code, parent_equipment_id,
                    is_main_equipment, sub_equipment_count
             FROM sap_equipments
             {where_str}
-            ORDER BY plant_code, level, equipment_id
+            ORDER BY plant_code, CASE WHEN tag_no != '' THEN tag_no ELSE equipment_id END, is_main_equipment DESC, equipment_id
             LIMIT ? OFFSET ?
         """, params + [limit, offset])
 
@@ -6174,6 +6204,44 @@ class PLIRMRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(build_native_legacy_bootstrap_payload(user))
                 return
             self._send_json(build_bootstrap_payload(user, scope=requested_scope))
+            return
+        if parsed.path == "/api/users/colleagues":
+            user = self._require_user()
+            if not user:
+                return
+            user_unit = (user.get("unitKerja") or user.get("unit_kerja") or "").strip().upper()
+            user_role = (user.get("role") or "").strip()
+
+            with get_connection() as conn:
+                cur = conn.cursor()
+                if user_role == "admin" or not user_unit:
+                    cur.execute("""
+                        SELECT id, username, full_name, badge_number, employment_type, company, unit_kerja, role
+                        FROM users
+                        WHERE is_profile_completed = 1
+                        ORDER BY full_name, username
+                    """)
+                else:
+                    cur.execute("""
+                        SELECT id, username, full_name, badge_number, employment_type, company, unit_kerja, role
+                        FROM users
+                        WHERE unit_kerja = ? AND is_profile_completed = 1
+                        ORDER BY full_name, username
+                    """, (user_unit,))
+                rows = [
+                    {
+                        "id": r["id"],
+                        "username": r["username"],
+                        "fullName": r["full_name"] or r["username"],
+                        "badgeNumber": r["badge_number"] or "",
+                        "employmentType": r["employment_type"] or "",
+                        "company": r["company"] or "",
+                        "unitKerja": r["unit_kerja"] or "",
+                        "role": r["role"],
+                    }
+                    for r in cur.fetchall()
+                ]
+            self._send_json({"users": rows})
             return
 
         if parsed.path == "/api/users":

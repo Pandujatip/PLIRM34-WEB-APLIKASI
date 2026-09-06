@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -72,15 +73,15 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
       {'label': 'MCC & Cubicle', 'type': 'service-mcc'},
       {'label': 'Electrical Room', 'type': 'service-electrical-room'},
       {'label': 'Transformator', 'type': 'service-transformator'},
-      {'label': 'UPS & Battery', 'type': 'service-ups'},
+      {'label': 'EHCA', 'type': 'service-ehca'},
     ],
     'Instrumentasi': [
       {'label': 'Instrument Lapangan', 'type': 'service-instrument'},
       {'label': 'CEMS (Continuous Emission)', 'type': 'service-cems'},
       {'label': 'Opacity Meter', 'type': 'service-opacity-meter'},
-      {'label': 'EHCA / Hydraulic Unit', 'type': 'service-ehca'},
     ],
     'DCS': [
+      {'label': 'UPS & Battery', 'type': 'service-ups'},
       {'label': 'DCS Controller & I/O', 'type': 'service-dcs'},
       {'label': 'Server & Network DCS', 'type': 'service-server-network'},
       {'label': 'PLC System', 'type': 'service-plc'},
@@ -120,7 +121,17 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
   List<CarbonBrushStockItem> _stockItems = CarbonBrushStockItem.defaultItems();
   Map<String, double?> _previousMeasurements = {};
   String _previousInspectionDate = '';
+  // Colleague Tagging State
+  List<ColleagueUser> _availableColleagues = [];
+  final List<String> _taggedColleagues = [];
+  bool _isLoadingColleagues = false;
 
+  // Inline Equipment & Sub-Equipment Search State
+  List<SapEquipmentItem> _sapEquipmentSuggestions = [];
+  List<String> _cbEquipmentSuggestions = [];
+  bool _isSearchingEquipment = false;
+  bool _showEquipmentSuggestions = false;
+  Timer? _equipmentDebounceTimer;
   // --- Subcategory: Electrical Room ---
   String _erPanelDoorCondition = 'OK';
   String _erFloorCleanliness = 'Bersih';
@@ -320,6 +331,12 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
       }
       _equipmentCtrl.text = item.equipment;
       _teknisiCtrl.text = item.teknisi;
+      if (item.teknisi.isNotEmpty) {
+        final parts = item.teknisi.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        if (parts.length > 1) {
+          _taggedColleagues.addAll(parts.sublist(1));
+        }
+      }
       _deskripsiCtrl.text = item.deskripsi;
       _tindakanCtrl.text = item.tindakan;
       _rekomendasiCtrl.text = item.recommendation;
@@ -388,15 +405,20 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
       _selectedArea = (widget.initialArea != null && _areas.contains(widget.initialArea))
           ? widget.initialArea!
           : 'Raw Mill';
-      _teknisiCtrl.text = widget.currentUser?.username ?? 'Teknisi Lapangan';
+      final myName = (widget.currentUser?.fullName != null && widget.currentUser!.fullName!.trim().isNotEmpty)
+          ? widget.currentUser!.fullName!.trim()
+          : (widget.currentUser?.username ?? 'Teknisi Lapangan');
+      _teknisiCtrl.text = myName;
     }
 
     _equipmentCtrl.addListener(_onEquipmentInputChanged);
     _initData();
+    _loadColleagues();
   }
 
   @override
   void dispose() {
+    _equipmentDebounceTimer?.cancel();
     _equipmentCtrl.removeListener(_onEquipmentInputChanged);
     _equipmentCtrl.dispose();
     _equipmentFocusNode.dispose();
@@ -532,6 +554,73 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
       _autoMatchStockKey(text);
       _lookupEquipmentHistory(text);
     }
+    _searchEquipmentSuggestions(text);
+  }
+
+  void _searchEquipmentSuggestions(String query) {
+    _equipmentDebounceTimer?.cancel();
+    _equipmentDebounceTimer = Timer(const Duration(milliseconds: 250), () async {
+      final q = query.trim();
+      if (q.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _sapEquipmentSuggestions = [];
+            _cbEquipmentSuggestions = [];
+            _showEquipmentSuggestions = false;
+            _isSearchingEquipment = false;
+          });
+        }
+        return;
+      }
+
+      if (_selectedFormType == 'service-motor-mv-carbon-brush') {
+        final matches = _equipmentOptions
+            .where((opt) => opt.toLowerCase().contains(q.toLowerCase()))
+            .take(15)
+            .toList();
+        if (mounted) {
+          setState(() {
+            _cbEquipmentSuggestions = matches;
+            _sapEquipmentSuggestions = [];
+            _showEquipmentSuggestions = matches.isNotEmpty;
+            _isSearchingEquipment = false;
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isSearchingEquipment = true;
+          _showEquipmentSuggestions = true;
+        });
+      }
+
+      try {
+        final results = await widget.apiService.searchSapEquipments(q, limit: 30);
+        if (mounted) {
+          setState(() {
+            _sapEquipmentSuggestions = results;
+            _cbEquipmentSuggestions = [];
+            _isSearchingEquipment = false;
+            _showEquipmentSuggestions = results.isNotEmpty;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          final matches = _equipmentOptions
+              .where((opt) => opt.toLowerCase().contains(q.toLowerCase()))
+              .take(15)
+              .toList();
+          setState(() {
+            _cbEquipmentSuggestions = matches;
+            _sapEquipmentSuggestions = [];
+            _isSearchingEquipment = false;
+            _showEquipmentSuggestions = matches.isNotEmpty;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _initData() async {
@@ -566,6 +655,8 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
       _lookupEquipmentHistory(_equipmentCtrl.text);
       _autoMatchStockKey(_equipmentCtrl.text);
     }
+    // 5. Load colleagues for tagging
+    _loadColleagues();
   }
 
   void _updateEquipmentOptions() {
@@ -591,6 +682,8 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
         '324BC1 - Conveyor',
         '333BC1 - Conveyor',
         '353BC1 - Transport',
+        'EHCA Unit Rawmill 343',
+        'EHCA Unit Rawmill 344',
       ]);
     } else if (_selectedCategory == 'Instrumentasi') {
       options.addAll([
@@ -602,11 +695,12 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
         'Opacity Meter Tuban 4',
         '323BC2 - Conveyor',
         '324BC1 - Conveyor',
-        'EHCA Unit Rawmill 343',
-        'EHCA Unit Rawmill 344',
       ]);
     } else {
       options.addAll([
+        'UPS Room Tuban 3',
+        'UPS Room Tuban 4',
+        'Battery Bank 110V DC',
         'DCS Controller 01',
         'DCS Controller 02',
         'DCS Server Main A',
@@ -628,6 +722,173 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
         _equipmentOptions = sorted;
       });
     }
+  }
+
+  Future<void> _loadColleagues() async {
+    setState(() => _isLoadingColleagues = true);
+    try {
+      final list = await widget.apiService.getColleagues();
+      final myId = widget.currentUser?.id.toString();
+      final myName = widget.currentUser?.fullName?.trim().toLowerCase();
+      final myUsername = widget.currentUser?.username.trim().toLowerCase();
+      if (mounted) {
+        setState(() {
+          _availableColleagues = list.where((c) {
+            if (myId != null && c.id == myId) return false;
+            if (myName != null && myName.isNotEmpty && c.fullName.trim().toLowerCase() == myName) return false;
+            if (myUsername != null && c.username.trim().toLowerCase() == myUsername) return false;
+            return true;
+          }).toList();
+          _isLoadingColleagues = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingColleagues = false);
+    }
+  }
+
+  void _syncTeknisiField() {
+    final myName = (widget.currentUser?.fullName != null && widget.currentUser!.fullName!.trim().isNotEmpty)
+        ? widget.currentUser!.fullName!.trim()
+        : (widget.currentUser?.username ?? 'Teknisi Lapangan');
+    final allNames = [myName, ..._taggedColleagues].where((s) => s.isNotEmpty).toSet().toList();
+    _teknisiCtrl.text = allNames.join(', ');
+  }
+
+  void _addColleagueTag(String name) {
+    if (!_taggedColleagues.contains(name)) {
+      setState(() {
+        _taggedColleagues.add(name);
+        _syncTeknisiField();
+      });
+    }
+  }
+
+  void _removeColleagueTag(String name) {
+    setState(() {
+      _taggedColleagues.remove(name);
+      _syncTeknisiField();
+    });
+  }
+
+  void _showTagColleagueDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.55),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.group_add_rounded, color: AppConstants.accentCyan, size: 22),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Tag Rekan Kerja (${widget.currentUser?.unitBadgeLabel ?? "Unit"})',
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Pilih rekan satu unit kerja untuk ditambahkan sebagai pelaksana inspeksi:',
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_isLoadingColleagues)
+                    const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+                  else if (_availableColleagues.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceFloat,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.border),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: AppConstants.accentCyan, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Belum ada rekan lain yang terdaftar di Unit Kerja ${widget.currentUser?.unitBadgeLabel ?? ""}.',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _availableColleagues.length,
+                        separatorBuilder: (_, __) => const Divider(color: AppTheme.border, height: 1),
+                        itemBuilder: (context, idx) {
+                          final colleague = _availableColleagues[idx];
+                          final isAlreadyTagged = _taggedColleagues.contains(colleague.displayName);
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            leading: CircleAvatar(
+                              backgroundColor: isAlreadyTagged ? AppTheme.teal : AppConstants.accentCyan.withOpacity(0.15),
+                              child: Icon(
+                                isAlreadyTagged ? Icons.check : Icons.person_outline,
+                                color: isAlreadyTagged ? Colors.black : AppConstants.accentCyan,
+                                size: 18,
+                              ),
+                            ),
+                            title: Text(
+                              colleague.displayName,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: isAlreadyTagged ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Badge: ${colleague.badgeNumber.isNotEmpty ? colleague.badgeNumber : "-"} • ${colleague.unitKerja}',
+                              style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                            ),
+                            trailing: isAlreadyTagged
+                                ? const Text('Ditag', style: TextStyle(color: AppTheme.teal, fontSize: 12, fontWeight: FontWeight.bold))
+                                : const Text('+ Tambah', style: TextStyle(color: AppConstants.accentCyan, fontSize: 12)),
+                            onTap: () {
+                              if (isAlreadyTagged) {
+                                _removeColleagueTag(colleague.displayName);
+                              } else {
+                                _addColleagueTag(colleague.displayName);
+                              }
+                              setModalState(() {});
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   String _normalizeEquipment(String val) {
@@ -1099,14 +1360,17 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
               decoration: BoxDecoration(color: AppTheme.teal, borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(width: 8),
-            Text(
-              title,
-              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                softWrap: true,
+              ),
             ),
           ],
         ),
         const SizedBox(height: 2),
-        Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11), softWrap: true),
         const SizedBox(height: 10),
       ],
     );
@@ -1123,30 +1387,19 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Flexible(
-              child: Text(
-                label.toUpperCase(),
-                style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (helperText != null && helperText.isNotEmpty) ...[
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  helperText,
-                  style: const TextStyle(color: AppTheme.teal, fontSize: 10, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                ),
-              ),
-            ],
-          ],
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          softWrap: true,
         ),
+        if (helperText != null && helperText.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            helperText,
+            style: const TextStyle(color: AppTheme.teal, fontSize: 10, fontWeight: FontWeight.w600),
+            softWrap: true,
+          ),
+        ],
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
@@ -1178,7 +1431,8 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+          style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          softWrap: true,
         ),
         const SizedBox(height: 6),
         Container(
@@ -1507,139 +1761,230 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Equipment & Area
+                  // Equipment & Sub Equipment (Full Width)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'EQUIPMENT / SUB-EQUIPMENT',
+                            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                          ),
+                          Text(
+                            _selectedFormType == 'service-motor-mv-carbon-brush' ? '(Motor Carbon Brush)' : '(Master SAP & Sub-Eq)',
+                            style: const TextStyle(color: AppTheme.teal, fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _equipmentCtrl,
+                        focusNode: _equipmentFocusNode,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Ketik nama equipment atau sub-equipment...',
+                          hintStyle: const TextStyle(color: Colors.white30),
+                          filled: true,
+                          fillColor: AppTheme.surfaceFloat,
+                          prefixIcon: const Icon(Icons.build_rounded, color: AppConstants.accentCyan, size: 18),
+                          suffixIcon: _equipmentCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                                  onPressed: () {
+                                    _equipmentCtrl.clear();
+                                    setState(() {
+                                      _showEquipmentSuggestions = false;
+                                      _sapEquipmentSuggestions = [];
+                                      _cbEquipmentSuggestions = [];
+                                    });
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.border)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Wajib diisi' : null,
+                      ),
+                      if (_showEquipmentSuggestions) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity,
+                          constraints: const BoxConstraints(maxHeight: 220),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF132328),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.teal.withOpacity(0.6)),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 4)),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.surfaceFloat,
+                                  borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.manage_search_rounded, size: 16, color: AppTheme.teal),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _isSearchingEquipment
+                                              ? 'MENCARI DATA EQUIPMENT...'
+                                              : 'HASIL PENCARIAN (${_sapEquipmentSuggestions.isNotEmpty ? _sapEquipmentSuggestions.length : _cbEquipmentSuggestions.length})',
+                                          style: const TextStyle(color: AppTheme.teal, fontSize: 10, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    InkWell(
+                                      onTap: () => setState(() => _showEquipmentSuggestions = false),
+                                      child: const Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: 4),
+                                        child: Text('Tutup', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_isSearchingEquipment)
+                                const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Center(
+                                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.teal)),
+                                  ),
+                                )
+                              else if (_sapEquipmentSuggestions.isEmpty && _cbEquipmentSuggestions.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Center(
+                                    child: Text('Equipment tidak ditemukan', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                                  ),
+                                )
+                              else
+                                Flexible(
+                                  child: ListView.separated(
+                                    padding: EdgeInsets.zero,
+                                    shrinkWrap: true,
+                                    itemCount: _sapEquipmentSuggestions.isNotEmpty
+                                        ? _sapEquipmentSuggestions.length
+                                        : _cbEquipmentSuggestions.length,
+                                    separatorBuilder: (_, __) => Divider(color: Colors.white.withOpacity(0.06), height: 1),
+                                    itemBuilder: (context, index) {
+                                      if (_sapEquipmentSuggestions.isNotEmpty) {
+                                        final item = _sapEquipmentSuggestions[index];
+                                        final isMain = item.isMainEquipment;
+                                        final badgeText = item.typeBadge;
+                                        return InkWell(
+                                          onTap: () {
+                                            _onEquipmentSelected(item.displayName);
+                                            setState(() => _showEquipmentSuggestions = false);
+                                            FocusScope.of(context).unfocus();
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  isMain ? Icons.precision_manufacturing_rounded : Icons.account_tree_rounded,
+                                                  size: 16,
+                                                  color: isMain ? AppTheme.teal : AppConstants.warningYellow,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        item.tagNo.isNotEmpty ? item.tagNo : item.equipmentId,
+                                                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                                      ),
+                                                      Text(
+                                                        item.description,
+                                                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: (isMain ? AppTheme.teal : AppConstants.warningYellow).withOpacity(0.15),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                    border: Border.all(
+                                                      color: (isMain ? AppTheme.teal : AppConstants.warningYellow).withOpacity(0.5),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    badgeText,
+                                                    style: TextStyle(
+                                                      color: isMain ? AppTheme.teal : AppConstants.warningYellow,
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        final opt = _cbEquipmentSuggestions[index];
+                                        return InkWell(
+                                          onTap: () {
+                                            _onEquipmentSelected(opt);
+                                            setState(() => _showEquipmentSuggestions = false);
+                                            FocusScope.of(context).unfocus();
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.bolt_rounded, size: 16, color: AppTheme.teal),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    opt,
+                                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Area & Status Pekerjaan (Row)
                   Row(
                     children: [
                       Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'EQUIPMENT',
-                                  style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
-                                ),
-                                Text(
-                                  '(Contoh: 343FN4M01)',
-                                  style: TextStyle(color: AppTheme.teal, fontSize: 10, fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            RawAutocomplete<String>(
-                              textEditingController: _equipmentCtrl,
-                              focusNode: _equipmentFocusNode,
-                              optionsBuilder: (TextEditingValue textEditingValue) async {
-                                final query = textEditingValue.text.trim();
-                                if (query.isEmpty) {
-                                  return _equipmentOptions.take(8);
-                                }
-                                // Motor Carbon Brush remains using dedicated carbon brush motor list
-                                if (_selectedFormType == 'service-motor-mv-carbon-brush') {
-                                  return _equipmentOptions
-                                      .where((opt) => opt.toLowerCase().contains(query.toLowerCase()))
-                                      .take(15);
-                                }
-                                // Other services/inspections search 33,028 SAP equipment database scoped by unit kerja
-                                try {
-                                  final sapResults = await widget.apiService.searchSapEquipments(query, limit: 15);
-                                  if (sapResults.isNotEmpty) {
-                                    return sapResults.map((e) => e.displayName);
-                                  }
-                                } catch (_) {}
-                                return _equipmentOptions
-                                    .where((opt) => opt.toLowerCase().contains(query.toLowerCase()))
-                                    .take(15);
-                              },
-                              onSelected: (String selection) {
-                                _onEquipmentSelected(selection);
-                              },
-                              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                                return TextFormField(
-                                  controller: controller,
-                                  focusNode: focusNode,
-                                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                                  decoration: InputDecoration(
-                                    hintText: 'Ketik nama equipment...',
-                                    hintStyle: const TextStyle(color: Colors.white30),
-                                    filled: true,
-                                    fillColor: AppTheme.surfaceFloat,
-                                    prefixIcon: const Icon(Icons.build_rounded, color: AppConstants.accentCyan, size: 18),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.border)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                  ),
-                                  validator: (val) => val == null || val.trim().isEmpty ? 'Wajib diisi' : null,
-                                  onFieldSubmitted: (val) => onFieldSubmitted(),
-                                );
-                              },
-                              optionsViewBuilder: (context, onSelected, options) {
-                                return Align(
-                                  alignment: Alignment.topLeft,
-                                  child: Material(
-                                    elevation: 12,
-                                    color: Colors.transparent,
-                                    child: Container(
-                                      width: 250,
-                                      margin: const EdgeInsets.only(top: 4),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF132328),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: AppTheme.teal.withValues(alpha: 0.6)),
-                                        boxShadow: const [
-                                          BoxShadow(color: Colors.black87, blurRadius: 16, offset: Offset(0, 6)),
-                                        ],
-                                      ),
-                                      constraints: const BoxConstraints(maxHeight: 220),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: ListView.separated(
-                                          padding: const EdgeInsets.symmetric(vertical: 4),
-                                          shrinkWrap: true,
-                                          itemCount: options.length,
-                                          separatorBuilder: (_, __) => Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
-                                          itemBuilder: (context, index) {
-                                            final option = options.elementAt(index);
-                                            return InkWell(
-                                              onTap: () => onSelected(option),
-                                              child: Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(Icons.subdirectory_arrow_right_rounded, size: 14, color: AppTheme.teal),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Text(
-                                                        option,
-                                                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'AREA',
-                              style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                              'AREA OPERASIONAL',
+                              style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                              softWrap: true,
                             ),
                             const SizedBox(height: 6),
                             Container(
@@ -1670,47 +2015,6 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Tanggal & Status
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'TANGGAL INSPEKSI',
-                              style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
-                            ),
-                            const SizedBox(height: 6),
-                            InkWell(
-                              onTap: _pickDate,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.surfaceFloat,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppTheme.border),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.calendar_month_rounded, color: AppTheme.teal, size: 18),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      DateFormat('dd MMM yyyy').format(_selectedDate),
-                                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -1718,7 +2022,8 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
                           children: [
                             const Text(
                               'STATUS PEKERJAAN',
-                              style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                              style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                              softWrap: true,
                             ),
                             const SizedBox(height: 6),
                             Container(
@@ -1753,33 +2058,124 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Teknisi
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // Tanggal Inspeksi
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'TEKNISI / PIC',
-                        style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                      const Text(
+                        'TANGGAL INSPEKSI',
+                        style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                        softWrap: true,
                       ),
-                      Text(
-                        '(Otomatis Akun Login)',
-                        style: TextStyle(color: AppTheme.teal, fontSize: 10, fontWeight: FontWeight.w600),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: _pickDate,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceFloat,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.border),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_month_rounded, color: AppTheme.teal, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                DateFormat('dd MMM yyyy').format(_selectedDate),
+                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: _teknisiCtrl,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Nama Teknisi Lapangan',
-                      hintStyle: const TextStyle(color: Colors.white30),
-                      filled: true,
-                      fillColor: AppTheme.surfaceFloat,
-                      prefixIcon: const Icon(Icons.person_outline_rounded, color: AppTheme.teal, size: 18),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.border)),
-                    ),
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Wajib diisi' : null,
+                  const SizedBox(height: 14),
+
+                  // Teknisi / PIC & Tag Rekan
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'TEKNISI / PIC',
+                            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                          ),
+                          InkWell(
+                            onTap: _showTagColleagueDialog,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppConstants.accentCyan.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: AppConstants.accentCyan.withOpacity(0.4)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.person_add_alt_1, color: AppConstants.accentCyan, size: 12),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '+ Tag Rekan (${widget.currentUser?.unitBadgeLabel ?? "Unit"})',
+                                    style: const TextStyle(color: AppConstants.accentCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _teknisiCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Nama Teknisi Lapangan',
+                          hintStyle: const TextStyle(color: Colors.white30),
+                          filled: true,
+                          fillColor: AppTheme.surfaceFloat,
+                          prefixIcon: const Icon(Icons.person_outline_rounded, color: AppTheme.teal, size: 18),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.border)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Wajib diisi' : null,
+                      ),
+                      if (_taggedColleagues.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: _taggedColleagues.map((name) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.teal.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppTheme.teal.withOpacity(0.4)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.people_outline, size: 14, color: AppTheme.teal),
+                                  const SizedBox(width: 6),
+                                  Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                                  const SizedBox(width: 6),
+                                  InkWell(
+                                    onTap: () => _removeColleagueTag(name),
+                                    child: const Icon(Icons.close, size: 14, color: Colors.white60),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
                   ),
 
                   // ==========================================
@@ -2139,9 +2535,9 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
                     ),
                   ],
 
-                  // 6. EH/CA
+                  // 6. EHCA
                   if (isEhca) ...[
-                    _buildSectionHead('Inspeksi Unit EH/CA (Hydraulic)', 'Tekanan sistem, level fluida, filter, kebocoran & pompa'),
+                    _buildSectionHead('Inspeksi EHCA', 'Tekanan sistem, level fluida, filter, kebocoran & pompa EHCA'),
                     Row(
                       children: [
                         Expanded(child: _buildTextField(controller: _ehcaSystemPressureCtrl, label: 'Tekanan Sistem', hint: '135 bar', helperText: '(Standar: 120-150 bar)')),
