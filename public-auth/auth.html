@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Login Google - Portable Inspection Tool</title>
+  <title>Login Google - Maintenance Tool Online</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
@@ -158,8 +158,8 @@
 <body>
   <div class="auth-container">
     <div class="badge">SECURE INDUSTRIAL SSO</div>
-    <h1>Portable Inspection Tool</h1>
-    <p class="subtitle">Masuk dengan akun Google Anda untuk sinkronisasi otomatis data inspeksi dan checklist lapangan.</p>
+    <h1>Maintenance Tool Online</h1>
+    <p class="subtitle">Masuk dengan akun Google Anda untuk sinkronisasi otomatis data inspeksi dan maintenance Tuban 1 - Tuban 4.</p>
 
     <!-- Google Identity Services Container -->
     <div id="g_id_onload"
@@ -193,9 +193,9 @@
     </button>
 
     <div id="statusBox" class="status-box"></div>
-    <a id="btnManualReturn" href="plirm34://auth" class="btn-manual-return">Buka Portable Inspection Tool</a>
+    <a id="btnManualReturn" href="plirm34://auth" class="btn-manual-return">Buka Maintenance Tool Online</a>
 
-    <a href="plirm34://auth" class="footer-link">← Kembali ke Aplikasi Portable Inspection Tool</a>
+    <a href="plirm34://auth" class="footer-link">← Kembali ke Aplikasi Maintenance Tool Online</a>
   </div>
 
   <script>
@@ -228,7 +228,7 @@
 
         const data = await res.json();
         if (data.token) {
-          setStatus("success", "Login Google berhasil! Mengalihkan ke Portable Inspection Tool...");
+          setStatus("success", "Login Google berhasil! Mengalihkan ke Maintenance Tool Online...");
 
           const params = new URLSearchParams();
           params.set("token", data.token);
@@ -262,7 +262,7 @@
           if (btnManual) {
             btnManual.href = returnUrl;
             btnManual.style.display = "block";
-            btnManual.innerText = "Buka Portable Inspection Tool (" + (data.user?.username || "Google") + ")";
+            btnManual.innerText = "Buka Maintenance Tool Online (" + (data.user?.username || "Google") + ")";
           }
           setTimeout(() => {
             window.location.href = returnUrl;

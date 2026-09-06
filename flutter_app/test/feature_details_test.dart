@@ -9,6 +9,7 @@ import 'package:portable_inspection_tool/ui/features/service/widgets/service_det
 import 'package:portable_inspection_tool/ui/features/sparepart/widgets/sparepart_detail_sheet.dart';
 import 'package:portable_inspection_tool/data/services/api_service.dart';
 import 'package:portable_inspection_tool/ui/features/auth/login_screen.dart';
+import 'package:portable_inspection_tool/ui/features/auth/profile_completion_dialog.dart';
 import 'package:portable_inspection_tool/ui/features/overtime/widgets/overtime_detail_sheet.dart';
 
 void main() {
@@ -449,6 +450,83 @@ void main() {
       await tester.tap(find.byIcon(Icons.delete_outline_rounded));
       await tester.pumpAndSettle();
       expect(deleteCalled, isTrue);
+    });
+  });
+
+  group('Profile Completion & Unit Kerja Scoping Tests', () {
+    test('UserModel handles Unit Kerja and Profile Completion attributes', () {
+      final user = UserModel.fromJson({
+        'id': 100,
+        'username': 'teknisi1@gmail.com',
+        'role': 'team',
+        'fullName': 'Ahmad Teknisi',
+        'badgeNumber': '98765',
+        'employmentType': 'organik',
+        'company': 'Gopo Tuban',
+        'unitKerja': 'PLIRM12',
+        'isProfileCompleted': 1,
+      });
+
+      expect(user.displayName, equals('Ahmad Teknisi'));
+      expect(user.unitBadgeLabel, equals('PLIRM12'));
+      expect(user.isProfileCompleted, isTrue);
+      expect(user.needsProfileCompletion, isFalse);
+    });
+
+    test('UserModel marks incomplete profile for non-admin', () {
+      final newUser = UserModel(
+        id: 101,
+        username: 'google_new_user',
+        role: 'team',
+        isProfileCompleted: false,
+      );
+
+      expect(newUser.needsProfileCompletion, isTrue);
+      expect(newUser.unitBadgeLabel, equals('UNIT BELUM DISET'));
+
+      final adminUser = UserModel(
+        id: 1,
+        username: 'admin',
+        role: 'admin',
+        isProfileCompleted: false,
+      );
+      // Admin never needs profile completion
+      expect(adminUser.needsProfileCompletion, isFalse);
+      expect(adminUser.unitBadgeLabel, equals('ALL UNITS'));
+    });
+
+    testWidgets('ProfileCompletionDialog renders form fields properly', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final user = UserModel(
+        id: 105,
+        username: 'new.teknisi@gmail.com',
+        role: 'team',
+        fullName: 'New Teknisi',
+        isProfileCompleted: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ProfileCompletionDialog(
+              apiService: ApiService(),
+              currentUser: user,
+              onProfileCompleted: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Kelengkapan Profil Akun'), findsOneWidget);
+      expect(find.text('Nama Lengkap *'), findsOneWidget);
+      expect(find.text('No. Badge / NIK *'), findsOneWidget);
+      expect(find.text('Jenis Karyawan *'), findsOneWidget);
+      expect(find.text('Unit Kerja Penugasan *'), findsOneWidget);
+      expect(find.text('Simpan Profil & Mulai'), findsOneWidget);
     });
   });
 }

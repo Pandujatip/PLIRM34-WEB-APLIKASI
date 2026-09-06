@@ -1532,12 +1532,27 @@ class _ServiceFormSheetState extends State<ServiceFormSheet> {
                             RawAutocomplete<String>(
                               textEditingController: _equipmentCtrl,
                               focusNode: _equipmentFocusNode,
-                              optionsBuilder: (TextEditingValue textEditingValue) {
-                                if (textEditingValue.text.isEmpty) {
+                              optionsBuilder: (TextEditingValue textEditingValue) async {
+                                final query = textEditingValue.text.trim();
+                                if (query.isEmpty) {
                                   return _equipmentOptions.take(8);
                                 }
-                                final query = textEditingValue.text.toLowerCase();
-                                return _equipmentOptions.where((opt) => opt.toLowerCase().contains(query)).take(12);
+                                // Motor Carbon Brush remains using dedicated carbon brush motor list
+                                if (_selectedFormType == 'service-motor-mv-carbon-brush') {
+                                  return _equipmentOptions
+                                      .where((opt) => opt.toLowerCase().contains(query.toLowerCase()))
+                                      .take(15);
+                                }
+                                // Other services/inspections search 33,028 SAP equipment database scoped by unit kerja
+                                try {
+                                  final sapResults = await widget.apiService.searchSapEquipments(query, limit: 15);
+                                  if (sapResults.isNotEmpty) {
+                                    return sapResults.map((e) => e.displayName);
+                                  }
+                                } catch (_) {}
+                                return _equipmentOptions
+                                    .where((opt) => opt.toLowerCase().contains(query.toLowerCase()))
+                                    .take(15);
                               },
                               onSelected: (String selection) {
                                 _onEquipmentSelected(selection);

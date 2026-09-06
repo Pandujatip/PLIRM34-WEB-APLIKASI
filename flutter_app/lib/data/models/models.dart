@@ -5,17 +5,38 @@ class UserModel {
   final String username;
   final String role;
   final String? token;
+  final String? fullName;
+  final String? badgeNumber;
+  final String? employmentType;
+  final String? company;
+  final String? unitKerja;
+  final bool isProfileCompleted;
 
   UserModel({
     required this.id,
     required this.username,
     required this.role,
     this.token,
+    this.fullName,
+    this.badgeNumber,
+    this.employmentType,
+    this.company,
+    this.unitKerja,
+    this.isProfileCompleted = false,
   });
 
   bool get isAdmin => role.toLowerCase() == 'admin';
   bool get isOrganik => role.toLowerCase() == 'organik';
   bool get isTeam => !isAdmin && !isOrganik;
+
+  bool get needsProfileCompletion => !isAdmin && !isProfileCompleted;
+
+  String get displayName {
+    if (fullName != null && fullName!.trim().isNotEmpty) {
+      return fullName!.trim();
+    }
+    return username;
+  }
 
   String get roleBadgeLabel {
     if (isAdmin) return 'ADMIN';
@@ -23,17 +44,60 @@ class UserModel {
     return 'TIM TEKNISI';
   }
 
+  String get unitBadgeLabel {
+    if (isAdmin) return 'ALL UNITS';
+    if (unitKerja != null && unitKerja!.isNotEmpty) {
+      return unitKerja!;
+    }
+    return 'UNIT BELUM DISET';
+  }
+
   bool get canCloseNegatifList => isAdmin || isOrganik;
   bool get canEditService => isAdmin || isOrganik;
   bool get canApproveOvertime => isAdmin;
   bool get canManageSpareparts => isAdmin;
 
+  UserModel copyWith({
+    int? id,
+    String? username,
+    String? role,
+    String? token,
+    String? fullName,
+    String? badgeNumber,
+    String? employmentType,
+    String? company,
+    String? unitKerja,
+    bool? isProfileCompleted,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      role: role ?? this.role,
+      token: token ?? this.token,
+      fullName: fullName ?? this.fullName,
+      badgeNumber: badgeNumber ?? this.badgeNumber,
+      employmentType: employmentType ?? this.employmentType,
+      company: company ?? this.company,
+      unitKerja: unitKerja ?? this.unitKerja,
+      isProfileCompleted: isProfileCompleted ?? this.isProfileCompleted,
+    );
+  }
+
   factory UserModel.fromJson(Map<String, dynamic> json, {String? token}) {
+    final rawIsCompleted = json['isProfileCompleted'] ?? json['is_profile_completed'];
+    final bool isCompleted = rawIsCompleted == true || rawIsCompleted == 1 || rawIsCompleted == '1';
+
     return UserModel(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
       username: json['username']?.toString() ?? '',
       role: json['role']?.toString() ?? 'team',
       token: token ?? json['token']?.toString(),
+      fullName: json['fullName']?.toString() ?? json['full_name']?.toString(),
+      badgeNumber: json['badgeNumber']?.toString() ?? json['badge_number']?.toString(),
+      employmentType: json['employmentType']?.toString() ?? json['employment_type']?.toString(),
+      company: json['company']?.toString(),
+      unitKerja: json['unitKerja']?.toString() ?? json['unit_kerja']?.toString(),
+      isProfileCompleted: isCompleted,
     );
   }
 
@@ -42,6 +106,12 @@ class UserModel {
     'username': username,
     'role': role,
     'token': token,
+    'fullName': fullName,
+    'badgeNumber': badgeNumber,
+    'employmentType': employmentType,
+    'company': company,
+    'unitKerja': unitKerja,
+    'isProfileCompleted': isProfileCompleted,
   };
 }
 
@@ -612,4 +682,78 @@ class CarbonBrushStockLogItem {
       'createdAt': createdAt,
     };
   }
+}
+
+class SapEquipmentItem {
+  final String equipmentId;
+  final String tagNo;
+  final String description;
+  final String discipline;
+  final String disciplineName;
+  final String category;
+  final String plantCode;
+  final String plantName;
+  final String areaCode;
+  final String areaName;
+  final String flocCode;
+  final String? parentEquipmentId;
+  final bool isMainEquipment;
+  final int subEquipmentCount;
+
+  SapEquipmentItem({
+    required this.equipmentId,
+    required this.tagNo,
+    required this.description,
+    this.discipline = '',
+    this.disciplineName = '',
+    this.category = '',
+    this.plantCode = '',
+    this.plantName = '',
+    this.areaCode = '',
+    this.areaName = '',
+    this.flocCode = '',
+    this.parentEquipmentId,
+    this.isMainEquipment = false,
+    this.subEquipmentCount = 0,
+  });
+
+  String get displayName => tagNo.isNotEmpty ? '$tagNo - $description' : description;
+
+  factory SapEquipmentItem.fromJson(Map<String, dynamic> json) {
+    return SapEquipmentItem(
+      equipmentId: json['equipment_id']?.toString() ?? '',
+      tagNo: json['tag_no']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      discipline: json['discipline']?.toString() ?? '',
+      disciplineName: json['discipline_name']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      plantCode: json['plant_code']?.toString() ?? '',
+      plantName: json['plant_name']?.toString() ?? '',
+      areaCode: json['area_code']?.toString() ?? '',
+      areaName: json['area_name']?.toString() ?? '',
+      flocCode: json['floc_code']?.toString() ?? '',
+      parentEquipmentId: json['parent_equipment_id']?.toString(),
+      isMainEquipment: json['is_main_equipment'] == 1 || json['is_main_equipment'] == true,
+      subEquipmentCount: json['sub_equipment_count'] is int
+          ? json['sub_equipment_count'] as int
+          : int.tryParse(json['sub_equipment_count']?.toString() ?? '0') ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'equipment_id': equipmentId,
+    'tag_no': tagNo,
+    'description': description,
+    'discipline': discipline,
+    'discipline_name': disciplineName,
+    'category': category,
+    'plant_code': plantCode,
+    'plant_name': plantName,
+    'area_code': areaCode,
+    'area_name': areaName,
+    'floc_code': flocCode,
+    'parent_equipment_id': parentEquipmentId,
+    'is_main_equipment': isMainEquipment ? 1 : 0,
+    'sub_equipment_count': subEquipmentCount,
+  };
 }

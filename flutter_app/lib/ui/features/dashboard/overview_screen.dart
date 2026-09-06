@@ -199,6 +199,23 @@ class _OverviewScreenState extends State<OverviewScreen> {
             ),
             if (widget.currentUser != null) ...[
               const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppConstants.accentCyan.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppConstants.accentCyan),
+                ),
+                child: Text(
+                  widget.currentUser!.unitBadgeLabel,
+                  style: const TextStyle(
+                    color: AppConstants.accentCyan,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
               GestureDetector(
                 onTap: widget.currentUser!.isAdmin
                     ? () => UserManagementSheet.show(context, apiService: widget.apiService)
@@ -207,10 +224,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: widget.currentUser!.isAdmin
-                        ? AppTheme.amber.withValues(alpha: 0.15)
+                        ? AppTheme.amber.withOpacity(0.15)
                         : (widget.currentUser!.isOrganik
-                            ? AppTheme.teal.withValues(alpha: 0.15)
-                            : AppTheme.green.withValues(alpha: 0.15)),
+                            ? AppTheme.teal.withOpacity(0.15)
+                            : AppTheme.green.withOpacity(0.15)),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                       color: widget.currentUser!.isAdmin

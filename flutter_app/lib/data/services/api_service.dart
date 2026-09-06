@@ -99,6 +99,75 @@ class ApiService {
     return null;
   }
 
+  Future<UserModel> completeProfile({
+    required String fullName,
+    required String badgeNumber,
+    required String employmentType,
+    required String company,
+    required String unitKerja,
+  }) async {
+    final uri = Uri.parse("$baseUrl/api/auth/complete-profile");
+    final res = await http.post(
+      uri,
+      headers: _headers(),
+      body: jsonEncode({
+        "full_name": fullName,
+        "badge_number": badgeNumber,
+        "employment_type": employmentType,
+        "company": company,
+        "unit_kerja": unitKerja,
+      }),
+    ).timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300 && data["user"] != null) {
+      return UserModel.fromJson(data["user"], token: _sessionToken);
+    } else {
+      throw Exception(data["error"] ?? "Gagal menyimpan kelengkapan profil");
+    }
+  }
+
+  Future<List<SapEquipmentItem>> searchSapEquipments(
+    String query, {
+    String? area,
+    String? plant,
+    int limit = 50,
+  }) async {
+    final queryParams = <String, String>{
+      "q": query,
+      "limit": limit.toString(),
+      if (area != null && area.isNotEmpty && area != "ALL") "area": area,
+      if (plant != null && plant.isNotEmpty && plant != "ALL") "plant": plant,
+    };
+    final uri = Uri.parse("$baseUrl/api/equipments/search").replace(queryParameters: queryParams);
+    try {
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data["records"] is List) {
+          return (data["records"] as List)
+              .map((e) => SapEquipmentItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getSapAreas({String plant = "ALL"}) async {
+    final uri = Uri.parse("$baseUrl/api/equipments/areas").replace(queryParameters: {"plant": plant});
+    try {
+      final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data["areas"] is List) {
+          return (data["areas"] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
   // --- Inspection & Monitor APIs ---
   Future<Map<String, dynamic>> fetchOverview() async {
     try {

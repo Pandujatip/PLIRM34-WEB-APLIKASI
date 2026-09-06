@@ -8,6 +8,7 @@ import "data/models/models.dart";
 import "data/services/api_service.dart";
 import "ui/core/widgets/bottom_nav_bar.dart";
 import "ui/features/auth/login_screen.dart";
+import "ui/features/auth/profile_completion_dialog.dart";
 import "ui/features/dashboard/overview_screen.dart";
 import "ui/features/service/service_screen.dart";
 import "ui/features/sparepart/sparepart_screen.dart";
@@ -108,16 +109,43 @@ class _AppRootState extends State<AppRoot> {
   Future<void> _loadSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(AppConstants.prefToken) ?? widget.initialToken;
-    final role = prefs.getString("pref_user_role") ?? "admin";
-    final uname = prefs.getString("pref_username") ?? "admin.plirm34";
+    final role = prefs.getString("pref_user_role") ?? "team";
+    final uname = prefs.getString("pref_username") ?? "user";
+    final fullName = prefs.getString("pref_full_name");
+    final badgeNumber = prefs.getString("pref_badge_number");
+    final empType = prefs.getString("pref_emp_type");
+    final company = prefs.getString("pref_company");
+    final unitKerja = prefs.getString("pref_unit_kerja");
+    final isCompleted = prefs.getBool("pref_is_profile_completed") ?? false;
+
     if (token != null && token.isNotEmpty) {
       _apiService.setSessionToken(token);
+      final initialUser = UserModel(
+        id: 1,
+        username: uname,
+        role: role,
+        token: token,
+        fullName: fullName,
+        badgeNumber: badgeNumber,
+        employmentType: empType,
+        company: company,
+        unitKerja: unitKerja,
+        isProfileCompleted: isCompleted,
+      );
+
       if (mounted) {
         setState(() {
-          _currentUser = UserModel(id: 1, username: uname, role: role, token: token);
+          _currentUser = initialUser;
           _isLoggedIn = true;
         });
       }
+
+      // Fetch live verified profile from /api/auth/me to sync latest roles/units
+      _apiService.fetchCurrentUser(token: token).then((serverUser) {
+        if (serverUser != null && mounted) {
+          _onLoginSuccess(serverUser);
+        }
+      }).catchError((_) {});
     }
   }
 
@@ -171,12 +199,33 @@ class _AppRootState extends State<AppRoot> {
     await prefs.setString(AppConstants.prefToken, effectiveToken);
     await prefs.setString("pref_user_role", user.role);
     await prefs.setString("pref_username", user.username);
+    if (user.fullName != null) await prefs.setString("pref_full_name", user.fullName!);
+    if (user.badgeNumber != null) await prefs.setString("pref_badge_number", user.badgeNumber!);
+    if (user.employmentType != null) await prefs.setString("pref_emp_type", user.employmentType!);
+    if (user.company != null) await prefs.setString("pref_company", user.company!);
+    if (user.unitKerja != null) await prefs.setString("pref_unit_kerja", user.unitKerja!);
+    await prefs.setBool("pref_is_profile_completed", user.isProfileCompleted);
+
     _apiService.setSessionToken(effectiveToken);
     if (mounted) {
       setState(() {
         _currentUser = user;
         _isLoggedIn = true;
       });
+
+      if (user.needsProfileCompletion) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ProfileCompletionDialog.show(
+            context,
+            apiService: _apiService,
+            currentUser: user,
+            onProfileCompleted: (updated) {
+              _onLoginSuccess(updated);
+            },
+          );
+        });
+      }
     }
   }
 
@@ -185,6 +234,12 @@ class _AppRootState extends State<AppRoot> {
     await prefs.remove(AppConstants.prefToken);
     await prefs.remove("pref_user_role");
     await prefs.remove("pref_username");
+    await prefs.remove("pref_full_name");
+    await prefs.remove("pref_badge_number");
+    await prefs.remove("pref_emp_type");
+    await prefs.remove("pref_company");
+    await prefs.remove("pref_unit_kerja");
+    await prefs.remove("pref_is_profile_completed");
     _apiService.setSessionToken(null);
     if (mounted) {
       setState(() {
